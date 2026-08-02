@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Register — Federated Reviews{% endblock %}
+{% block head %}
+<style>
+  .auth-page {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; background: #f1f5f9;
+  }
+  .auth-card {
+    background: #fff; border-radius: 12px; padding: 32px;
+    width: 100%; max-width: 380px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -2px rgba(0,0,0,.05);
+    border: 1px solid #e2e8f0;
+  }
+  .auth-card h1 { margin: 0 0 8px; font-size: 1.25rem; }
+  .auth-card p { margin: 0 0 20px; color: #64748b; font-size: 0.875rem; }
+  .auth-card label { display: block; font-size: 0.8125rem; font-weight: 600;
+    color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .auth-card input { width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0;
+    border-radius: 8px; font-size: 0.9375rem; margin-bottom: 16px; box-sizing: border-box; }
+  .auth-card input:focus { outline: none; border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+  .auth-card button { width: 100%; padding: 12px; border: none;
+    border-radius: 8px; background: #2563eb; color: #fff;
+    font-size: 0.9375rem; font-weight: 600; cursor: pointer; }
+  .auth-card button:hover { background: #1d4ed8; }
+  .auth-card .error { background: #fef2f2; color: #dc2626; padding: 10px 12px;
+    border-radius: 8px; margin-bottom: 16px; font-size: 0.875rem; }
+  .auth-card .footer { margin-top: 16px; text-align: center;
+    font-size: 0.8125rem; color: #64748b; }
+  .auth-card .footer a { color: #2563eb; text-decoration: none; font-weight: 500; }
+</style>
+{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <h1>Create an account</h1>
+    <p>Join your community's review server</p>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" required autofocus>
+      <label for="display_name">Display name</label>
+      <input type="text" id="display_name" name="display_name" required>
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required>
+      <button type="submit">Create account</button>
+    </form>
+    <div class="footer">
+      Already have an account? <a href="/login">Sign in</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

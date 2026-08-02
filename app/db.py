@@ -29,6 +29,11 @@ async def get_db() -> aiosqlite.Connection:
         _db = await aiosqlite.connect(config.database_path)
         _db.row_factory = aiosqlite.Row
         await _db.executescript(SCHEMA)
+        # Migration: add password_hash to existing databases
+        try:
+            await _db.execute("ALTER TABLE actors ADD COLUMN password_hash TEXT")
+        except aiosqlite.OperationalError:
+            pass  # column already exists
         await _db.commit()
     return _db
 
@@ -47,6 +52,7 @@ CREATE TABLE IF NOT EXISTS actors (
     followers_uri   TEXT NOT NULL,
     following_uri   TEXT NOT NULL,
     is_local        INTEGER NOT NULL DEFAULT 1,
+    password_hash   TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -93,13 +99,15 @@ async def create_actor(
     outbox_uri: str,
     followers_uri: str,
     following_uri: str,
+    password_hash: str | None = None,
 ) -> dict[str, Any]:
     db = await get_db()
     cursor = await db.execute(
         """INSERT INTO actors (username, display_name, summary,
            private_key_pem, public_key_pem, actor_uri,
-           inbox_uri, outbox_uri, followers_uri, following_uri)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           inbox_uri, outbox_uri, followers_uri, following_uri,
+           password_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             username,
             display_name,
@@ -111,6 +119,7 @@ async def create_actor(
             outbox_uri,
             followers_uri,
             following_uri,
+            password_hash,
         ),
     )
     await db.commit()
@@ -139,6 +148,23 @@ async def get_actor_by_id(actor_id: int) -> dict[str, Any] | None:
     row = await db.execute("SELECT * FROM actors WHERE id = ?", (actor_id,))
     result = await row.fetchone()
     return dict(result) if result else None
+
+
+# ── password helpers ───────────────────────────────────────────────────
+
+
+def hash_password(password: str) -> str:
+    """Return a bcrypt hash of *password*."""
+    from passlib.hash import bcrypt
+
+    return bcrypt.hash(password)
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Check *password* against a bcrypt hash."""
+    from passlib.hash import bcrypt
+
+    return bcrypt.verify(password, password_hash)
 
 
 async def list_local_actors() -> list[dict[str, Any]]:

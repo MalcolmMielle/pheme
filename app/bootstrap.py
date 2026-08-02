@@ -22,11 +22,18 @@ async def _bootstrap() -> None:
     """Create a default actor and seed demo reviews."""
     from app.activitypub.signing import generate_keypair
     from app.config import config
-    from app.db import create_actor, create_review, get_actor_by_username, get_db
+    from app.db import (
+        create_actor,
+        create_review,
+        get_actor_by_username,
+        get_db,
+        hash_password,
+    )
 
     # ── Create default actor ────────────────────────────────────────────
     username = "alice"
     display_name = "Alice Reviewer"
+    password = "alice"  # change after first login!
     existing = await get_actor_by_username(username)
     if existing:
         logger.info("Actor '%s' already exists — skipping.", username)
@@ -44,8 +51,10 @@ async def _bootstrap() -> None:
             outbox_uri=f"{base}/outbox",
             followers_uri=f"{base}/followers",
             following_uri=f"{base}/following",
+            password_hash=hash_password(password),
         )
         logger.info("Created actor '%s' (%s).", username, actor["actor_uri"])
+        logger.info("  → Login:  %s  /  %s", username, password)
 
     # ── Seed demo reviews around San Francisco ─────────────────────────
     actor_row = await get_actor_by_username(username)

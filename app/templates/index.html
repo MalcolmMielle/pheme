@@ -18,6 +18,20 @@
     <span id="review-count">Loading…</span>
   </div>
 
+  <div id="sidebar-user">
+    {% if user %}
+      <span title="Logged in as {{ user.display_name or user.username }}">
+        👤 {{ user.display_name or user.username }}
+      </span>
+      <form method="post" action="/logout" style="display:inline">
+        <button type="submit" class="link-btn">Logout</button>
+      </form>
+    {% else %}
+      <a href="/login" class="link-btn">Sign in</a>
+      <a href="/register" class="link-btn">Register</a>
+    {% endif %}
+  </div>
+
   <!-- Global map search -->
   <div id="map-search-wrapper">
     <input type="text" id="map-search" placeholder="Search for a place…" autocomplete="off">
@@ -28,7 +42,8 @@
   <div id="review-list"></div>
 
   <!-- New review button -->
-  <button id="btn-add-review" class="fab" title="Add a review">＋</button>
+  <button id="btn-add-review" class="fab" title="Add a review"
+          {% if not user %}onclick="location.href='/login'"{% endif %}>＋</button>
 </div>
 
 <!-- ── Review form panel (hidden by default) ───────────────────────── -->
@@ -38,13 +53,6 @@
     <button id="btn-close-panel" class="icon-btn">✕</button>
   </div>
   <form id="review-form">
-    <label for="actor-select">Post as</label>
-    <select id="actor-select" name="username" required>
-      {% for a in actors %}
-      <option value="{{ a.username }}">{{ a.display_name or a.username }}</option>
-      {% endfor %}
-    </select>
-
     <label for="place-name">Search for a place</label>
     <div id="search-wrapper">
       <input type="text" id="place-name" name="place_name"

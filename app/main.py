@@ -11,7 +11,10 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
+from app.config import config
+from app.auth import _LoginRequired, login_required_handler
 from app.routes.activitypub import router as activitypub_router
 from app.routes.api import router as api_router
 from app.routes.web import router as web_router
@@ -19,6 +22,14 @@ from app.routes.web import router as web_router
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Federated Reviews", version="0.1.0")
+
+# ── middleware ──────────────────────────────────────────────────────────
+
+app.add_middleware(SessionMiddleware, secret_key=config.secret_key)
+
+# ── exception handlers ─────────────────────────────────────────────────
+
+app.add_exception_handler(_LoginRequired, login_required_handler)
 
 # ── static files ────────────────────────────────────────────────────────
 
@@ -37,8 +48,6 @@ app.include_router(api_router)
 def main() -> None:
     """Entry point for `fedreviews` CLI command."""
     import uvicorn
-
-    from app.config import config
 
     uvicorn.run("app.main:app", host=config.host, port=config.port, reload=True)
 

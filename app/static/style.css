@@ -62,6 +62,31 @@ body {
   font-weight: 500;
 }
 
+/* ── user strip ─────────────────────────────────────────────────────── */
+#sidebar-user {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#sidebar-user span {
+  flex: 1;
+  color: var(--text-secondary);
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  padding: 0;
+}
+.link-btn:hover { text-decoration: underline; }
+
 /* ── global map search bar ──────────────────────────────────────────── */
 #map-search-wrapper {
   padding: 10px 12px;

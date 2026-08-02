@@ -4,12 +4,13 @@ JSON API routes — review CRUD and bootstrap for the frontend.
 
 import logging
 
-from fastapi import APIRouter, Form, HTTPException
+from fastapi import APIRouter, Depends, Form
 from fastapi.responses import JSONResponse
 
 from app.activitypub.actor import actor_to_ap
 from app.activitypub.delivery import fanout_activity
 from app.activitypub.signing import generate_keypair
+from app.auth import get_current_user
 from app.db import (
     create_actor,
     create_review,
@@ -17,6 +18,7 @@ from app.db import (
     get_followers,
     get_reviews,
     get_reviews_by_bounds,
+    hash_password,
 )
 from app.routes.activitypub import actor_uri, inbox_uri, outbox_uri
 
@@ -47,7 +49,7 @@ async def api_reviews(
 
 @router.post("/api/reviews")
 async def api_create_review(
-    username: str = Form(...),
+    actor: dict = Depends(get_current_user),
     content: str = Form(...),
     rating: int = Form(...),
     latitude: float = Form(...),
@@ -56,10 +58,6 @@ async def api_create_review(
     place_address: str = Form(""),
 ) -> JSONResponse:
     """Create a new review and federate it to followers."""
-    actor = await get_actor_by_username(username)
-    if not actor:
-        raise HTTPException(400, "Unknown actor")
-
     ap_id = f"{actor['actor_uri']}/review/{content[:30].replace(' ', '-')}"
     review = await create_review(
         actor_id=actor["id"],
@@ -137,5 +135,6 @@ async def api_bootstrap(
         outbox_uri=outbox_uri(username),
         followers_uri=f"{actor_uri(username)}/followers",
         following_uri=f"{actor_uri(username)}/following",
+        password_hash=hash_password(password) if password else None,
     )
     return JSONResponse({"status": "created", "actor": actor_to_ap(actor).model_dump()})

@@ -23,6 +23,13 @@ class Config:
         default_factory=lambda: os.getenv("DATABASE_PATH", "data/reviews.db")
     )
 
+    # Secret key for session signing — CHANGE THIS in production.
+    secret_key: str = field(
+        default_factory=lambda: os.getenv(
+            "SECRET_KEY", "dev-secret-change-me-in-production"
+        )
+    )
+
     # Domain extracted from base_url — used for WebFinger.
     # Includes the port for non-standard ports (e.g. "localhost:8000").
     @property
