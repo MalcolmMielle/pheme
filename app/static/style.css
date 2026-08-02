@@ -1,0 +1,440 @@
+/* ── Federated Reviews — Google Maps-inspired UI ────────────────────── */
+
+:root {
+  --sidebar-w: 380px;
+  --panel-w: 400px;
+  --surface: #ffffff;
+  --surface-elevated: #f8fafc;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border: #e2e8f0;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --star: #f59e0b;
+  --danger: #ef4444;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -2px rgba(0,0,0,.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -4px rgba(0,0,0,.05);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+/* ── reset ──────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
+  color: var(--text-primary);
+  background: #f1f5f9;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── sidebar ────────────────────────────────────────────────────────── */
+#sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--sidebar-w);
+  height: 100vh;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+#sidebar-header {
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+#sidebar-header h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+#review-count {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ── global map search bar ──────────────────────────────────────────── */
+#map-search-wrapper {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+#map-search {
+  width: 100%;
+  padding: 9px 12px 9px 34px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--surface-elevated) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") 10px center no-repeat;
+  transition: border-color .2s, box-shadow .2s;
+}
+#map-search:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+  background-color: var(--surface);
+}
+#map-search::placeholder {
+  color: #94a3b8;
+}
+#map-search-results {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 12px;
+  right: 12px;
+  z-index: 2000;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  display: none;
+}
+#map-search-results.visible {
+  display: block;
+}
+
+/* ── review list ────────────────────────────────────────────────────── */
+#review-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+.review-card {
+  padding: 14px 16px;
+  margin: 4px 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background .15s;
+  border: 1px solid transparent;
+}
+.review-card:hover,
+.review-card.active {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+}
+.review-card .place {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  margin-bottom: 2px;
+}
+.review-card .stars {
+  color: var(--star);
+  font-size: 0.875rem;
+  letter-spacing: 2px;
+}
+.review-card .meta-line {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.review-card .snippet {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── FAB ────────────────────────────────────────────────────────────── */
+.fab {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 28px;
+  font-weight: 300;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37,99,235,.4);
+  transition: transform .2s, box-shadow .2s;
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fab:hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 20px rgba(37,99,235,.5);
+}
+
+/* ── panels (review form, detail) ──────────────────────────────────── */
+#review-panel,
+#detail-panel {
+  position: fixed;
+  top: 0;
+  left: var(--sidebar-w);
+  width: var(--panel-w);
+  height: 100vh;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  z-index: 999;
+  transform: translateX(0);
+  transition: transform .25s cubic-bezier(.4,0,.2,1);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.panel-hidden {
+  transform: translateX(-100%) !important;
+}
+.panel-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 2;
+}
+.panel-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: background .15s;
+}
+.icon-btn:hover { background: var(--surface-elevated); }
+
+/* ── form ───────────────────────────────────────────────────────────── */
+#review-form {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+#review-form label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: -10px;
+}
+#review-form input,
+#review-form textarea,
+#review-form select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--surface);
+  transition: border-color .2s;
+}
+#review-form input:focus,
+#review-form textarea:focus,
+#review-form select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+}
+#review-form textarea { resize: vertical; }
+
+#star-rating {
+  display: flex;
+  gap: 4px;
+}
+.star {
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #cbd5e1;
+  transition: color .15s, transform .15s;
+  user-select: none;
+}
+.star.active,
+.star:hover { color: var(--star); transform: scale(1.15); }
+.star:hover ~ .star { color: #cbd5e1; transform: scale(1); }
+
+#selected-location {
+  font-size: 0.8125rem;
+  color: var(--accent);
+  padding: 8px 12px;
+  background: #eff6ff;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  display: none;
+}
+#selected-location.visible {
+  display: block;
+}
+
+/* ── search dropdown ────────────────────────────────────────────────── */
+#search-wrapper {
+  position: relative;
+}
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 2000;
+  max-height: 220px;
+  overflow-y: auto;
+  display: none;
+}
+.search-dropdown.visible {
+  display: block;
+}
+.search-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+.search-item:last-child { border-bottom: none; }
+.search-item:hover,
+.search-item.active {
+  background: var(--surface-elevated);
+}
+.search-item .place {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.search-item .addr {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.search-item .type-tag {
+  font-size: 0.6875rem;
+  color: var(--accent);
+  text-transform: capitalize;
+}
+
+/* readonly input styling */
+#place-address[readonly] {
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+.btn-primary {
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: white;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+
+/* ── detail panel ──────────────────────────────────────────────────── */
+#detail-body {
+  padding: 20px;
+}
+#detail-body h2 {
+  font-size: 1.2rem;
+  margin: 0 0 4px;
+}
+#detail-body .address {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0 0 8px;
+}
+#detail-body .stars {
+  color: var(--star);
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+}
+#detail-body .content {
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+#detail-body .meta {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* ── standalone page ────────────────────────────────────────────────── */
+.standalone-page {
+  max-width: 640px;
+  margin: 80px auto;
+  padding: 0 20px;
+}
+.back-link {
+  display: inline-block;
+  margin-bottom: 20px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+.back-link:hover { text-decoration: underline; }
+.review-detail-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 28px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border);
+}
+.review-detail-card h1 { margin-top: 0; }
+.review-detail-card .rating { color: var(--star); font-size: 1.2rem; }
+.review-detail-card .coords { color: var(--text-secondary); font-size: 0.875rem; }
+
+/* ── map popups ─────────────────────────────────────────────────────── */
+.leaflet-popup-content {
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+.leaflet-popup-content strong {
+  font-size: 0.9375rem;
+}
+.leaflet-popup-content .popup-stars {
+  color: var(--star);
+  margin: 2px 0;
+}
+
+/* ── responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  :root { --sidebar-w: 100vw; --panel-w: 100vw; }
+  #sidebar { width: 100vw; }
+  #review-panel,
+  #detail-panel { left: 0; width: 100vw; }
+  .panel-hidden { transform: translateX(-110%) !important; }
+}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ review.place_name or 'Review' }} — Federated Reviews{% endblock %}
+{% block body %}
+<div class="standalone-page">
+  <a href="/" class="back-link">← Back to map</a>
+  <div class="review-detail-card">
+    <h1>{{ review.place_name or "Unnamed place" }}</h1>
+    <p class="address">{{ review.place_address }}</p>
+    <div class="rating">{% for i in range(review.rating) %}★{% endfor %}{% for i in range(5 - review.rating) %}☆{% endfor %}</div>
+    <p class="content">{{ review.content }}</p>
+    <p class="meta">
+      by <strong>{{ review.display_name or review.username }}</strong>
+      &middot; {{ review.created_at }}
+    </p>
+    <p class="coords">📍 {{ "%.4f"|format(review.latitude) }}, {{ "%.4f"|format(review.longitude) }}</p>
+  </div>
+</div>
+{% endblock %}
