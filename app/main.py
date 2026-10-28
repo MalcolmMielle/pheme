@@ -15,6 +15,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import config
 from app.auth import _LoginRequired, login_required_handler
+from app.middleware import CSRFMiddleware
 from app.routes.activitypub import router as activitypub_router
 from app.routes.api import router as api_router
 from app.routes.web import router as web_router
@@ -24,7 +25,10 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="Federated Reviews", version="0.1.0")
 
 # ── middleware ──────────────────────────────────────────────────────────
+# Order matters: CSRFMiddleware must be added BEFORE SessionMiddleware
+# so that Session runs first (outermost) and populates scope["session"].
 
+app.add_middleware(CSRFMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=config.secret_key)
 
 # ── exception handlers ─────────────────────────────────────────────────

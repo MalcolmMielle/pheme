@@ -24,6 +24,7 @@
         👤 {{ user.display_name or user.username }}
       </span>
       <form method="post" action="/logout" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ request.session.csrf_token }}">
         <button type="submit" class="link-btn">Logout</button>
       </form>
     {% else %}
@@ -53,6 +54,7 @@
     <button id="btn-close-panel" class="icon-btn">✕</button>
   </div>
   <form id="review-form">
+    <input type="hidden" name="csrf_token" value="{{ request.session.csrf_token }}">
     <label for="place-name">Search for a place</label>
     <div id="search-wrapper">
       <input type="text" id="place-name" name="place_name"

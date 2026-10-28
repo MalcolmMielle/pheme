@@ -3,6 +3,7 @@ JSON API routes — review CRUD and bootstrap for the frontend.
 """
 
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, Form
 from fastapi.responses import JSONResponse
@@ -58,7 +59,7 @@ async def api_create_review(
     place_address: str = Form(""),
 ) -> JSONResponse:
     """Create a new review and federate it to followers."""
-    ap_id = f"{actor['actor_uri']}/review/{content[:30].replace(' ', '-')}"
+    ap_id = f"{actor['actor_uri']}/review/{uuid.uuid4()}"
     review = await create_review(
         actor_id=actor["id"],
         ap_id=ap_id,

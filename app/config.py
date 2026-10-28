@@ -1,7 +1,25 @@
 """Application configuration — read from environment or defaults."""
 
+import logging
 import os
+import secrets
 from dataclasses import dataclass, field
+
+logger = logging.getLogger("federated-reviews.config")
+
+
+def _get_secret_key() -> str:
+    """Return the configured secret key, or generate a random one with a warning."""
+    key = os.getenv("SECRET_KEY")
+    if key:
+        return key
+    key = secrets.token_hex(32)
+    logger.warning(
+        "SECRET_KEY environment variable is not set — generated a random key. "
+        "Sessions will be invalidated on every restart. "
+        "Set SECRET_KEY in production."
+    )
+    return key
 
 
 @dataclass
@@ -23,12 +41,8 @@ class Config:
         default_factory=lambda: os.getenv("DATABASE_PATH", "data/reviews.db")
     )
 
-    # Secret key for session signing — CHANGE THIS in production.
-    secret_key: str = field(
-        default_factory=lambda: os.getenv(
-            "SECRET_KEY", "dev-secret-change-me-in-production"
-        )
-    )
+    # Secret key for session signing — generated randomly if SECRET_KEY is not set.
+    secret_key: str = field(default_factory=_get_secret_key)
 
     # Domain extracted from base_url — used for WebFinger.
     # Includes the port for non-standard ports (e.g. "localhost:8000").

@@ -460,10 +460,12 @@ document.getElementById("review-form").addEventListener("submit", async (e) => {
   }
 
   const formData = new FormData(e.target);
+  const params = new URLSearchParams(formData);
   try {
     const resp = await fetch("/api/reviews", {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params,
     });
     if (!resp.ok) {
       const errText = await resp.text();

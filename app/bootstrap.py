@@ -13,6 +13,7 @@ Or programmatically:
 
 import asyncio
 import logging
+import secrets
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("bootstrap")
@@ -33,7 +34,7 @@ async def _bootstrap() -> None:
     # ── Create default actor ────────────────────────────────────────────
     username = "alice"
     display_name = "Alice Reviewer"
-    password = "alice"  # change after first login!
+    password = secrets.token_urlsafe(16)
     existing = await get_actor_by_username(username)
     if existing:
         logger.info("Actor '%s' already exists — skipping.", username)
