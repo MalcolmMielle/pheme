@@ -161,16 +161,16 @@ async def get_actor_by_id(actor_id: int) -> dict[str, Any] | None:
 
 def hash_password(password: str) -> str:
     """Return a bcrypt hash of *password*."""
-    from passlib.hash import bcrypt
+    import bcrypt
 
-    return bcrypt.hash(password)
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(password: str, password_hash: str) -> bool:
     """Check *password* against a bcrypt hash."""
-    from passlib.hash import bcrypt
+    import bcrypt
 
-    return bcrypt.verify(password, password_hash)
+    return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
 async def list_local_actors() -> list[dict[str, Any]]:

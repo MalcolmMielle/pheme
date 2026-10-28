@@ -27,6 +27,6 @@ class _LoginRequired(Exception):
     pass
 
 
-def login_required_handler(request: Request, _exc: _LoginRequired):
+def login_required_handler(request: Request, exc: Exception) -> RedirectResponse:
     """Convert _LoginRequired into a redirect to /login."""
     return RedirectResponse(url="/login", status_code=303)

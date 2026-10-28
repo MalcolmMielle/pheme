@@ -32,6 +32,7 @@ from urllib.parse import urlparse
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 
 
 def generate_keypair() -> tuple[str, str]:
@@ -114,6 +115,7 @@ def sign_request(
     )
 
     private_key = _private_key_from_pem(private_key_pem)
+    assert isinstance(private_key, RSAPrivateKey)
     signature_bytes = private_key.sign(
         signing_string.encode(),
         padding.PKCS1v15(),
@@ -172,6 +174,7 @@ def verify_signature(
 
     try:
         public_key = _public_key_from_pem(public_key_pem)
+        assert isinstance(public_key, RSAPublicKey)
         signature_bytes = base64.b64decode(signature_b64)
         public_key.verify(
             signature_bytes,
@@ -180,5 +183,5 @@ def verify_signature(
             hashes.SHA256(),
         )
         return True
-    except (InvalidSignature, Exception):
+    except InvalidSignature:
         return False

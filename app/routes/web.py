@@ -76,13 +76,13 @@ async def register_form(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request=request, name="register.html", context={})
 
 
-@router.post("/register")
+@router.post("/register", response_model=None)
 async def register(
     request: Request,
     username: str = Form(...),
     display_name: str = Form(...),
     password: str = Form(...),
-) -> RedirectResponse:
+) -> HTMLResponse | RedirectResponse:
     """Create a new local actor with a password and log in."""
     existing = await get_actor_by_username(username)
     if existing:
@@ -113,8 +113,8 @@ async def register(
     return RedirectResponse(url="/", status_code=303)
 
 
-@router.get("/login", response_class=HTMLResponse)
-async def login_form(request: Request) -> HTMLResponse:
+@router.get("/login", response_class=HTMLResponse, response_model=None)
+async def login_form(request: Request) -> HTMLResponse | RedirectResponse:
     """Show the login form (redirect to / if already logged in)."""
     if request.session.get("user_id"):
         return RedirectResponse(url="/", status_code=303)
