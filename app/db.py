@@ -239,6 +239,22 @@ async def get_reviews(
     return [dict(r) for r in await rows.fetchall()]
 
 
+async def get_reviews_by_actor(
+    actor_id: int,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    db = await get_db()
+    rows = await db.execute(
+        """SELECT r.*, a.username, a.display_name, a.actor_uri
+           FROM reviews r JOIN actors a ON r.actor_id = a.id
+           WHERE r.actor_id = ?
+           ORDER BY r.created_at DESC LIMIT ? OFFSET ?""",
+        (actor_id, limit, offset),
+    )
+    return [dict(r) for r in await rows.fetchall()]
+
+
 async def get_reviews_by_bounds(
     min_lat: float,
     max_lat: float,

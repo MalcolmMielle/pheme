@@ -24,7 +24,7 @@ from app.db import (
     get_actor_by_username,
     get_followers,
     get_following,
-    get_reviews,
+    get_reviews_by_actor,
     list_local_actors,
     review_exists,
 )
@@ -249,7 +249,7 @@ async def shared_inbox(request: Request) -> JSONResponse:
 async def get_outbox(username: str) -> JSONResponse:
     """Return an actor's outbox (published activities)."""
     actor = await _require_local_actor(username)
-    reviews = await get_reviews(limit=50)
+    reviews = await get_reviews_by_actor(actor["id"], limit=50)
     items: list[dict[str, Any]] = []
     for r in reviews:
         items.append(
