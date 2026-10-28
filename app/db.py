@@ -28,6 +28,12 @@ async def get_db() -> aiosqlite.Connection:
         os.makedirs(os.path.dirname(config.database_path), exist_ok=True)
         _db = await aiosqlite.connect(config.database_path)
         _db.row_factory = aiosqlite.Row
+        # Enable foreign key enforcement (SQLite defaults to OFF)
+        await _db.execute("PRAGMA foreign_keys = ON")
+        # WAL mode for better concurrent read/write performance
+        await _db.execute("PRAGMA journal_mode = WAL")
+        # Wait up to 5s for locks instead of failing immediately
+        await _db.execute("PRAGMA busy_timeout = 5000")
         await _db.executescript(SCHEMA)
         # Migration: add password_hash to existing databases
         try:
