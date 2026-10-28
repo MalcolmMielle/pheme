@@ -57,6 +57,10 @@ cd federated-reviews
 # Install dependencies
 uv sync
 
+# Optional: create a .env file from the template
+cp .env.example .env
+# Edit .env and set SECRET_KEY at minimum
+
 # Seed demo data (creates actor "alice" + 8 sample reviews in San Francisco)
 uv run bootstrap
 
@@ -172,14 +176,18 @@ federated-reviews/
 
 ## Configuration
 
-Set these environment variables before starting (or rely on defaults):
+Configuration is read from environment variables. You can set them in the
+shell or create a `.env` file (see `.env.example` for a template) — the
+app loads it automatically via [python-dotenv](https://pypi.org/project/python-dotenv/).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BASE_URL` | `http://localhost:8000` | Public URL of this server (used in all ActivityPub IDs) |
 | `HOST` | `127.0.0.1` | Bind address for uvicorn |
 | `PORT` | `8000` | Port for uvicorn |
+| `RELOAD` | `true` | Enable uvicorn auto-reload (set to `false` in production) |
 | `DATABASE_PATH` | `data/reviews.db` | Path to the SQLite file |
+| `SECRET_KEY` | *(random, with warning)* | Session signing key — set this in production |
 
 ## API reference
 
@@ -201,8 +209,13 @@ Set these environment variables before starting (or rely on defaults):
 |--------|------|-------------|
 | `GET` | `/` | Map-based review browser |
 | `GET` | `/review/{id}` | Single review page |
-| `GET` | `/api/reviews` | JSON reviews (optional `?min_lat=&max_lat=&min_lng=&max_lng=`) |
-| `POST` | `/api/reviews` | Create review (form: `username`, `content`, `rating`, `latitude`, `longitude`, `place_name`, `place_address`) |
+| `GET` | `/api/reviews` | JSON reviews (optional `?min_lat=&max_lat=&min_lng=&max_lng=&limit=&offset=`) |
+| `GET` | `/api/reviews/{id}` | Single review as JSON |
+| `POST` | `/api/reviews` | Create review (form: `content`, `rating`, `latitude`, `longitude`, `place_name`, `place_address`) |
+| `DELETE` | `/api/reviews/{id}` | Delete a review (author only) |
+| `POST` | `/api/follow` | Follow a remote actor (form: `target` — URI or `acct:user@domain`) |
+| `GET` | `/api/geocode?q=` | Proxy place search to Nominatim |
+| `GET` | `/api/reverse-geocode?lat=&lon=` | Proxy reverse geocode to Nominatim |
 | `POST` | `/api/bootstrap` | Create first actor (form: `username`, `display_name`) |
 
 ## Licence

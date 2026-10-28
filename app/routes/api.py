@@ -27,11 +27,55 @@ from app.db import (
     get_reviews_by_bounds,
     hash_password,
 )
+from app.config import config
 from app.routes.activitypub import actor_uri, inbox_uri, outbox_uri
 
 logger = logging.getLogger("federated-reviews")
 
 router = APIRouter()
+
+_NOMINATIM_BASE = "https://nominatim.openstreetmap.org"
+_NOMINATIM_HEADERS = {
+    "User-Agent": f"FederatedReviews/0.1 ({config.base_url})",
+    "Accept-Language": "en",
+}
+
+
+@router.get("/api/geocode")
+async def api_geocode(q: str, limit: int = 5) -> JSONResponse:
+    """Proxy a place search to Nominatim (avoids exposing user IPs)."""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            resp = await client.get(
+                f"{_NOMINATIM_BASE}/search",
+                params={
+                    "q": q,
+                    "format": "json",
+                    "limit": limit,
+                    "addressdetails": 1,
+                },
+                headers=_NOMINATIM_HEADERS,
+            )
+            return JSONResponse(resp.json())
+        except httpx.RequestError as exc:
+            logger.warning("Nominatim search failed: %s", exc)
+            raise HTTPException(502, "Geocoding service unavailable") from exc
+
+
+@router.get("/api/reverse-geocode")
+async def api_reverse_geocode(lat: float, lon: float) -> JSONResponse:
+    """Proxy a reverse geocode lookup to Nominatim."""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            resp = await client.get(
+                f"{_NOMINATIM_BASE}/reverse",
+                params={"lat": lat, "lon": lon, "format": "json"},
+                headers=_NOMINATIM_HEADERS,
+            )
+            return JSONResponse(resp.json())
+        except httpx.RequestError as exc:
+            logger.warning("Nominatim reverse geocode failed: %s", exc)
+            raise HTTPException(502, "Geocoding service unavailable") from exc
 
 
 @router.get("/api/reviews")

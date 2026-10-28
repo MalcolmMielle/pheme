@@ -5,6 +5,11 @@ import os
 import secrets
 from dataclasses import dataclass, field
 
+from dotenv import load_dotenv
+
+# Load .env file before reading any environment variables
+load_dotenv()
+
 logger = logging.getLogger("federated-reviews.config")
 
 
@@ -43,6 +48,12 @@ class Config:
 
     # Secret key for session signing — generated randomly if SECRET_KEY is not set.
     secret_key: str = field(default_factory=_get_secret_key)
+
+    # Enable uvicorn auto-reload (development only).
+    reload: bool = field(
+        default_factory=lambda: os.getenv("RELOAD", "true").lower()
+        in ("1", "true", "yes")
+    )
 
     # Domain extracted from base_url — used for WebFinger.
     # Includes the port for non-standard ports (e.g. "localhost:8000").

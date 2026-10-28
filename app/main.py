@@ -53,7 +53,12 @@ def main() -> None:
     """Entry point for `fedreviews` CLI command."""
     import uvicorn
 
-    uvicorn.run("app.main:app", host=config.host, port=config.port, reload=True)
+    uvicorn.run(
+        "app.main:app",
+        host=config.host,
+        port=config.port,
+        reload=config.reload,
+    )
 
 
 if __name__ == "__main__":

@@ -224,7 +224,7 @@ map.on("click", (e) => {
 async function reverseGeocode(lat, lng) {
   try {
     const resp = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`
+      `/api/reverse-geocode?lat=${lat}&lon=${lng}`
     );
     const data = await resp.json();
     if (data.display_name) {
@@ -265,7 +265,7 @@ document.addEventListener("click", (e) => {
 async function searchPlaces(query) {
   try {
     const resp = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1&accept-language=en`
+      `/api/geocode?q=${encodeURIComponent(query)}&limit=5`
     );
     const results = await resp.json();
     renderSearchResults(results);
@@ -335,7 +335,7 @@ mapSearchInput.addEventListener("focus", () => {
 async function searchMapPlaces(query) {
   try {
     const resp = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1&accept-language=en`
+      `/api/geocode?q=${encodeURIComponent(query)}&limit=5`
     );
     const results = await resp.json();
     renderMapSearchResults(results);
