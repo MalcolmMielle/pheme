@@ -163,3 +163,111 @@ class TestReviewsAPI:
         reviews = resp.json()
         ap_ids = [r["ap_id"] for r in reviews]
         assert len(ap_ids) == len(set(ap_ids))  # all unique
+
+    async def test_get_single_review(
+        self, client: AsyncClient, registered_user: dict
+    ):
+        csrf = await get_csrf_token(client, "/")
+        resp = await client.post(
+            "/api/reviews",
+            data={
+                "content": "Single review test",
+                "rating": "4",
+                "latitude": "37.0",
+                "longitude": "-122.0",
+                "csrf_token": csrf,
+            },
+        )
+        review_id = resp.json()["review"]["id"]
+
+        resp = await client.get(f"/api/reviews/{review_id}")
+        assert resp.status_code == 200
+        assert resp.json()["content"] == "Single review test"
+
+    async def test_get_single_review_not_found(self, client: AsyncClient):
+        resp = await client.get("/api/reviews/9999")
+        assert resp.status_code == 404
+
+    async def test_delete_review(
+        self, client: AsyncClient, registered_user: dict
+    ):
+        csrf = await get_csrf_token(client, "/")
+        resp = await client.post(
+            "/api/reviews",
+            data={
+                "content": "To be deleted",
+                "rating": "3",
+                "latitude": "37.0",
+                "longitude": "-122.0",
+                "csrf_token": csrf,
+            },
+        )
+        review_id = resp.json()["review"]["id"]
+
+        resp = await client.delete(f"/api/reviews/{review_id}")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "deleted"
+
+        # Verify it's gone
+        resp = await client.get(f"/api/reviews/{review_id}")
+        assert resp.status_code == 404
+
+    async def test_delete_review_not_found(self, client: AsyncClient):
+        resp = await client.delete("/api/reviews/9999")
+        assert resp.status_code in (303, 401, 403)  # auth required first
+
+    async def test_delete_review_requires_auth(self, client: AsyncClient):
+        resp = await client.delete("/api/reviews/1")
+        assert resp.status_code in (303, 401, 403)
+
+    async def test_pagination(
+        self, client: AsyncClient, registered_user: dict
+    ):
+        csrf = await get_csrf_token(client, "/")
+        # Create 5 reviews
+        for i in range(5):
+            await client.post(
+                "/api/reviews",
+                data={
+                    "content": f"Review {i}",
+                    "rating": "3",
+                    "latitude": "37.0",
+                    "longitude": "-122.0",
+                    "csrf_token": csrf,
+                },
+            )
+
+        # Get first page (limit=2)
+        resp = await client.get("/api/reviews", params={"limit": 2, "offset": 0})
+        assert resp.status_code == 200
+        assert len(resp.json()) == 2
+        assert resp.headers["X-Total-Count"] == "5"
+
+        # Get second page
+        resp = await client.get("/api/reviews", params={"limit": 2, "offset": 2})
+        assert resp.status_code == 200
+        assert len(resp.json()) == 2
+
+        # Get last page (partial)
+        resp = await client.get("/api/reviews", params={"limit": 2, "offset": 4})
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
+
+    async def test_follow_invalid_target(
+        self, client: AsyncClient, registered_user: dict
+    ):
+        """Following an unresolvable target should return 400."""
+        csrf = await get_csrf_token(client, "/")
+        resp = await client.post(
+            "/api/follow",
+            data={"target": "nonexistent@nonexistent.invalid", "csrf_token": csrf},
+        )
+        assert resp.status_code == 400
+
+    async def test_follow_requires_auth(self, client: AsyncClient):
+        csrf = await get_csrf_token(client, "/")
+        resp = await client.post(
+            "/api/follow",
+            data={"target": "https://example.com/actor/bob", "csrf_token": csrf},
+        )
+        assert resp.status_code in (303, 401, 403)

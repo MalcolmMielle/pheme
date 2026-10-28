@@ -156,10 +156,45 @@ async def post_inbox(username: str, request: Request) -> JSONResponse:
         return await _handle_follow(activity, actor, sender_actor)
     elif activity_type == "Accept":
         return await _handle_accept(activity, sender_actor)
+    elif activity_type == "Delete":
+        return await _handle_delete(activity, sender_actor)
     elif activity_type == "Undo":
         return JSONResponse({"status": "ok"})
 
     return JSONResponse({"status": "ok"})
+
+
+async def _handle_delete(
+    activity: dict[str, Any], sender_actor: dict[str, Any]
+) -> JSONResponse:
+    """Handle a Delete activity — remove the referenced review locally."""
+    from app.db import delete_review, get_db
+
+    obj = activity.get("object", {})
+    ap_id = obj.get("id", "") if isinstance(obj, dict) else str(obj)
+    if not ap_id:
+        return JSONResponse({"status": "ignored", "reason": "no object id"})
+
+    db = await get_db()
+    row = await db.execute(
+        "SELECT id, actor_id FROM reviews WHERE ap_id = ?", (ap_id,)
+    )
+    review = await row.fetchone()
+    if not review:
+        return JSONResponse({"status": "not_found"})
+
+    # Only delete if the sender is the original author
+    if review["actor_id"] != sender_actor["id"]:
+        logger.warning(
+            "Delete for %s rejected — sender %s is not the author",
+            ap_id,
+            sender_actor["actor_uri"],
+        )
+        return JSONResponse({"status": "forbidden"}, status_code=403)
+
+    await delete_review(review["id"])
+    logger.info("Deleted federated review %s (via Delete activity)", ap_id)
+    return JSONResponse({"status": "deleted"})
 
 
 async def _handle_create(
