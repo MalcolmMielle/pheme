@@ -127,7 +127,16 @@ curl -X POST http://localhost:8001/api/bootstrap \
 # Alice's server will auto-accept and start federating reviews.
 ```
 
-### 4. Run the linter
+### 4. Run the tests
+
+```bash
+uv sync --group dev     # install pytest + dev tools (once)
+uv run pytest           # run all 67 tests
+uv run pytest -v        # verbose output
+uv run pytest tests/test_db.py   # run a single test file
+```
+
+### 5. Run the linter
 
 ```bash
 uv sync --group dev     # install ruff + basedpyright (once)
@@ -140,23 +149,48 @@ uv run ruff format app/ # auto-format
 ```
 federated-reviews/
 ├── app/
-│   ├── main.py               # FastAPI application — all routes
-│   ├── config.py             # Config from environment / defaults
-│   ├── db.py                 # Async SQLite (actors, reviews, follows)
-│   ├── models.py             # ActivityPub Pydantic models
+│   ├── main.py               # FastAPI application — entry point
+│   ├── config.py             # Config from environment / .env / defaults
+│   ├── auth.py               # Session-based auth dependency
+│   ├── middleware.py         # CSRF protection middleware
 │   ├── bootstrap.py          # Seed script (actor + demo reviews)
+│   ├── models.py             # ActivityPub Pydantic models
+│   ├── db/
+│   │   ├── connection.py     # SQLite connection, schema, pragmas
+│   │   ├── actors.py         # Actor CRUD + password hashing
+│   │   ├── reviews.py        # Review CRUD, bounds queries, pagination
+│   │   └── follows.py        # Follow/follower relationships
 │   ├── activitypub/
 │   │   ├── signing.py        # HTTP Signatures (RSA-SHA256)
 │   │   ├── actor.py          # Actor JSON builders, Follow/Accept
 │   │   └── delivery.py       # Federation fan-out to remote inboxes
+│   ├── routes/
+│   │   ├── activitypub/
+│   │   │   ├── helpers.py        # URI builders, remote actor fetch
+│   │   │   ├── webfinger.py      # /.well-known/webfinger
+│   │   │   ├── actor.py          # /actor/{username}
+│   │   │   ├── inbox.py          # /actor/{username}/inbox + handlers
+│   │   │   └── collections.py    # Outbox, Followers, Following, Shared inbox
+│   │   ├── api.py            # JSON API: reviews, follow, geocode, bootstrap
+│   │   └── web.py            # Server-rendered HTML: map, login, register
 │   ├── templates/
 │   │   ├── base.html         # Leaflet CSS/JS shell
 │   │   ├── index.html        # Map + sidebar + review form
-│   │   └── review.html       # Standalone review detail page
+│   │   ├── review.html       # Standalone review detail page
+│   │   ├── login.html        # Login form
+│   │   └── register.html     # Registration form
 │   └── static/
 │       ├── style.css         # Google Maps-inspired design
-│       └── app.js            # Leaflet map, markers, star rating
+│       └── app.js            # Leaflet map, markers, star rating, search
+├── tests/                    # pytest suite (67 tests)
+│   ├── conftest.py           # Fixtures: client, db, registered_user
+│   ├── test_signing.py       # HTTP Signature unit tests
+│   ├── test_db.py            # Database layer tests
+│   ├── test_api.py           # JSON API endpoint tests
+│   ├── test_activitypub.py   # ActivityPub endpoint tests
+│   └── test_web.py           # Web UI / auth flow tests
 ├── data/                     # SQLite databases live here (auto-created)
+├── .env.example              # Environment variable template
 ├── pyproject.toml            # Dependencies, RUFF config, build system
 └── README.md
 ```

@@ -28,7 +28,7 @@ from app.db import (
     hash_password,
 )
 from app.config import config
-from app.routes.activitypub import actor_uri, inbox_uri, outbox_uri
+from app.routes.activitypub import actor_uri, fetch_remote_actor, inbox_uri, outbox_uri
 
 logger = logging.getLogger("federated-reviews")
 
@@ -238,9 +238,7 @@ async def api_follow(
         raise HTTPException(400, "Cannot follow yourself")
 
     # Fetch and cache the remote actor
-    from app.routes.activitypub import _fetch_remote_actor
-
-    remote_actor = await _fetch_remote_actor(target_uri)
+    remote_actor = await fetch_remote_actor(target_uri)
     if not remote_actor:
         raise HTTPException(400, f"Could not fetch remote actor: {target_uri}")
 

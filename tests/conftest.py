@@ -31,11 +31,11 @@ async def get_csrf_token(client: AsyncClient, path: str = "/login") -> str:
 @pytest_asyncio.fixture
 async def client() -> AsyncGenerator[AsyncClient, None]:
     """Return an async HTTP client connected to the FastAPI app."""
-    import app.db as db_module
+    import app.db.connection as conn_module
 
-    if db_module._db is not None:
-        await db_module._db.close()
-        db_module._db = None
+    if conn_module._db is not None:
+        await conn_module._db.close()
+        conn_module._db = None
 
     if os.path.exists(os.environ["DATABASE_PATH"]):
         os.remove(os.environ["DATABASE_PATH"])
@@ -50,19 +50,19 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 @pytest_asyncio.fixture
 async def db():
     """Return a fresh database connection."""
-    import app.db as db_module
+    import app.db.connection as conn_module
 
-    if db_module._db is not None:
-        await db_module._db.close()
-        db_module._db = None
+    if conn_module._db is not None:
+        await conn_module._db.close()
+        conn_module._db = None
 
     if os.path.exists(os.environ["DATABASE_PATH"]):
         os.remove(os.environ["DATABASE_PATH"])
 
-    conn = await db_module.get_db()
+    conn = await conn_module.get_db()
     yield conn
     await conn.close()
-    db_module._db = None
+    conn_module._db = None
 
 
 @pytest_asyncio.fixture
