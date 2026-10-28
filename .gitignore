@@ -12,3 +12,7 @@ data/
 
 # Environment files
 .env
+
+# React app (react-app/) — JS toolchain artifacts
+react-app/node_modules/
+react-app/dist/
