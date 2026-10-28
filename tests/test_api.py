@@ -2,19 +2,12 @@
 
 from httpx import AsyncClient
 
-
-async def _login(client: AsyncClient, username: str, password: str) -> None:
-    """Log in via the web form and store the session cookie."""
-    resp = await client.post(
-        "/login",
-        data={"username": username, "password": password},
-        follow_redirects=False,
-    )
-    assert resp.status_code == 303
+from tests.conftest import get_csrf_token
 
 
 class TestBootstrap:
     async def test_bootstrap_creates_actor(self, client: AsyncClient):
+        # /api/bootstrap is exempt from CSRF (curl setup endpoint)
         resp = await client.post(
             "/api/bootstrap",
             data={"username": "admin", "display_name": "Admin", "password": "secret"},
@@ -44,6 +37,7 @@ class TestReviewsAPI:
         assert resp.json() == []
 
     async def test_create_review_requires_auth(self, client: AsyncClient):
+        csrf = await get_csrf_token(client, "/")
         resp = await client.post(
             "/api/reviews",
             data={
@@ -51,15 +45,32 @@ class TestReviewsAPI:
                 "rating": "5",
                 "latitude": "37.0",
                 "longitude": "-122.0",
+                "csrf_token": csrf,
             },
         )
-        # Should redirect to login (303) or return error
-        assert resp.status_code in (303, 401, 403, 422)
+        # Should redirect to login (303) — auth check happens after CSRF
+        assert resp.status_code in (303, 401, 403)
+
+    async def test_create_review_rejects_missing_csrf(
+        self, client: AsyncClient, registered_user: dict
+    ):
+        # registered_user fixture already logs in
+        resp = await client.post(
+            "/api/reviews",
+            data={
+                "content": "No CSRF",
+                "rating": "5",
+                "latitude": "37.0",
+                "longitude": "-122.0",
+            },
+        )
+        assert resp.status_code == 403
 
     async def test_create_and_list_review(
         self, client: AsyncClient, registered_user: dict
     ):
-        await _login(client, registered_user["username"], registered_user["password"])
+        # registered_user fixture already logs in via /register
+        csrf = await get_csrf_token(client, "/")
 
         resp = await client.post(
             "/api/reviews",
@@ -70,6 +81,7 @@ class TestReviewsAPI:
                 "longitude": "-122.4194",
                 "place_name": "Coffee Shop",
                 "place_address": "123 Main St",
+                "csrf_token": csrf,
             },
         )
         assert resp.status_code == 200
@@ -88,7 +100,7 @@ class TestReviewsAPI:
     async def test_create_review_with_bounds_filter(
         self, client: AsyncClient, registered_user: dict
     ):
-        await _login(client, registered_user["username"], registered_user["password"])
+        csrf = await get_csrf_token(client, "/")
 
         # Create a review in SF
         await client.post(
@@ -98,6 +110,7 @@ class TestReviewsAPI:
                 "rating": "4",
                 "latitude": "37.7749",
                 "longitude": "-122.4194",
+                "csrf_token": csrf,
             },
         )
         # Create a review in NYC
@@ -108,6 +121,7 @@ class TestReviewsAPI:
                 "rating": "3",
                 "latitude": "40.7128",
                 "longitude": "-74.0060",
+                "csrf_token": csrf,
             },
         )
 
@@ -130,7 +144,7 @@ class TestReviewsAPI:
         self, client: AsyncClient, registered_user: dict
     ):
         """Two reviews with the same content should get different ap_ids."""
-        await _login(client, registered_user["username"], registered_user["password"])
+        csrf = await get_csrf_token(client, "/")
 
         for _ in range(2):
             resp = await client.post(
@@ -140,6 +154,7 @@ class TestReviewsAPI:
                     "rating": "5",
                     "latitude": "37.0",
                     "longitude": "-122.0",
+                    "csrf_token": csrf,
                 },
             )
             assert resp.status_code == 200

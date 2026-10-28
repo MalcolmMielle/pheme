@@ -214,12 +214,7 @@ class TestReviewCRUD:
 
 
 class TestFollows:
-    """Tests for follow relationships.
-
-    Note: on main, get_followers and get_following have inverted semantics
-    (get_followers returns who the actor follows, get_following returns who
-    follows the actor). These tests match the current main behavior.
-    """
+    """Tests for follow relationships (corrected semantics)."""
 
     async def test_follow_and_accept(self, db):
         alice = await _make_actor(db, "alice")
@@ -229,13 +224,13 @@ class TestFollows:
         await follow_actor(bob["id"], alice["actor_uri"])
         await accept_follow(bob["id"], alice["actor_uri"])
 
-        # On main: get_followers(bob) returns who Bob follows (= Alice)
-        following = await get_followers(bob["id"])
-        assert alice["actor_uri"] in following
-
-        # On main: get_following(alice) returns who follows Alice (= Bob)
-        followers = await get_following(alice["id"])
+        # Alice's followers should include Bob
+        followers = await get_followers(alice["id"])
         assert bob["actor_uri"] in followers
+
+        # Bob's following should include Alice
+        following = await get_following(bob["id"])
+        assert alice["actor_uri"] in following
 
     async def test_follow_is_idempotent(self, db):
         alice = await _make_actor(db, "alice")
@@ -245,7 +240,7 @@ class TestFollows:
         await follow_actor(bob["id"], alice["actor_uri"])  # duplicate
         await accept_follow(bob["id"], alice["actor_uri"])
 
-        following = await get_followers(bob["id"])
+        following = await get_following(bob["id"])
         assert following.count(alice["actor_uri"]) == 1
 
     async def test_pending_follow_not_in_followers(self, db):
@@ -255,5 +250,42 @@ class TestFollows:
         # Bob follows Alice but not yet accepted
         await follow_actor(bob["id"], alice["actor_uri"])
 
-        following = await get_followers(bob["id"])
-        assert len(following) == 0  # not accepted yet
+        followers = await get_followers(alice["id"])
+        assert len(followers) == 0  # not accepted yet
+
+    async def test_follower_inboxes(self, db):
+        from app.db import get_follower_inboxes
+
+        alice = await _make_actor(db, "alice")
+        bob = await _make_actor(db, "bob")
+
+        await follow_actor(bob["id"], alice["actor_uri"])
+        await accept_follow(bob["id"], alice["actor_uri"])
+
+        inboxes = await get_follower_inboxes(alice["id"])
+        assert bob["inbox_uri"] in inboxes
+
+    async def test_reviews_by_actor(self, db):
+        from app.db import get_reviews_by_actor
+
+        alice = await _make_actor(db, "alice")
+        bob = await _make_actor(db, "bob")
+        await create_review(
+            actor_id=alice["id"],
+            ap_id="http://testserver/actor/alice/review/1",
+            content="Alice's review",
+            rating=5,
+            latitude=37.0,
+            longitude=-122.0,
+        )
+        await create_review(
+            actor_id=bob["id"],
+            ap_id="http://testserver/actor/bob/review/1",
+            content="Bob's review",
+            rating=3,
+            latitude=37.0,
+            longitude=-122.0,
+        )
+        alice_reviews = await get_reviews_by_actor(alice["id"])
+        assert len(alice_reviews) == 1
+        assert alice_reviews[0]["content"] == "Alice's review"

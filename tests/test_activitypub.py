@@ -4,6 +4,8 @@ import json
 
 from httpx import AsyncClient
 
+from tests.conftest import get_csrf_token
+
 
 class TestWebFinger:
     async def test_webfinger_valid(self, client: AsyncClient):
@@ -77,21 +79,20 @@ class TestOutbox:
         self, client: AsyncClient
     ):
         # Register and log in
+        csrf = await get_csrf_token(client, "/register")
         await client.post(
             "/register",
             data={
                 "username": "alice",
                 "display_name": "Alice",
                 "password": "pw",
+                "csrf_token": csrf,
             },
             follow_redirects=False,
         )
-        await client.post(
-            "/login",
-            data={"username": "alice", "password": "pw"},
-            follow_redirects=False,
-        )
-        # Create a review
+        # Already logged in after register, so login is a no-op but let's
+        # verify the session is active by getting CSRF from index page
+        csrf = await get_csrf_token(client, "/")
         await client.post(
             "/api/reviews",
             data={
@@ -100,6 +101,7 @@ class TestOutbox:
                 "latitude": "37.7749",
                 "longitude": "-122.4194",
                 "place_name": "Test Place",
+                "csrf_token": csrf,
             },
         )
         # Check outbox

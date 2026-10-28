@@ -5,6 +5,7 @@ Each test gets a fresh in-memory SQLite database and a clean app instance.
 """
 
 import os
+import re
 import tempfile
 from collections.abc import AsyncGenerator
 
@@ -16,6 +17,15 @@ _tmpdir = tempfile.mkdtemp(prefix="fedreviews-test-")
 os.environ["DATABASE_PATH"] = os.path.join(_tmpdir, "test.db")
 os.environ["SECRET_KEY"] = "test-secret-key"
 os.environ["BASE_URL"] = "http://testserver"
+
+
+async def get_csrf_token(client: AsyncClient, path: str = "/login") -> str:
+    """Fetch a page and extract the CSRF token from the hidden form field."""
+    resp = await client.get(path)
+    match = re.search(r'name="csrf_token" value="([^"]+)"', resp.text)
+    if not match:
+        raise ValueError(f"No CSRF token found on {path}")
+    return match.group(1)
 
 
 @pytest_asyncio.fixture
@@ -58,12 +68,14 @@ async def db():
 @pytest_asyncio.fixture
 async def registered_user(client: AsyncClient) -> dict:
     """Register a test user via the web form and return their credentials."""
+    csrf = await get_csrf_token(client, "/register")
     resp = await client.post(
         "/register",
         data={
             "username": "testuser",
             "display_name": "Test User",
             "password": "testpass123",
+            "csrf_token": csrf,
         },
         follow_redirects=False,
     )
