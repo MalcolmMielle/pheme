@@ -200,8 +200,8 @@ async def _handle_follow(
     if not follower_uri:
         raise HTTPException(400, "Missing actor in Follow")
 
-    await follow_actor(target_actor["id"], follower_uri)
-    await accept_follow(target_actor["id"], follower_uri)
+    await follow_actor(sender_actor["id"], target_actor["actor_uri"])
+    await accept_follow(sender_actor["id"], target_actor["actor_uri"])
 
     accept = build_accept_activity(target_actor["actor_uri"], activity)
     follower_actor = await get_actor_by_uri(follower_uri)

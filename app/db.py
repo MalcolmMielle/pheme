@@ -282,16 +282,7 @@ async def accept_follow(actor_id: int, target_actor_uri: str) -> None:
 
 
 async def get_followers(actor_id: int) -> list[str]:
-    db = await get_db()
-    rows = await db.execute(
-        "SELECT target_actor_uri FROM follows WHERE actor_id = ? AND is_accepted = 1",
-        (actor_id,),
-    )
-    return [r["target_actor_uri"] for r in await rows.fetchall()]
-
-
-async def get_following(actor_id: int) -> list[str]:
-    """Return URIs of actors that follow *this* actor."""
+    """Return actor URIs of actors that follow *this* actor."""
     actor = await get_actor_by_id(actor_id)
     if not actor:
         return []
@@ -303,3 +294,28 @@ async def get_following(actor_id: int) -> list[str]:
         (actor["actor_uri"],),
     )
     return [r["actor_uri"] for r in await rows.fetchall()]
+
+
+async def get_follower_inboxes(actor_id: int) -> list[str]:
+    """Return inbox URIs of actors that follow *this* actor (for federation fan-out)."""
+    actor = await get_actor_by_id(actor_id)
+    if not actor:
+        return []
+    db = await get_db()
+    rows = await db.execute(
+        """SELECT a.inbox_uri FROM follows f
+           JOIN actors a ON f.actor_id = a.id
+           WHERE f.target_actor_uri = ? AND f.is_accepted = 1""",
+        (actor["actor_uri"],),
+    )
+    return [r["inbox_uri"] for r in await rows.fetchall()]
+
+
+async def get_following(actor_id: int) -> list[str]:
+    """Return actor URIs that *this* actor follows."""
+    db = await get_db()
+    rows = await db.execute(
+        "SELECT target_actor_uri FROM follows WHERE actor_id = ? AND is_accepted = 1",
+        (actor_id,),
+    )
+    return [r["target_actor_uri"] for r in await rows.fetchall()]

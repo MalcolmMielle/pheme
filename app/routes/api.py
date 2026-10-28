@@ -15,7 +15,7 @@ from app.db import (
     create_actor,
     create_review,
     get_actor_by_username,
-    get_followers,
+    get_follower_inboxes,
     get_reviews,
     get_reviews_by_bounds,
     hash_password,
@@ -91,18 +91,18 @@ async def api_create_review(
         },
     }
 
-    followers = await get_followers(actor["id"])
+    follower_inboxes = await get_follower_inboxes(actor["id"])
     result = await fanout_activity(
         activity,
         f"{actor['actor_uri']}#main-key",
         actor["private_key_pem"],
-        followers,
+        follower_inboxes,
     )
 
     logger.info(
         "Created review %s — federated to %d followers (%d ok, %d fail)",
         ap_id,
-        len(followers),
+        len(follower_inboxes),
         result["ok"],
         result["fail"],
     )
