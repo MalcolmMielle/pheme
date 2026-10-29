@@ -29,6 +29,17 @@ class AsyncTestCase(unittest.IsolatedAsyncioTestCase):
     client: AsyncClient
 
     async def asyncSetUp(self) -> None:
+        # `python -m unittest discover` from the repo root imports every
+        # package it walks — including `app.*` — before it reaches `tests/`,
+        # so `app.config` can already be cached with production defaults by
+        # the time a test runs. Env vars alone are too late for the cached
+        # singleton, so re-point it at the test configuration as well.
+        from app.config import config
+
+        config.base_url = os.environ["BASE_URL"]
+        config.database_path = os.environ["DATABASE_PATH"]
+        config.secret_key = os.environ["SECRET_KEY"]
+
         import app.db.connection as conn_module
 
         if conn_module._db is not None:
