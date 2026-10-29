@@ -173,19 +173,19 @@ curl -X POST http://localhost:8001/api/bootstrap \
 ### 4. Run the tests
 
 ```bash
-uv sync --group dev     # install pytest + dev tools (once)
-uv run pytest           # run all 68 tests
-uv run pytest -v        # verbose output
-uv run pytest tests/test_db.py   # run a single test file
+uv sync --group dev                           # install dev tools (once)
+uv run python -m unittest discover -s tests   # run all 68 tests
+uv run python -m unittest discover -s tests -v  # verbose output
+uv run python -m unittest tests.test_db -v    # run a single test file
 ```
 
 ### 5. Run the linter
 
 ```bash
 uv sync --group dev     # install ruff + basedpyright (once)
-uv run ruff check app/  # lint check
-uv run ruff format app/ # auto-format
-uv run basedpyright app/ # type check
+uv run ruff check app/ tests/    # lint check
+uv run ruff format app/          # auto-format
+uv run basedpyright app/ tests/  # type check
 ```
 
 ## Project layout
@@ -228,8 +228,8 @@ federated-reviews/
 │   ├── src/                  # Components: map, list, detail, review form
 │   ├── package.json          # Own JS dependencies (root package.json is {})
 │   └── dist/                 # Production build, served by FastAPI (gitignored)
-├── tests/                    # pytest suite (68 tests)
-│   ├── conftest.py           # Fixtures: client, db, registered_user
+├── tests/                    # unittest suite (68 tests)
+│   ├── base.py               # Shared test base: fresh DB + ASGI client per test
 │   ├── test_signing.py       # HTTP Signature unit tests
 │   ├── test_db.py            # Database layer tests
 │   ├── test_api.py           # JSON API endpoint tests
@@ -253,8 +253,9 @@ federated-reviews/
 | **Federation** | ActivityPub (hand-rolled) | HTTP Signatures, WebFinger, Actor model |
 | **HTTP client** | httpx | Async outbound requests for federation + Nominatim proxy |
 | **Crypto** | cryptography | RSA key generation, SHA256 signing |
-| **Testing** | pytest (68 tests) | Endpoint, database, signing and auth-flow coverage |
+| **Testing** | unittest (68 tests) | Endpoint, database, signing and auth-flow coverage |
 | **Linting** | ruff + basedpyright | Fast lint/format + static type checking |
+| **CI** | Forgejo Actions (`node:22`) | unittest suite, ruff, basedpyright and the React build on push + PRs |
 
 ## Configuration
 
