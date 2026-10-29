@@ -37,7 +37,7 @@ class TestReviewsAPI:
         assert resp.json() == []
 
     async def test_create_review_requires_auth(self, client: AsyncClient):
-        csrf = await get_csrf_token(client, "/")
+        csrf = await get_csrf_token(client, "/register")
         resp = await client.post(
             "/api/reviews",
             data={
@@ -70,7 +70,7 @@ class TestReviewsAPI:
         self, client: AsyncClient, registered_user: dict
     ):
         # registered_user fixture already logs in via /register
-        csrf = await get_csrf_token(client, "/")
+        csrf = await get_csrf_token(client, "/register")
 
         resp = await client.post(
             "/api/reviews",
@@ -100,7 +100,7 @@ class TestReviewsAPI:
     async def test_create_review_with_bounds_filter(
         self, client: AsyncClient, registered_user: dict
     ):
-        csrf = await get_csrf_token(client, "/")
+        csrf = await get_csrf_token(client, "/register")
 
         # Create a review in SF
         await client.post(
@@ -144,7 +144,7 @@ class TestReviewsAPI:
         self, client: AsyncClient, registered_user: dict
     ):
         """Two reviews with the same content should get different ap_ids."""
-        csrf = await get_csrf_token(client, "/")
+        csrf = await get_csrf_token(client, "/register")
 
         for _ in range(2):
             resp = await client.post(
@@ -167,7 +167,7 @@ class TestReviewsAPI:
     async def test_get_single_review(
         self, client: AsyncClient, registered_user: dict
     ):
-        csrf = await get_csrf_token(client, "/")
+        csrf = await get_csrf_token(client, "/register")
         resp = await client.post(
             "/api/reviews",
             data={
@@ -191,7 +191,7 @@ class TestReviewsAPI:
     async def test_delete_review(
         self, client: AsyncClient, registered_user: dict
     ):
-        csrf = await get_csrf_token(client, "/")
+        csrf = await get_csrf_token(client, "/register")
         resp = await client.post(
             "/api/reviews",
             data={
@@ -223,7 +223,7 @@ class TestReviewsAPI:
     async def test_pagination(
         self, client: AsyncClient, registered_user: dict
     ):
-        csrf = await get_csrf_token(client, "/")
+        csrf = await get_csrf_token(client, "/register")
         # Create 5 reviews
         for i in range(5):
             await client.post(
@@ -257,7 +257,7 @@ class TestReviewsAPI:
         self, client: AsyncClient, registered_user: dict
     ):
         """Following an unresolvable target should return 400."""
-        csrf = await get_csrf_token(client, "/")
+        csrf = await get_csrf_token(client, "/register")
         resp = await client.post(
             "/api/follow",
             data={"target": "nonexistent@nonexistent.invalid", "csrf_token": csrf},
@@ -265,7 +265,7 @@ class TestReviewsAPI:
         assert resp.status_code == 400
 
     async def test_follow_requires_auth(self, client: AsyncClient):
-        csrf = await get_csrf_token(client, "/")
+        csrf = await get_csrf_token(client, "/register")
         resp = await client.post(
             "/api/follow",
             data={"target": "https://example.com/actor/bob", "csrf_token": csrf},

@@ -47,19 +47,23 @@ Users on Server B and C now see Alice's review on their maps
 
 ## Quick start
 
-**Prerequisites:** Python ≥ 3.13, [uv](https://docs.astral.sh/uv/)
+**Prerequisites:** Python ≥ 3.13, [uv](https://docs.astral.sh/uv/),
+Node.js ≥ 20
 
 ```bash
 # Clone and enter the project
 git clone <repo-url> federated-reviews
 cd federated-reviews
 
-# Install dependencies
+# Install backend dependencies
 uv sync
 
 # Optional: create a .env file from the template
 cp .env.example .env
 # Edit .env and set SECRET_KEY at minimum
+
+# Install + build the React frontend (react-app/)
+cd react-app && npm install && npm run build && cd ..
 
 # Seed demo data (creates actor "alice" + 8 sample reviews in San Francisco)
 uv run bootstrap
@@ -71,6 +75,23 @@ uv run fedreviews
 Open **<http://localhost:8000>** — you should see a map of San Francisco with
 8 coloured markers.  Click any marker or sidebar card to see the review
 detail.  Click the **＋** button to write your own review.
+
+### Frontend development (hot reload)
+
+Run the backend and the Vite dev server side by side — the Vite server
+(port 5173) proxies API / auth / ActivityPub requests to the backend
+(port 8000), so session cookies work same-origin:
+
+```bash
+# Terminal 1 — backend
+uv run fedreviews
+
+# Terminal 2 — React dev server
+cd react-app && npm run dev
+```
+
+Open **<http://localhost:5173>**.  The production build (`npm run build`)
+writes `react-app/dist/`, which FastAPI serves at `/`.
 
 ## How to test
 
@@ -93,19 +114,41 @@ curl http://localhost:8000/api/reviews
 
 # Reviews filtered by map bounds
 curl "http://localhost:8000/api/reviews?min_lat=37.70&max_lat=37.85&min_lng=-122.50&max_lng=-122.35"
+
+# Place search (proxied to Nominatim)
+curl "http://localhost:8000/api/geocode?q=Ferry%20Building%20San%20Francisco"
 ```
 
 ### 2. Create a review through the API
 
+Log in first (as `alice`, with the password printed by `uv run bootstrap`),
+then post — the API accepts both form-encoded and JSON bodies:
+
 ```bash
-curl -X POST http://localhost:8000/api/reviews \
-  -d "username=alice" \
+# Get a CSRF token from the login page and keep the session cookie
+CSRF=$(curl -s -c /tmp/fedreviews-cookies http://localhost:8000/login \
+  | grep -o 'name="csrf_token" value="[^"]*"' | cut -d'"' -f4)
+
+# Log in (form posts require the CSRF token)
+curl -b /tmp/fedreviews-cookies -c /tmp/fedreviews-cookies \
+  -X POST http://localhost:8000/login \
+  -d "username=alice&password=<password-from-bootstrap>" \
+  -d "csrf_token=$CSRF"
+
+# Form-encoded (include the CSRF token)
+curl -b /tmp/fedreviews-cookies -X POST http://localhost:8000/api/reviews \
   -d "content=Great coffee and friendly staff!" \
   -d "rating=5" \
   -d "latitude=37.7749" \
   -d "longitude=-122.4194" \
   -d "place_name=Best Coffee" \
-  -d "place_address=123 Main St"
+  -d "place_address=123 Main St" \
+  -d "csrf_token=$CSRF"
+
+# …or JSON (JSON requests are exempt from CSRF validation)
+curl -b /tmp/fedreviews-cookies -X POST http://localhost:8000/api/reviews \
+  -H "Content-Type: application/json" \
+  -d '{"content":"Great coffee and friendly staff!","rating":5,"latitude":37.7749,"longitude":-122.4194,"place_name":"Best Coffee","place_address":"123 Main St"}'
 ```
 
 ### 3. Test federation between two local instances
@@ -131,7 +174,7 @@ curl -X POST http://localhost:8001/api/bootstrap \
 
 ```bash
 uv sync --group dev     # install pytest + dev tools (once)
-uv run pytest           # run all 67 tests
+uv run pytest           # run all 68 tests
 uv run pytest -v        # verbose output
 uv run pytest tests/test_db.py   # run a single test file
 ```
@@ -142,6 +185,7 @@ uv run pytest tests/test_db.py   # run a single test file
 uv sync --group dev     # install ruff + basedpyright (once)
 uv run ruff check app/  # lint check
 uv run ruff format app/ # auto-format
+uv run basedpyright app/ # type check
 ```
 
 ## Project layout
@@ -149,7 +193,7 @@ uv run ruff format app/ # auto-format
 ```
 federated-reviews/
 ├── app/
-│   ├── main.py               # FastAPI application — entry point
+│   ├── main.py               # FastAPI application — entry point + serves react-app/dist
 │   ├── config.py             # Config from environment / .env / defaults
 │   ├── auth.py               # Session-based auth dependency
 │   ├── middleware.py         # CSRF protection middleware
@@ -171,18 +215,20 @@ federated-reviews/
 │   │   │   ├── actor.py          # /actor/{username}
 │   │   │   ├── inbox.py          # /actor/{username}/inbox + handlers
 │   │   │   └── collections.py    # Outbox, Followers, Following, Shared inbox
-│   │   ├── api.py            # JSON API: reviews, follow, geocode, bootstrap
-│   │   └── web.py            # Server-rendered HTML: map, login, register
+│   │   ├── api.py            # JSON API: reviews, follow, geocode, /api/me
+│   │   └── web.py            # Server-rendered HTML: login, register, review detail
 │   ├── templates/
-│   │   ├── base.html         # Leaflet CSS/JS shell
-│   │   ├── index.html        # Map + sidebar + review form
-│   │   ├── review.html       # Standalone review detail page
+│   │   ├── base.html         # Shell for the server-rendered pages
 │   │   ├── login.html        # Login form
-│   │   └── register.html     # Registration form
+│   │   ├── register.html     # Registration form
+│   │   └── review.html       # Standalone review detail page
 │   └── static/
-│       ├── style.css         # Google Maps-inspired design
-│       └── app.js            # Leaflet map, markers, star rating, search
-├── tests/                    # pytest suite (67 tests)
+│       └── style.css         # Styles for the server-rendered pages
+├── react-app/                # React + Vite + TypeScript SPA (the map page)
+│   ├── src/                  # Components: map, list, detail, review form
+│   ├── package.json          # Own JS dependencies (root package.json is {})
+│   └── dist/                 # Production build, served by FastAPI (gitignored)
+├── tests/                    # pytest suite (68 tests)
 │   ├── conftest.py           # Fixtures: client, db, registered_user
 │   ├── test_signing.py       # HTTP Signature unit tests
 │   ├── test_db.py            # Database layer tests
@@ -200,13 +246,15 @@ federated-reviews/
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
 | **Web framework** | FastAPI + uvicorn | Async, modern, great OpenAPI docs |
-| **Templates** | Jinja2 (via Starlette) | Server-rendered HTML |
-| **Map** | Leaflet.js + OpenStreetMap | Free, no API keys, looks like Google Maps |
+| **Frontend** | React + Vite + TypeScript (`react-app/`) | SPA for the map page; one codebase, reused by future native shells |
+| **Templates** | Jinja2 (via Starlette) | Server-rendered pages: login/register, review detail |
+| **Map** | Leaflet.js (react-leaflet) + OpenStreetMap | Free, no API keys, looks like Google Maps |
 | **Database** | aiosqlite | Zero-config, async, perfect for MVP |
 | **Federation** | ActivityPub (hand-rolled) | HTTP Signatures, WebFinger, Actor model |
-| **HTTP client** | httpx | Async outbound requests for federation |
+| **HTTP client** | httpx | Async outbound requests for federation + Nominatim proxy |
 | **Crypto** | cryptography | RSA key generation, SHA256 signing |
-| **Linting** | ruff | Fast, all-in-one replacement for Flake8/Black |
+| **Testing** | pytest (68 tests) | Endpoint, database, signing and auth-flow coverage |
+| **Linting** | ruff + basedpyright | Fast lint/format + static type checking |
 
 ## Configuration
 
@@ -241,11 +289,12 @@ app loads it automatically via [python-dotenv](https://pypi.org/project/python-d
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/` | Map-based review browser |
-| `GET` | `/review/{id}` | Single review page |
+| `GET` | `/` | Map-based review browser (React SPA) |
+| `GET` | `/review/{id}` | Single review page (server-rendered) |
+| `GET` | `/api/me` | Current session user (`{id, username, display_name, csrf_token}`); 401 when logged out |
 | `GET` | `/api/reviews` | JSON reviews (optional `?min_lat=&max_lat=&min_lng=&max_lng=&limit=&offset=`) |
 | `GET` | `/api/reviews/{id}` | Single review as JSON |
-| `POST` | `/api/reviews` | Create review (form: `content`, `rating`, `latitude`, `longitude`, `place_name`, `place_address`) |
+| `POST` | `/api/reviews` | Create review — form-encoded (needs `csrf_token`) or JSON body (`content`, `rating`, `latitude`, `longitude`, `place_name`, `place_address`); requires login |
 | `DELETE` | `/api/reviews/{id}` | Delete a review (author only) |
 | `POST` | `/api/follow` | Follow a remote actor (form: `target` — URI or `acct:user@domain`) |
 | `GET` | `/api/geocode?q=` | Proxy place search to Nominatim |

@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, Form, HTTPException
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.activitypub.actor import actor_to_ap, build_follow_activity
@@ -20,6 +20,7 @@ from app.db import (
     create_review,
     delete_review,
     follow_actor,
+    get_actor_by_id,
     get_actor_by_username,
     get_follower_inboxes,
     get_review_by_id,
@@ -39,6 +40,30 @@ _NOMINATIM_HEADERS = {
     "User-Agent": f"FederatedReviews/0.1 ({config.base_url})",
     "Accept-Language": "en",
 }
+
+
+@router.get("/api/me")
+async def api_me(request: Request) -> JSONResponse:
+    """Current session user for the SPA, or 401 JSON when logged out.
+
+    Also returns the session's CSRF token so the SPA can include it in
+    form-encoded posts (e.g. logout) — JSON requests are CSRF-exempt.
+    """
+    user_id = request.session.get("user_id")
+    if user_id is None:
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+    actor = await get_actor_by_id(user_id)
+    if actor is None:
+        request.session.clear()
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+    return JSONResponse(
+        {
+            "id": actor["id"],
+            "username": actor["username"],
+            "display_name": actor["display_name"],
+            "csrf_token": request.session.get("csrf_token", ""),
+        }
+    )
 
 
 @router.get("/api/geocode")
@@ -117,15 +142,38 @@ async def api_get_review(review_id: int) -> JSONResponse:
 
 @router.post("/api/reviews")
 async def api_create_review(
+    request: Request,
     actor: dict = Depends(get_current_user),
-    content: str = Form(...),
-    rating: int = Form(...),
-    latitude: float = Form(...),
-    longitude: float = Form(...),
-    place_name: str = Form(""),
-    place_address: str = Form(""),
 ) -> JSONResponse:
-    """Create a new review and federate it to followers."""
+    """Create a new review and federate it to followers.
+
+    Accepts both form-encoded bodies (browser forms, curl) and JSON bodies
+    (the React SPA and future native clients).
+    """
+    content_type = request.headers.get("content-type", "")
+    fields: dict[str, Any]
+    if "application/json" in content_type:
+        fields = await request.json()
+    else:
+        form = await request.form()
+        # Keep plain text fields only (multipart uploads are not review data)
+        fields = {k: v for k, v in form.items() if isinstance(v, str)}
+
+    try:
+        content = str(fields.get("content", ""))
+        rating = int(fields.get("rating", 0))
+        latitude = float(fields.get("latitude", 0))
+        longitude = float(fields.get("longitude", 0))
+        place_name = str(fields.get("place_name", ""))
+        place_address = str(fields.get("place_address", ""))
+    except (TypeError, ValueError):
+        return JSONResponse({"detail": "Invalid review payload"}, status_code=422)
+    if not content or not 1 <= rating <= 5:
+        return JSONResponse(
+            {"detail": "Required: content, rating (1-5), latitude, longitude"},
+            status_code=422,
+        )
+
     ap_id = f"{actor['actor_uri']}/review/{uuid.uuid4()}"
     review = await create_review(
         actor_id=actor["id"],

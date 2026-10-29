@@ -102,7 +102,17 @@ def sign_request(
     path = parsed.path or "/"
     if parsed.query:
         path += "?" + parsed.query
+    # The signature covers the Host header exactly as the HTTP client sends
+    # it: the hostname, plus the port when it is not the scheme's default.
+    # (urlparse().hostname strips the port, which made verification fail
+    # against servers on non-standard ports — e.g. the two-instance
+    # federation smoke test on ports 8000/8001.)
     host = parsed.hostname or "localhost"
+    if parsed.port is not None and not (
+        (parsed.scheme == "http" and parsed.port == 80)
+        or (parsed.scheme == "https" and parsed.port == 443)
+    ):
+        host = f"{host}:{parsed.port}"
 
     date = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
     # Actually compute the digest of the body

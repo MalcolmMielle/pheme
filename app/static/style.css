@@ -1,4 +1,7 @@
-/* ── Federated Reviews — Google Maps-inspired UI ────────────────────── */
+/* ── Federated Reviews — styles for the server-rendered pages ─────────
+   (login / register / standalone review detail).
+   The map page is the React SPA in react-app/ — its styles (design tokens
+   and all map/sidebar/panel rules) live in react-app/src/styles.css. */
 
 :root {
   --sidebar-w: 380px;

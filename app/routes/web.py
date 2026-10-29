@@ -1,5 +1,9 @@
 """
 Web UI routes — server-rendered HTML pages.
+
+The map page itself is the React SPA in react-app/ (built to react-app/dist
+and served by app/main.py); these routes cover the standalone review page
+and the login/register/logout forms.
 """
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -10,11 +14,9 @@ from app.activitypub.signing import generate_keypair
 from app.config import config
 from app.db import (
     create_actor,
-    get_actor_by_id,
     get_actor_by_username,
     get_reviews,
     hash_password,
-    list_local_actors,
     verify_password,
 )
 
@@ -22,35 +24,7 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 
-# ── optional current-user helper ───────────────────────────────────────
-
-
-async def _maybe_user(request: Request) -> dict | None:
-    user_id = request.session.get("user_id")
-    if user_id is None:
-        return None
-    return await get_actor_by_id(user_id)
-
-
-# ── map page ───────────────────────────────────────────────────────────
-
-
-@router.get("/", response_class=HTMLResponse)
-async def index(request: Request) -> HTMLResponse:
-    """Main page — the map-based review browser."""
-    reviews = await get_reviews(limit=200)
-    actors = await list_local_actors()
-    user = await _maybe_user(request)
-    return templates.TemplateResponse(
-        request=request,
-        name="index.html",
-        context={
-            "reviews": reviews,
-            "actors": actors,
-            "user": user,
-            "base_url": config.base_url,
-        },
-    )
+# ── review detail page ──────────────────────────────────────────────────
 
 
 @router.get("/review/{review_id}", response_class=HTMLResponse)

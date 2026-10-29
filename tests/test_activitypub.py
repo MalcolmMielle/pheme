@@ -91,8 +91,8 @@ class TestOutbox:
             follow_redirects=False,
         )
         # Already logged in after register, so login is a no-op but let's
-        # verify the session is active by getting CSRF from index page
-        csrf = await get_csrf_token(client, "/")
+        # verify the session is active by getting CSRF from the register page
+        csrf = await get_csrf_token(client, "/register")
         await client.post(
             "/api/reviews",
             data={

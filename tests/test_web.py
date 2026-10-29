@@ -1,15 +1,26 @@
 """Tests for web UI routes (register, login, logout, pages)."""
 
+import os
+
 from httpx import AsyncClient
 
 from tests.conftest import get_csrf_token
 
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SPA_INDEX = os.path.join(REPO_ROOT, "react-app", "dist", "index.html")
+
 
 class TestPages:
     async def test_index_page(self, client: AsyncClient):
+        """`/` is the React SPA — served when built, 404 with a hint otherwise."""
         resp = await client.get("/")
-        assert resp.status_code == 200
-        assert "text/html" in resp.headers["content-type"]
+        if os.path.isfile(SPA_INDEX):
+            assert resp.status_code == 200
+            assert "text/html" in resp.headers["content-type"]
+            assert '<div id="root">' in resp.text
+        else:
+            assert resp.status_code == 404
+            assert "npm run build" in resp.text
 
     async def test_login_page(self, client: AsyncClient):
         resp = await client.get("/login")
@@ -79,8 +90,8 @@ class TestAuth:
             },
             follow_redirects=False,
         )
-        # Already logged in after register, so get CSRF from index page
-        csrf = await get_csrf_token(client, "/")
+        # Already logged in after register, so get CSRF from the register page
+        csrf = await get_csrf_token(client, "/register")
         resp = await client.post(
             "/login",
             data={
@@ -105,7 +116,7 @@ class TestAuth:
             },
             follow_redirects=False,
         )
-        csrf = await get_csrf_token(client, "/")
+        csrf = await get_csrf_token(client, "/register")
         resp = await client.post(
             "/login",
             data={
@@ -159,8 +170,8 @@ class TestAuth:
             },
             follow_redirects=False,
         )
-        # Get a fresh CSRF token from the index page (logged-in state)
-        csrf = await get_csrf_token(client, "/")
+        # Get a fresh CSRF token from the register page (always renders a form)
+        csrf = await get_csrf_token(client, "/register")
         resp = await client.post(
             "/logout",
             data={"csrf_token": csrf},
@@ -172,7 +183,7 @@ class TestAuth:
         self, client: AsyncClient
     ):
         """POST /api/reviews should redirect to /login when not authenticated."""
-        csrf = await get_csrf_token(client, "/")
+        csrf = await get_csrf_token(client, "/register")
         resp = await client.post(
             "/api/reviews",
             data={

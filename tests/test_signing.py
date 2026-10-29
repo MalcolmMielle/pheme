@@ -141,3 +141,35 @@ class TestSignAndVerify:
             public_key_pem=pub,
         )
         assert ok is True
+
+    def test_sign_includes_non_default_port_in_host(self):
+        """The signed Host header must match what the HTTP client sends.
+
+        Servers on non-standard ports (e.g. the two-instance federation
+        smoke test on 8000/8001) send `Host: host:port` — the signature
+        has to cover the port too, or verification fails.
+        """
+        priv, pub = generate_keypair()
+        body = b'{"type":"Create"}'
+        url = "http://localhost:8001/actor/bob/inbox"
+
+        headers = sign_request(
+            method="POST",
+            url=url,
+            body=body,
+            key_id="http://localhost:8000/actor/alice#main-key",
+            private_key_pem=priv,
+        )
+
+        ok = verify_signature(
+            method="POST",
+            path="/actor/bob/inbox",
+            headers={
+                "host": "localhost:8001",
+                "date": headers["Date"],
+                "digest": headers["Digest"],
+                "signature": headers["Signature"],
+            },
+            public_key_pem=pub,
+        )
+        assert ok is True
