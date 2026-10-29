@@ -51,8 +51,9 @@ class Config:
 
     # Enable uvicorn auto-reload (development only).
     reload: bool = field(
-        default_factory=lambda: os.getenv("RELOAD", "true").lower()
-        in ("1", "true", "yes")
+        default_factory=lambda: (
+            os.getenv("RELOAD", "true").lower() in ("1", "true", "yes")
+        )
     )
 
     # Domain extracted from base_url — used for WebFinger.

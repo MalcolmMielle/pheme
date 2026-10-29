@@ -167,9 +167,7 @@ async def _handle_delete(
         return JSONResponse({"status": "ignored", "reason": "no object id"})
 
     db = await get_db()
-    row = await db.execute(
-        "SELECT id, actor_id FROM reviews WHERE ap_id = ?", (ap_id,)
-    )
+    row = await db.execute("SELECT id, actor_id FROM reviews WHERE ap_id = ?", (ap_id,))
     review = await row.fetchone()
     if not review:
         return JSONResponse({"status": "not_found"})
