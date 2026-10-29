@@ -3,6 +3,7 @@ Shared test helpers — the stdlib-unittest replacement for the old pytest
 ``conftest.py`` fixtures.
 """
 
+import asyncio
 import os
 import re
 import unittest
@@ -29,6 +30,12 @@ class AsyncTestCase(unittest.IsolatedAsyncioTestCase):
     client: AsyncClient
 
     async def asyncSetUp(self) -> None:
+        # IsolatedAsyncioTestCase runs the loop in debug mode, which logs a
+        # warning for every callback slower than 0.1s (bcrypt hashing, the
+        # first app import) — noise in a test run. Run the loop in normal
+        # mode, like the application itself does.
+        asyncio.get_running_loop().set_debug(False)
+
         # `python -m unittest discover` from the repo root imports every
         # package it walks — including `app.*` — before it reaches `tests/`,
         # so `app.config` can already be cached with production defaults by
