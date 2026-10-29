@@ -1,6 +1,8 @@
 """Tests for the database layer (actors, reviews, follows)."""
 
-import pytest
+import unittest
+
+from tests.base import AsyncTestCase
 
 from app.activitypub.signing import generate_keypair
 from app.db import (
@@ -22,7 +24,7 @@ from app.db import (
 )
 
 
-async def _make_actor(db, username: str = "alice") -> dict:
+async def _make_actor(username: str = "alice") -> dict:
     priv, pub = generate_keypair()
     base = f"http://testserver/actor/{username}"
     return await create_actor(
@@ -40,7 +42,7 @@ async def _make_actor(db, username: str = "alice") -> dict:
     )
 
 
-class TestPasswordHashing:
+class TestPasswordHashing(unittest.TestCase):
     def test_hash_and_verify(self):
         h = hash_password("mypassword")
         assert h != "mypassword"
@@ -56,9 +58,9 @@ class TestPasswordHashing:
         assert h1 != h2  # bcrypt uses random salt
 
 
-class TestActorCRUD:
-    async def test_create_and_get_by_username(self, db):
-        actor = await _make_actor(db, "alice")
+class TestActorCRUD(AsyncTestCase):
+    async def test_create_and_get_by_username(self):
+        actor = await _make_actor("alice")
         assert actor["username"] == "alice"
         assert actor["is_local"] == 1
 
@@ -66,39 +68,39 @@ class TestActorCRUD:
         assert fetched is not None
         assert fetched["id"] == actor["id"]
 
-    async def test_get_by_uri(self, db):
-        actor = await _make_actor(db, "bob")
+    async def test_get_by_uri(self):
+        actor = await _make_actor("bob")
         fetched = await get_actor_by_uri(actor["actor_uri"])
         assert fetched is not None
         assert fetched["username"] == "bob"
 
-    async def test_get_by_id(self, db):
-        actor = await _make_actor(db, "carol")
+    async def test_get_by_id(self):
+        actor = await _make_actor("carol")
         fetched = await get_actor_by_id(actor["id"])
         assert fetched is not None
         assert fetched["username"] == "carol"
 
-    async def test_get_nonexistent_returns_none(self, db):
+    async def test_get_nonexistent_returns_none(self):
         assert await get_actor_by_username("nobody") is None
         assert await get_actor_by_uri("http://testserver/actor/nobody") is None
         assert await get_actor_by_id(9999) is None
 
-    async def test_list_local_actors(self, db):
-        await _make_actor(db, "alice")
-        await _make_actor(db, "bob")
+    async def test_list_local_actors(self):
+        await _make_actor("alice")
+        await _make_actor("bob")
         actors = await list_local_actors()
         assert len(actors) == 2
         assert {a["username"] for a in actors} == {"alice", "bob"}
 
-    async def test_duplicate_username_rejected(self, db):
-        await _make_actor(db, "alice")
-        with pytest.raises(Exception):
-            await _make_actor(db, "alice")
+    async def test_duplicate_username_rejected(self):
+        await _make_actor("alice")
+        with self.assertRaises(Exception):
+            await _make_actor("alice")
 
 
-class TestReviewCRUD:
-    async def test_create_and_get_review(self, db):
-        actor = await _make_actor(db)
+class TestReviewCRUD(AsyncTestCase):
+    async def test_create_and_get_review(self):
+        actor = await _make_actor()
         review = await create_review(
             actor_id=actor["id"],
             ap_id="http://testserver/actor/alice/review/1",
@@ -112,8 +114,8 @@ class TestReviewCRUD:
         assert review["content"] == "Great place!"
         assert review["rating"] == 5
 
-    async def test_get_reviews_includes_actor_info(self, db):
-        actor = await _make_actor(db)
+    async def test_get_reviews_includes_actor_info(self):
+        actor = await _make_actor()
         await create_review(
             actor_id=actor["id"],
             ap_id="http://testserver/actor/alice/review/1",
@@ -127,8 +129,8 @@ class TestReviewCRUD:
         assert reviews[0]["username"] == "alice"
         assert reviews[0]["display_name"] == "Alice"
 
-    async def test_get_reviews_by_bounds(self, db):
-        actor = await _make_actor(db)
+    async def test_get_reviews_by_bounds(self):
+        actor = await _make_actor()
         # Inside SF bounds
         await create_review(
             actor_id=actor["id"],
@@ -153,8 +155,8 @@ class TestReviewCRUD:
         assert len(sf_reviews) == 1
         assert sf_reviews[0]["content"] == "In SF"
 
-    async def test_duplicate_ap_id_returns_existing(self, db):
-        actor = await _make_actor(db)
+    async def test_duplicate_ap_id_returns_existing(self):
+        actor = await _make_actor()
         ap_id = "http://testserver/actor/alice/review/dup"
         r1 = await create_review(
             actor_id=actor["id"],
@@ -175,8 +177,8 @@ class TestReviewCRUD:
         assert r1["id"] == r2["id"]
         assert r2["content"] == "First"  # original preserved
 
-    async def test_review_exists(self, db):
-        actor = await _make_actor(db)
+    async def test_review_exists(self):
+        actor = await _make_actor()
         ap_id = "http://testserver/actor/alice/review/exists"
         assert await review_exists(ap_id) is False
         await create_review(
@@ -189,9 +191,9 @@ class TestReviewCRUD:
         )
         assert await review_exists(ap_id) is True
 
-    async def test_rating_constraint(self, db):
+    async def test_rating_constraint(self):
         """Rating outside 1-5 should fail the CHECK constraint."""
-        actor = await _make_actor(db)
+        actor = await _make_actor()
         # create_review catches IntegrityError and returns {} on failure
         result = await create_review(
             actor_id=actor["id"],
@@ -213,12 +215,12 @@ class TestReviewCRUD:
         assert result == {}
 
 
-class TestFollows:
+class TestFollows(AsyncTestCase):
     """Tests for follow relationships (corrected semantics)."""
 
-    async def test_follow_and_accept(self, db):
-        alice = await _make_actor(db, "alice")
-        bob = await _make_actor(db, "bob")
+    async def test_follow_and_accept(self):
+        alice = await _make_actor("alice")
+        bob = await _make_actor("bob")
 
         # Bob follows Alice
         await follow_actor(bob["id"], alice["actor_uri"])
@@ -232,9 +234,9 @@ class TestFollows:
         following = await get_following(bob["id"])
         assert alice["actor_uri"] in following
 
-    async def test_follow_is_idempotent(self, db):
-        alice = await _make_actor(db, "alice")
-        bob = await _make_actor(db, "bob")
+    async def test_follow_is_idempotent(self):
+        alice = await _make_actor("alice")
+        bob = await _make_actor("bob")
 
         await follow_actor(bob["id"], alice["actor_uri"])
         await follow_actor(bob["id"], alice["actor_uri"])  # duplicate
@@ -243,9 +245,9 @@ class TestFollows:
         following = await get_following(bob["id"])
         assert following.count(alice["actor_uri"]) == 1
 
-    async def test_pending_follow_not_in_followers(self, db):
-        alice = await _make_actor(db, "alice")
-        bob = await _make_actor(db, "bob")
+    async def test_pending_follow_not_in_followers(self):
+        alice = await _make_actor("alice")
+        bob = await _make_actor("bob")
 
         # Bob follows Alice but not yet accepted
         await follow_actor(bob["id"], alice["actor_uri"])
@@ -253,11 +255,11 @@ class TestFollows:
         followers = await get_followers(alice["id"])
         assert len(followers) == 0  # not accepted yet
 
-    async def test_follower_inboxes(self, db):
+    async def test_follower_inboxes(self):
         from app.db import get_follower_inboxes
 
-        alice = await _make_actor(db, "alice")
-        bob = await _make_actor(db, "bob")
+        alice = await _make_actor("alice")
+        bob = await _make_actor("bob")
 
         await follow_actor(bob["id"], alice["actor_uri"])
         await accept_follow(bob["id"], alice["actor_uri"])
@@ -265,11 +267,11 @@ class TestFollows:
         inboxes = await get_follower_inboxes(alice["id"])
         assert bob["inbox_uri"] in inboxes
 
-    async def test_reviews_by_actor(self, db):
+    async def test_reviews_by_actor(self):
         from app.db import get_reviews_by_actor
 
-        alice = await _make_actor(db, "alice")
-        bob = await _make_actor(db, "bob")
+        alice = await _make_actor("alice")
+        bob = await _make_actor("bob")
         await create_review(
             actor_id=alice["id"],
             ap_id="http://testserver/actor/alice/review/1",

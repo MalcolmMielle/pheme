@@ -2,19 +2,17 @@
 
 import json
 
-from httpx import AsyncClient
-
-from tests.conftest import get_csrf_token
+from tests.base import AsyncTestCase, get_csrf_token
 
 
-class TestWebFinger:
-    async def test_webfinger_valid(self, client: AsyncClient):
+class TestWebFinger(AsyncTestCase):
+    async def test_webfinger_valid(self):
         # Bootstrap an actor first
-        await client.post(
+        await self.client.post(
             "/api/bootstrap",
             data={"username": "alice", "display_name": "Alice", "password": "pw"},
         )
-        resp = await client.get(
+        resp = await self.client.get(
             "/.well-known/webfinger",
             params={"resource": "acct:alice@testserver"},
         )
@@ -23,28 +21,28 @@ class TestWebFinger:
         assert data["subject"] == "acct:alice@testserver"
         assert data["links"][0]["href"] == "http://testserver/actor/alice"
 
-    async def test_webfinger_unknown_user(self, client: AsyncClient):
-        resp = await client.get(
+    async def test_webfinger_unknown_user(self):
+        resp = await self.client.get(
             "/.well-known/webfinger",
             params={"resource": "acct:nobody@testserver"},
         )
         assert resp.status_code == 404
 
-    async def test_webfinger_rejects_non_acct(self, client: AsyncClient):
-        resp = await client.get(
+    async def test_webfinger_rejects_non_acct(self):
+        resp = await self.client.get(
             "/.well-known/webfinger",
             params={"resource": "https://example.com"},
         )
         assert resp.status_code == 400
 
 
-class TestActor:
-    async def test_get_actor(self, client: AsyncClient):
-        await client.post(
+class TestActor(AsyncTestCase):
+    async def test_get_actor(self):
+        await self.client.post(
             "/api/bootstrap",
             data={"username": "alice", "display_name": "Alice", "password": "pw"},
         )
-        resp = await client.get(
+        resp = await self.client.get(
             "/actor/alice",
             headers={"Accept": "application/activity+json"},
         )
@@ -57,30 +55,28 @@ class TestActor:
         assert "publicKey" in data
         assert data["publicKey"]["publicKeyPem"]
 
-    async def test_get_actor_not_found(self, client: AsyncClient):
-        resp = await client.get("/actor/nobody")
+    async def test_get_actor_not_found(self):
+        resp = await self.client.get("/actor/nobody")
         assert resp.status_code == 404
 
 
-class TestOutbox:
-    async def test_outbox_empty(self, client: AsyncClient):
-        await client.post(
+class TestOutbox(AsyncTestCase):
+    async def test_outbox_empty(self):
+        await self.client.post(
             "/api/bootstrap",
             data={"username": "alice", "display_name": "Alice", "password": "pw"},
         )
-        resp = await client.get("/actor/alice/outbox")
+        resp = await self.client.get("/actor/alice/outbox")
         assert resp.status_code == 200
         data = resp.json()
         assert data["type"] == "OrderedCollection"
         assert data["totalItems"] == 0
         assert data["orderedItems"] == []
 
-    async def test_outbox_contains_reviews(
-        self, client: AsyncClient
-    ):
+    async def test_outbox_contains_reviews(self):
         # Register and log in
-        csrf = await get_csrf_token(client, "/register")
-        await client.post(
+        csrf = await get_csrf_token(self.client, "/register")
+        await self.client.post(
             "/register",
             data={
                 "username": "alice",
@@ -92,8 +88,8 @@ class TestOutbox:
         )
         # Already logged in after register, so login is a no-op but let's
         # verify the session is active by getting CSRF from the register page
-        csrf = await get_csrf_token(client, "/register")
-        await client.post(
+        csrf = await get_csrf_token(self.client, "/register")
+        await self.client.post(
             "/api/reviews",
             data={
                 "content": "Great place",
@@ -105,7 +101,7 @@ class TestOutbox:
             },
         )
         # Check outbox
-        resp = await client.get("/actor/alice/outbox")
+        resp = await self.client.get("/actor/alice/outbox")
         assert resp.status_code == 200
         data = resp.json()
         assert data["totalItems"] == 1
@@ -117,35 +113,35 @@ class TestOutbox:
         assert item["object"]["latitude"] == 37.7749
 
 
-class TestFollowersFollowing:
-    async def test_empty_followers(self, client: AsyncClient):
-        await client.post(
+class TestFollowersFollowing(AsyncTestCase):
+    async def test_empty_followers(self):
+        await self.client.post(
             "/api/bootstrap",
             data={"username": "alice", "display_name": "Alice", "password": "pw"},
         )
-        resp = await client.get("/actor/alice/followers")
+        resp = await self.client.get("/actor/alice/followers")
         assert resp.status_code == 200
         data = resp.json()
         assert data["totalItems"] == 0
 
-    async def test_empty_following(self, client: AsyncClient):
-        await client.post(
+    async def test_empty_following(self):
+        await self.client.post(
             "/api/bootstrap",
             data={"username": "alice", "display_name": "Alice", "password": "pw"},
         )
-        resp = await client.get("/actor/alice/following")
+        resp = await self.client.get("/actor/alice/following")
         assert resp.status_code == 200
         data = resp.json()
         assert data["totalItems"] == 0
 
 
-class TestInbox:
-    async def test_inbox_rejects_unsigned(self, client: AsyncClient):
-        await client.post(
+class TestInbox(AsyncTestCase):
+    async def test_inbox_rejects_unsigned(self):
+        await self.client.post(
             "/api/bootstrap",
             data={"username": "alice", "display_name": "Alice", "password": "pw"},
         )
-        resp = await client.post(
+        resp = await self.client.post(
             "/actor/alice/inbox",
             content=json.dumps({"type": "Create", "actor": "https://remote/actor/bob"}),
             headers={"Content-Type": "application/activity+json"},
@@ -153,8 +149,8 @@ class TestInbox:
         # Should be rejected (401) due to missing/invalid signature
         assert resp.status_code == 401
 
-    async def test_shared_inbox_no_actors(self, client: AsyncClient):
-        resp = await client.post(
+    async def test_shared_inbox_no_actors(self):
+        resp = await self.client.post(
             "/inbox",
             content="{}",
             headers={"Content-Type": "application/activity+json"},

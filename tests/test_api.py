@@ -1,14 +1,12 @@
 """Tests for the JSON API endpoints."""
 
-from httpx import AsyncClient
-
-from tests.conftest import get_csrf_token
+from tests.base import AsyncTestCase, get_csrf_token
 
 
-class TestBootstrap:
-    async def test_bootstrap_creates_actor(self, client: AsyncClient):
+class TestBootstrap(AsyncTestCase):
+    async def test_bootstrap_creates_actor(self):
         # /api/bootstrap is exempt from CSRF (curl setup endpoint)
-        resp = await client.post(
+        resp = await self.client.post(
             "/api/bootstrap",
             data={"username": "admin", "display_name": "Admin", "password": "secret"},
         )
@@ -17,12 +15,12 @@ class TestBootstrap:
         assert data["status"] == "created"
         assert data["actor"]["preferredUsername"] == "admin"
 
-    async def test_bootstrap_returns_existing(self, client: AsyncClient):
-        await client.post(
+    async def test_bootstrap_returns_existing(self):
+        await self.client.post(
             "/api/bootstrap",
             data={"username": "admin", "display_name": "Admin", "password": "secret"},
         )
-        resp = await client.post(
+        resp = await self.client.post(
             "/api/bootstrap",
             data={"username": "admin", "display_name": "Admin", "password": "secret"},
         )
@@ -30,15 +28,15 @@ class TestBootstrap:
         assert resp.json()["status"] == "exists"
 
 
-class TestReviewsAPI:
-    async def test_get_reviews_empty(self, client: AsyncClient):
-        resp = await client.get("/api/reviews")
+class TestReviewsAPI(AsyncTestCase):
+    async def test_get_reviews_empty(self):
+        resp = await self.client.get("/api/reviews")
         assert resp.status_code == 200
         assert resp.json() == []
 
-    async def test_create_review_requires_auth(self, client: AsyncClient):
-        csrf = await get_csrf_token(client, "/register")
-        resp = await client.post(
+    async def test_create_review_requires_auth(self):
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
             "/api/reviews",
             data={
                 "content": "Test",
@@ -51,11 +49,9 @@ class TestReviewsAPI:
         # Should redirect to login (303) — auth check happens after CSRF
         assert resp.status_code in (303, 401, 403)
 
-    async def test_create_review_rejects_missing_csrf(
-        self, client: AsyncClient, registered_user: dict
-    ):
-        # registered_user fixture already logs in
-        resp = await client.post(
+    async def test_create_review_rejects_missing_csrf(self):
+        await self.register_user()  # logs in via /register
+        resp = await self.client.post(
             "/api/reviews",
             data={
                 "content": "No CSRF",
@@ -66,13 +62,11 @@ class TestReviewsAPI:
         )
         assert resp.status_code == 403
 
-    async def test_create_and_list_review(
-        self, client: AsyncClient, registered_user: dict
-    ):
-        # registered_user fixture already logs in via /register
-        csrf = await get_csrf_token(client, "/register")
+    async def test_create_and_list_review(self):
+        await self.register_user()  # logs in via /register
+        csrf = await get_csrf_token(self.client, "/register")
 
-        resp = await client.post(
+        resp = await self.client.post(
             "/api/reviews",
             data={
                 "content": "Great coffee!",
@@ -91,19 +85,18 @@ class TestReviewsAPI:
         assert data["review"]["rating"] == 5
 
         # List reviews
-        resp = await client.get("/api/reviews")
+        resp = await self.client.get("/api/reviews")
         assert resp.status_code == 200
         reviews = resp.json()
         assert len(reviews) == 1
         assert reviews[0]["content"] == "Great coffee!"
 
-    async def test_create_review_with_bounds_filter(
-        self, client: AsyncClient, registered_user: dict
-    ):
-        csrf = await get_csrf_token(client, "/register")
+    async def test_create_review_with_bounds_filter(self):
+        await self.register_user()
+        csrf = await get_csrf_token(self.client, "/register")
 
         # Create a review in SF
-        await client.post(
+        await self.client.post(
             "/api/reviews",
             data={
                 "content": "SF Review",
@@ -114,7 +107,7 @@ class TestReviewsAPI:
             },
         )
         # Create a review in NYC
-        await client.post(
+        await self.client.post(
             "/api/reviews",
             data={
                 "content": "NYC Review",
@@ -126,7 +119,7 @@ class TestReviewsAPI:
         )
 
         # Filter by SF bounds
-        resp = await client.get(
+        resp = await self.client.get(
             "/api/reviews",
             params={
                 "min_lat": "37.70",
@@ -140,14 +133,13 @@ class TestReviewsAPI:
         assert len(reviews) == 1
         assert reviews[0]["content"] == "SF Review"
 
-    async def test_review_ap_id_is_unique(
-        self, client: AsyncClient, registered_user: dict
-    ):
+    async def test_review_ap_id_is_unique(self):
         """Two reviews with the same content should get different ap_ids."""
-        csrf = await get_csrf_token(client, "/register")
+        await self.register_user()
+        csrf = await get_csrf_token(self.client, "/register")
 
         for _ in range(2):
-            resp = await client.post(
+            resp = await self.client.post(
                 "/api/reviews",
                 data={
                     "content": "Same content",
@@ -159,16 +151,15 @@ class TestReviewsAPI:
             )
             assert resp.status_code == 200
 
-        resp = await client.get("/api/reviews")
+        resp = await self.client.get("/api/reviews")
         reviews = resp.json()
         ap_ids = [r["ap_id"] for r in reviews]
         assert len(ap_ids) == len(set(ap_ids))  # all unique
 
-    async def test_get_single_review(
-        self, client: AsyncClient, registered_user: dict
-    ):
-        csrf = await get_csrf_token(client, "/register")
-        resp = await client.post(
+    async def test_get_single_review(self):
+        await self.register_user()
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
             "/api/reviews",
             data={
                 "content": "Single review test",
@@ -180,19 +171,18 @@ class TestReviewsAPI:
         )
         review_id = resp.json()["review"]["id"]
 
-        resp = await client.get(f"/api/reviews/{review_id}")
+        resp = await self.client.get(f"/api/reviews/{review_id}")
         assert resp.status_code == 200
         assert resp.json()["content"] == "Single review test"
 
-    async def test_get_single_review_not_found(self, client: AsyncClient):
-        resp = await client.get("/api/reviews/9999")
+    async def test_get_single_review_not_found(self):
+        resp = await self.client.get("/api/reviews/9999")
         assert resp.status_code == 404
 
-    async def test_delete_review(
-        self, client: AsyncClient, registered_user: dict
-    ):
-        csrf = await get_csrf_token(client, "/register")
-        resp = await client.post(
+    async def test_delete_review(self):
+        await self.register_user()
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
             "/api/reviews",
             data={
                 "content": "To be deleted",
@@ -204,29 +194,28 @@ class TestReviewsAPI:
         )
         review_id = resp.json()["review"]["id"]
 
-        resp = await client.delete(f"/api/reviews/{review_id}")
+        resp = await self.client.delete(f"/api/reviews/{review_id}")
         assert resp.status_code == 200
         assert resp.json()["status"] == "deleted"
 
         # Verify it's gone
-        resp = await client.get(f"/api/reviews/{review_id}")
+        resp = await self.client.get(f"/api/reviews/{review_id}")
         assert resp.status_code == 404
 
-    async def test_delete_review_not_found(self, client: AsyncClient):
-        resp = await client.delete("/api/reviews/9999")
+    async def test_delete_review_not_found(self):
+        resp = await self.client.delete("/api/reviews/9999")
         assert resp.status_code in (303, 401, 403)  # auth required first
 
-    async def test_delete_review_requires_auth(self, client: AsyncClient):
-        resp = await client.delete("/api/reviews/1")
+    async def test_delete_review_requires_auth(self):
+        resp = await self.client.delete("/api/reviews/1")
         assert resp.status_code in (303, 401, 403)
 
-    async def test_pagination(
-        self, client: AsyncClient, registered_user: dict
-    ):
-        csrf = await get_csrf_token(client, "/register")
+    async def test_pagination(self):
+        await self.register_user()
+        csrf = await get_csrf_token(self.client, "/register")
         # Create 5 reviews
         for i in range(5):
-            await client.post(
+            await self.client.post(
                 "/api/reviews",
                 data={
                     "content": f"Review {i}",
@@ -238,35 +227,34 @@ class TestReviewsAPI:
             )
 
         # Get first page (limit=2)
-        resp = await client.get("/api/reviews", params={"limit": 2, "offset": 0})
+        resp = await self.client.get("/api/reviews", params={"limit": 2, "offset": 0})
         assert resp.status_code == 200
         assert len(resp.json()) == 2
         assert resp.headers["X-Total-Count"] == "5"
 
         # Get second page
-        resp = await client.get("/api/reviews", params={"limit": 2, "offset": 2})
+        resp = await self.client.get("/api/reviews", params={"limit": 2, "offset": 2})
         assert resp.status_code == 200
         assert len(resp.json()) == 2
 
         # Get last page (partial)
-        resp = await client.get("/api/reviews", params={"limit": 2, "offset": 4})
+        resp = await self.client.get("/api/reviews", params={"limit": 2, "offset": 4})
         assert resp.status_code == 200
         assert len(resp.json()) == 1
 
-    async def test_follow_invalid_target(
-        self, client: AsyncClient, registered_user: dict
-    ):
+    async def test_follow_invalid_target(self):
         """Following an unresolvable target should return 400."""
-        csrf = await get_csrf_token(client, "/register")
-        resp = await client.post(
+        await self.register_user()
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
             "/api/follow",
             data={"target": "nonexistent@nonexistent.invalid", "csrf_token": csrf},
         )
         assert resp.status_code == 400
 
-    async def test_follow_requires_auth(self, client: AsyncClient):
-        csrf = await get_csrf_token(client, "/register")
-        resp = await client.post(
+    async def test_follow_requires_auth(self):
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
             "/api/follow",
             data={"target": "https://example.com/actor/bob", "csrf_token": csrf},
         )

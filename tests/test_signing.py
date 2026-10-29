@@ -1,9 +1,11 @@
 """Tests for HTTP Signature signing and verification."""
 
+import unittest
+
 from app.activitypub.signing import generate_keypair, sign_request, verify_signature
 
 
-class TestKeypairGeneration:
+class TestKeypairGeneration(unittest.TestCase):
     def test_generate_keypair_returns_pem_strings(self):
         priv, pub = generate_keypair()
         assert isinstance(priv, str)
@@ -18,7 +20,7 @@ class TestKeypairGeneration:
         assert pub1 != pub2
 
 
-class TestSignAndVerify:
+class TestSignAndVerify(unittest.TestCase):
     def test_sign_and_verify_roundtrip(self):
         priv, pub = generate_keypair()
         body = b'{"type":"Create","actor":"https://example.com/actor/alice"}'
