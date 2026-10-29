@@ -183,9 +183,10 @@ uv run python -m unittest tests.test_db -v    # run a single test file
 
 ```bash
 uv sync --group dev     # install ruff + basedpyright (once)
-uv run ruff check app/ tests/    # lint check
-uv run ruff format app/          # auto-format
-uv run basedpyright app/ tests/  # type check
+uv run ruff format --check app/ tests/  # format check (runs in CI)
+uv run ruff check app/ tests/           # lint check
+uv run ruff format app/                 # auto-format
+uv run basedpyright app/ tests/         # type check
 ```
 
 ## Project layout
