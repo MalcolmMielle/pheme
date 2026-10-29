@@ -1,0 +1,40 @@
+# Forgejo Actions — test pipeline.
+#
+# One job on the node:22 image. The Python part (unittest suite, ruff,
+# basedpyright) runs through uv, which bootstraps a managed Python ≥ 3.13
+# (the image's system Python is 3.11, too old for requires-python >= 3.13);
+# the same image provides node/npm for the React build.
+
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: docker
+    container:
+      image: node:22
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
+      - name: Install Python dependencies
+        run: uv sync --group dev
+
+      - name: Lint (ruff)
+        run: uv run ruff check app/ tests/
+
+      - name: Type check (basedpyright)
+        run: uv run basedpyright app/ tests/
+
+      - name: Run tests (unittest)
+        run: uv run python -m unittest discover -s tests -v
+
+      - name: Build React app
+        run: |
+          cd react-app
+          npm ci
+          npm run build
