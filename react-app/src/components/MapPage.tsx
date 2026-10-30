@@ -396,11 +396,7 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         {/* The review form is the bottom part of the left panel, not a
             separate side panel. */}
         {formOpen && draft && (
-          <ReviewForm
-            draft={draft}
-            onSubmit={submitReview}
-            onClose={closeForm}
-          />
+          <ReviewForm onSubmit={submitReview} onClose={closeForm} />
         )}
       </aside>
     </div>

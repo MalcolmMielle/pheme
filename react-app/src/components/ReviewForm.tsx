@@ -1,10 +1,8 @@
 import { useState } from "react";
 
 import StarRating from "./StarRating";
-import type { Draft } from "../types";
 
 interface ReviewFormProps {
-  draft: Draft;
   onSubmit: (
     content: string,
     rating: number,
@@ -14,23 +12,17 @@ interface ReviewFormProps {
 
 /**
  * Review creation panel for a fixed place (opened from the place panel /
- * place marker — the location cannot be changed here): read-only place
- * info, star rating, content.
+ * place marker — the location is chosen there and cannot change here):
+ * star rating and content. The parent guards the location in onSubmit.
  */
-export default function ReviewForm({ draft, onSubmit, onClose }: ReviewFormProps) {
+export default function ReviewForm({ onSubmit, onClose }: ReviewFormProps) {
   const [content, setContent] = useState("");
   const [rating, setRating] = useState(5);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasLocation = draft.lat != null && draft.lng != null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!hasLocation) {
-      setError("No place selected.");
-      return;
-    }
     if (!content.trim()) {
       setError("Please write a short review.");
       return;
