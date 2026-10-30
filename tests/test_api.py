@@ -34,6 +34,13 @@ class TestReviewsAPI(AsyncTestCase):
         assert resp.status_code == 200
         assert resp.json() == []
 
+    async def test_unknown_api_path_returns_404_json_not_spa(self):
+        """The SPA catch-all must not swallow unknown /api routes."""
+        resp = await self.client.get("/api/does-not-exist")
+        assert resp.status_code == 404
+        assert resp.headers["content-type"].startswith("application/json")
+        assert resp.json()["detail"] == "Not found"
+
     async def test_create_review_requires_auth(self):
         csrf = await get_csrf_token(self.client, "/register")
         resp = await self.client.post(

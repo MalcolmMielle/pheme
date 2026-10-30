@@ -68,7 +68,13 @@ if os.path.isdir(_ASSETS_DIR):
 
 @app.get("/{full_path:path}", response_class=FileResponse)
 async def spa_catchall(full_path: str):
-    """SPA catch-all — serve the React app for any otherwise-unmatched GET."""
+    """SPA catch-all — serve the React app for any otherwise-unmatched GET.
+
+    API / ActivityPub paths must 404 as JSON, not return the app shell —
+    clients need to distinguish "route does not exist" from the SPA.
+    """
+    if full_path.startswith(("api/", "actor/", ".well-known/", "inbox")):
+        raise HTTPException(status_code=404, detail="Not found")
     if os.path.isfile(_INDEX_HTML):
         return FileResponse(_INDEX_HTML)
     raise HTTPException(
