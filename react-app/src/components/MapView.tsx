@@ -17,7 +17,9 @@ import {
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
-import { stars } from "../api";
+import { formatRating, stars } from "../api";
+import { groupReviewsByPlace } from "../places";
+import type { ReviewPlace } from "../places";
 import type {
   Draft,
   FocusTarget,
@@ -39,12 +41,6 @@ const STAR_COLORS: Record<number, string> = {
 };
 
 const iconCache = new Map<string, DivIcon>();
-
-/** "4.5" for 4.5, "5" for 5 — label shown inside the marker. */
-function formatRating(rating: number): string {
-  const rounded = Math.round(rating * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
-}
 
 /**
  * Teardrop marker colored by (possibly fractional) average rating — the
@@ -72,47 +68,6 @@ function markerIcon(avgRating: number): DivIcon {
     iconCache.set(label, icon);
   }
   return icon;
-}
-
-/** A place on the map: all reviews that share (nearly) the same coordinates. */
-interface ReviewPlace {
-  key: string;
-  lat: number;
-  lng: number;
-  name: string;
-  address: string;
-  reviews: Review[];
-  avgRating: number;
-}
-
-/**
- * Group reviews into places — one marker per place instead of one per
- * review. Reviews land in the same place when their coordinates match to
- * 4 decimal places (~11 m), which covers reviews posted via place search
- * (identical Nominatim coordinates) and nearby map clicks.
- */
-function groupReviewsByPlace(reviews: Review[]): ReviewPlace[] {
-  const groups = new Map<string, Review[]>();
-  for (const r of reviews) {
-    const key = `${r.latitude.toFixed(4)},${r.longitude.toFixed(4)}`;
-    const list = groups.get(key);
-    if (list) list.push(r);
-    else groups.set(key, [r]);
-  }
-  return [...groups.entries()].map(([key, list]) => {
-    const lat = list.reduce((sum, r) => sum + r.latitude, 0) / list.length;
-    const lng = list.reduce((sum, r) => sum + r.longitude, 0) / list.length;
-    const avgRating = list.reduce((sum, r) => sum + r.rating, 0) / list.length;
-    // Most common non-empty place name in the group.
-    const names = new Map<string, number>();
-    for (const r of list) {
-      const name = r.place_name.trim();
-      if (name) names.set(name, (names.get(name) ?? 0) + 1);
-    }
-    const name = [...names.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
-    const address = list.find((r) => r.place_address)?.place_address ?? "";
-    return { key, lat, lng, name, address, reviews: list, avgRating };
-  });
 }
 
 interface MapControllerProps {
@@ -369,7 +324,9 @@ export default function MapView({
         />
       ))}
 
-      {draftPos && (
+      {/* Placement pin only for a free draft — a place-bound draft is
+          locked and already marked by the place / search marker. */}
+      {draftPos && !draft?.locked && (
         <Marker position={draftPos} draggable eventHandlers={draftHandlers} />
       )}
 

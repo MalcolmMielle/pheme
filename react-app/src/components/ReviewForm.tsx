@@ -85,7 +85,14 @@ export default function ReviewForm({
 
         {hasLocation && (
           <div className="selected-location">
-            📍 {draft.label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`}
+            {draft.locked ? "🔒" : "📍"}{" "}
+            {draft.label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`}
+            {draft.locked && (
+              <small className="selected-location-hint">
+                {" "}
+                — locked to this place (search above to pick another)
+              </small>
+            )}
           </div>
         )}
 

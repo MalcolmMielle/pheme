@@ -43,6 +43,12 @@ export interface Draft {
   placeAddress: string;
   /** Label for the "selected location" chip: place name or coordinates. */
   label: string;
+  /**
+   * True when the draft is bound to a picked place — map clicks and pin
+   * dragging must not move it. False for a blank form, where the location
+   * is chosen by clicking the map.
+   */
+  locked: boolean;
 }
 
 /** A place picked in the global map search — shown as a marker + popup. */

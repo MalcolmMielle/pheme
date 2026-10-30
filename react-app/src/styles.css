@@ -177,6 +177,56 @@ body {
   overflow: hidden;
 }
 
+/* ── place panel (searched place shown in the sidebar) ─────────────── */
+.place-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.place-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+.place-panel-body .address {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0 0 8px;
+}
+.place-panel-avg {
+  margin-bottom: 8px;
+}
+.place-panel-avg .stars {
+  color: var(--star);
+  font-size: 1.1rem;
+  letter-spacing: 2px;
+}
+.place-panel-avg small {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+.place-panel-body .review-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -20px;
+  padding: 8px 20px;
+}
+.place-empty {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 8px 0 16px;
+}
+.place-rate-btn {
+  width: 100%;
+  flex: none;
+  margin-top: 12px;
+}
+
 /* ── FAB ────────────────────────────────────────────────────────────── */
 .fab {
   position: absolute;
@@ -322,6 +372,9 @@ body {
   background: #eff6ff;
   border-radius: var(--radius-sm);
   text-align: center;
+}
+.selected-location-hint {
+  color: var(--text-secondary);
 }
 .place-address[readonly] {
   background: var(--surface-elevated);

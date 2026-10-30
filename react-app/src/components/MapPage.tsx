@@ -4,7 +4,9 @@ import { useCallback, useRef, useState } from "react";
 import { createReview, fetchReviews, reverseGeocode } from "../api";
 import { useBottomSheet } from "../hooks/useBottomSheet";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { reviewsAtPlace } from "../places";
 import MapView from "./MapView";
+import PlacePanel from "./PlacePanel";
 import ReviewDetail from "./ReviewDetail";
 import ReviewForm from "./ReviewForm";
 import ReviewList from "./ReviewList";
@@ -16,7 +18,6 @@ import type {
   NominatimResult,
   PlaceSelection,
   Review,
-  SearchMarker,
 } from "../types";
 
 const SIDEBAR_W = 380;
@@ -36,7 +37,12 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
   const [activeReview, setActiveReview] = useState<Review | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [searchMarker, setSearchMarker] = useState<SearchMarker | null>(null);
+  /**
+   * Place picked via the global search: shown as a map marker and as the
+   * place panel in the sidebar. Cleared when the search text is removed
+   * or the panel is closed.
+   */
+  const [selectedPlace, setSelectedPlace] = useState<PlaceSelection | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
 
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -104,9 +110,10 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
   const closeDetail = useCallback(() => setActiveReview(null), []);
 
   /**
-   * Open the review form. When a place is given (map place marker) — or was
-   * found earlier via the global search (searchMarker) — pre-fill the
-   * draft with it so the user doesn't have to search for it again.
+   * Open the review form. With an explicit place (place panel / place
+   * marker "add your review") the draft is pre-filled with it; otherwise
+   * (FAB) the form opens blank and the location is picked with a map
+   * click.
    */
   const openForm = useCallback(
     (place?: PlaceSelection) => {
@@ -116,22 +123,31 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         return;
       }
       setActiveReview(null);
-      const from = place ?? searchMarker;
-      setDraft(
-        from
-          ? {
-              lat: from.lat,
-              lng: from.lng,
-              placeName: from.name,
-              placeAddress: from.address,
-              label: from.name,
-            }
-          : { lat: null, lng: null, placeName: "", placeAddress: "", label: "" },
-      );
-      if (from) setFocus(makeFocus(from.lat, from.lng, 16, true));
+      if (place) {
+        // Rating a specific place — lock the location so map clicks can't
+        // move it.
+        setDraft({
+          lat: place.lat,
+          lng: place.lng,
+          placeName: place.name,
+          placeAddress: place.address,
+          label: place.name,
+          locked: true,
+        });
+        setFocus(makeFocus(place.lat, place.lng, 16, true));
+      } else {
+        setDraft({
+          lat: null,
+          lng: null,
+          placeName: "",
+          placeAddress: "",
+          label: "",
+          locked: false,
+        });
+      }
       setFormOpen(true);
     },
-    [user, searchMarker, makeFocus],
+    [user, makeFocus],
   );
 
   const closeForm = useCallback(() => {
@@ -145,22 +161,29 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
 
   const onDraftMove = useCallback((lat: number, lng: number) => {
     setDraft((d) =>
-      d ? { ...d, lat, lng, label: `${lat.toFixed(4)}, ${lng.toFixed(4)}` } : d,
+      d && !d.locked
+        ? { ...d, lat, lng, label: `${lat.toFixed(4)}, ${lng.toFixed(4)}` }
+        : d,
     );
   }, []);
 
   /**
    * Map click while the form is open: drop the draggable placement marker
-   * and reverse-geocode to fill the place name / address fields.
+   * and reverse-geocode to fill the place name / address fields. Ignored
+   * when the draft is locked to a specific place.
    */
   const onMapClick = useCallback((lat: number, lng: number) => {
     const label = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    setDraft({ lat, lng, placeName: "", placeAddress: "", label });
+    setDraft((d) =>
+      d?.locked
+        ? d
+        : { lat, lng, placeName: "", placeAddress: "", label, locked: false },
+    );
     reverseGeocode(lat, lng)
       .then((displayName) => {
         if (!displayName) return;
         setDraft((d) =>
-          d && d.lat === lat && d.lng === lng
+          d && !d.locked && d.lat === lat && d.lng === lng
             ? {
                 ...d,
                 placeName: displayName.split(",")[0],
@@ -178,22 +201,34 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
     const lng = parseFloat(result.lon);
     const name = result.display_name.split(",")[0];
     setDraft((d) => ({
-      ...(d ?? { lat: null, lng: null, placeName: "", placeAddress: "", label: "" }),
+      ...(d ?? {
+        lat: null,
+        lng: null,
+        placeName: "",
+        placeAddress: "",
+        label: "",
+        locked: false,
+      }),
       lat,
       lng,
       placeName: name,
       placeAddress: result.display_name,
       label: name,
+      // A place was explicitly picked — lock the location.
+      locked: true,
     }));
     setFocus(makeFocus(lat, lng, 16, true));
   }, [makeFocus]);
 
-  /** Place picked in the global map search: marker + popup, move the map. */
+  /**
+   * Place picked in the global map search: drop the map marker, open the
+   * place panel in the sidebar, and move the map to the place.
+   */
   const onSearchPlaceSelected = useCallback(
     (result: NominatimResult) => {
       const lat = parseFloat(result.lat);
       const lng = parseFloat(result.lon);
-      setSearchMarker({
+      setSelectedPlace({
         lat,
         lng,
         name: result.display_name.split(",")[0],
@@ -203,6 +238,13 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
     },
     [makeFocus, formOpen, activeReview],
   );
+
+  /**
+   * Close the place panel (or clear the search text): back to the standard
+   * sidebar, map marker removed, and the next ＋ opens a blank form where
+   * the location is picked with a map click.
+   */
+  const closePlacePanel = useCallback(() => setSelectedPlace(null), []);
 
   /** Submit the review form. Returns success or an error message. */
   const submitReview = useCallback(
@@ -256,7 +298,7 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
       <MapView
         reviews={reviews}
         draft={draft}
-        searchMarker={searchMarker}
+        searchMarker={selectedPlace}
         formOpen={formOpen}
         focus={focus}
         onBoundsChange={loadReviews}
@@ -279,60 +321,78 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         >
           <span className="sheet-handle-bar" />
         </button>
-        <div className="sidebar-header">
-          <h1>🗺️ FedReviews</h1>
-          <span className="review-count">
-            {reviews.length} review{reviews.length !== 1 ? "s" : ""}
-          </span>
-        </div>
-
-        {userLoaded && (
-          <div className="sidebar-user">
-            {user ? (
-              <>
-                <span title={`Logged in as ${user.display_name || user.username}`}>
-                  👤 {user.display_name || user.username}
-                </span>
-                <form method="post" action="/logout">
-                  <input
-                    type="hidden"
-                    name="csrf_token"
-                    value={user.csrf_token}
-                  />
-                  <button type="submit" className="link-btn">
-                    Logout
-                  </button>
-                </form>
-              </>
-            ) : (
-              <>
-                <a href="/login" className="link-btn">
-                  Sign in
-                </a>
-                <a href="/register" className="link-btn">
-                  Register
-                </a>
-              </>
+        {selectedPlace ? (
+          <PlacePanel
+            place={selectedPlace}
+            reviews={reviewsAtPlace(
+              reviews,
+              selectedPlace.lat,
+              selectedPlace.lng,
             )}
-          </div>
+            onSelectReview={selectReview}
+            onRatePlace={openForm}
+            onClose={closePlacePanel}
+          />
+        ) : (
+          <>
+            <div className="sidebar-header">
+              <h1>🗺️ FedReviews</h1>
+              <span className="review-count">
+                {reviews.length} review{reviews.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            {userLoaded && (
+              <div className="sidebar-user">
+                {user ? (
+                  <>
+                    <span
+                      title={`Logged in as ${user.display_name || user.username}`}
+                    >
+                      👤 {user.display_name || user.username}
+                    </span>
+                    <form method="post" action="/logout">
+                      <input
+                        type="hidden"
+                        name="csrf_token"
+                        value={user.csrf_token}
+                      />
+                      <button type="submit" className="link-btn">
+                        Logout
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  <>
+                    <a href="/login" className="link-btn">
+                      Sign in
+                    </a>
+                    <a href="/register" className="link-btn">
+                      Register
+                    </a>
+                  </>
+                )}
+              </div>
+            )}
+
+            <SearchBox onSelect={onSearchPlaceSelected} onClear={closePlacePanel} />
+
+            <ReviewList
+              reviews={reviews}
+              activeId={activeReview?.id ?? null}
+              onSelect={selectReview}
+            />
+
+            <button
+              type="button"
+              className="fab"
+              title="Add a review"
+              onClick={() => openForm()}
+            >
+              ＋
+            </button>
+          </>
         )}
-
-        <SearchBox onSelect={onSearchPlaceSelected} />
-
-        <ReviewList
-          reviews={reviews}
-          activeId={activeReview?.id ?? null}
-          onSelect={selectReview}
-        />
-
-        <button
-          type="button"
-          className="fab"
-          title="Add a review"
-          onClick={() => openForm()}
-        >
-          ＋
-        </button>
       </aside>
 
       {formOpen && draft && (

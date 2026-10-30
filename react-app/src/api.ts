@@ -76,3 +76,9 @@ export async function reverseGeocode(
 export function stars(rating: number): string {
   return "★".repeat(rating) + "☆".repeat(5 - rating);
 }
+
+/** "4.5" for 4.5, "5" for 5 — label shown inside markers / next to averages. */
+export function formatRating(rating: number): string {
+  const rounded = Math.round(rating * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
