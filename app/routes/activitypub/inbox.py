@@ -22,7 +22,6 @@ from app.db import (
     follow_actor,
     get_actor_by_uri,
     get_db,
-    list_local_actors,
     review_exists,
 )
 from app.routes.activitypub.helpers import fetch_remote_actor, require_local_actor
@@ -142,11 +141,12 @@ async def _handle_follow(
 async def _handle_accept(
     activity: dict[str, Any], sender_actor: dict[str, Any]
 ) -> JSONResponse:
-    obj = activity.get("object", {})
-    if obj.get("actor"):
-        local_actors = await list_local_actors()
-        for la in local_actors:
-            await accept_follow(la["id"], sender_actor["actor_uri"])
+    # object is the original Follow activity; its actor is the local actor
+    # whose pending follow is being accepted.
+    follower_uri = activity.get("object", {}).get("actor", "")
+    follower = await get_actor_by_uri(follower_uri) if follower_uri else None
+    if follower:
+        await accept_follow(follower["id"], sender_actor["actor_uri"])
     return JSONResponse({"status": "ok"})
 
 
