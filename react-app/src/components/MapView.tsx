@@ -32,12 +32,24 @@ const STAR_COLORS: Record<number, string> = {
   5: "#22c55e",
 };
 
-const iconCache = new Map<number, DivIcon>();
+const iconCache = new Map<string, DivIcon>();
 
-function markerIcon(rating: number): DivIcon {
-  let icon = iconCache.get(rating);
+/** "4.5" for 4.5, "5" for 5 — label shown inside the marker. */
+function formatRating(rating: number): string {
+  const rounded = Math.round(rating * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+/**
+ * Teardrop marker colored by (possibly fractional) average rating — the
+ * color comes from the nearest whole star, the label shows the average.
+ */
+function markerIcon(avgRating: number): DivIcon {
+  const label = formatRating(avgRating);
+  let icon = iconCache.get(label);
   if (!icon) {
-    const color = STAR_COLORS[rating] || "#2563eb";
+    const star = Math.min(5, Math.max(1, Math.round(avgRating)));
+    const color = STAR_COLORS[star] || "#2563eb";
     icon = L.divIcon({
       className: "custom-marker",
       html:
@@ -46,14 +58,55 @@ function markerIcon(rating: number): DivIcon {
         `justify-content:center;font-weight:700;font-size:13px;` +
         `box-shadow:0 2px 6px rgba(0,0,0,.3);transform:rotate(-45deg);` +
         `border:2px solid white;">` +
-        `<span style="transform:rotate(45deg)">${rating}</span></div>`,
+        `<span style="transform:rotate(45deg)">${label}</span></div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 32],
       popupAnchor: [0, -32],
     });
-    iconCache.set(rating, icon);
+    iconCache.set(label, icon);
   }
   return icon;
+}
+
+/** A place on the map: all reviews that share (nearly) the same coordinates. */
+interface ReviewPlace {
+  key: string;
+  lat: number;
+  lng: number;
+  name: string;
+  address: string;
+  reviews: Review[];
+  avgRating: number;
+}
+
+/**
+ * Group reviews into places — one marker per place instead of one per
+ * review. Reviews land in the same place when their coordinates match to
+ * 4 decimal places (~11 m), which covers reviews posted via place search
+ * (identical Nominatim coordinates) and nearby map clicks.
+ */
+function groupReviewsByPlace(reviews: Review[]): ReviewPlace[] {
+  const groups = new Map<string, Review[]>();
+  for (const r of reviews) {
+    const key = `${r.latitude.toFixed(4)},${r.longitude.toFixed(4)}`;
+    const list = groups.get(key);
+    if (list) list.push(r);
+    else groups.set(key, [r]);
+  }
+  return [...groups.entries()].map(([key, list]) => {
+    const lat = list.reduce((sum, r) => sum + r.latitude, 0) / list.length;
+    const lng = list.reduce((sum, r) => sum + r.longitude, 0) / list.length;
+    const avgRating = list.reduce((sum, r) => sum + r.rating, 0) / list.length;
+    // Most common non-empty place name in the group.
+    const names = new Map<string, number>();
+    for (const r of list) {
+      const name = r.place_name.trim();
+      if (name) names.set(name, (names.get(name) ?? 0) + 1);
+    }
+    const name = [...names.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
+    const address = list.find((r) => r.place_address)?.place_address ?? "";
+    return { key, lat, lng, name, address, reviews: list, avgRating };
+  });
 }
 
 interface MapControllerProps {
@@ -126,26 +179,30 @@ function MapController({
 }
 
 /**
- * A single review marker. The position/icon/handlers props are memoized:
- * react-leaflet compares `position` by reference and would otherwise call
- * `setLatLng` on every render — which re-fires the marker's `move` event
- * and makes an open popup auto-pan the map back to itself.
+ * One marker per place, colored by the average rating of all its reviews.
+ * The popup lists every review at the place — clicking one opens its
+ * detail; clicking the marker itself opens the latest review (reviews
+ * arrive sorted by created_at DESC). The position/icon/handlers props are
+ * memoized: react-leaflet compares `position` by reference and would
+ * otherwise call `setLatLng` on every render — which re-fires the
+ * marker's `move` event and makes an open popup auto-pan the map back to
+ * itself.
  */
-function ReviewMarker({
-  review,
+function PlaceMarker({
+  place,
   onSelect,
 }: {
-  review: Review;
+  place: ReviewPlace;
   onSelect: (review: Review) => void;
 }) {
   const position = useMemo<[number, number]>(
-    () => [review.latitude, review.longitude],
-    [review.latitude, review.longitude],
+    () => [place.lat, place.lng],
+    [place.lat, place.lng],
   );
-  const icon = markerIcon(review.rating);
+  const icon = markerIcon(place.avgRating);
   const handlers = useMemo<LeafletEventHandlerFnMap>(
-    () => ({ click: () => onSelect(review) }),
-    [onSelect, review],
+    () => ({ click: () => onSelect(place.reviews[0]) }),
+    [onSelect, place],
   );
   // Memoized: react-leaflet calls popup.update() whenever the children
   // identity changes while the popup is open, and Leaflet's update()
@@ -154,22 +211,33 @@ function ReviewMarker({
   const popup = useMemo(
     () => (
       <>
-        <strong>{review.place_name || "Unnamed"}</strong>
+        <strong>{place.name || "Unnamed place"}</strong>
         <br />
-        <span className="popup-stars">{stars(review.rating)}</span>
-        <br />
-        {review.content.substring(0, 80)}…
-        <br />
-        <small>by {review.display_name || review.username}</small>
+        <span className="popup-stars">{stars(Math.round(place.avgRating))}</span>{" "}
+        <small>
+          {formatRating(place.avgRating)} avg · {place.reviews.length} review
+          {place.reviews.length !== 1 ? "s" : ""}
+        </small>
+        <ul className="popup-review-list">
+          {place.reviews.map((r) => (
+            <li key={r.id}>
+              <button
+                type="button"
+                className="popup-review-btn"
+                onClick={() => onSelect(r)}
+              >
+                <span className="popup-stars">{stars(r.rating)}</span>{" "}
+                {r.content.substring(0, 60)}
+                {r.content.length > 60 ? "…" : ""}
+                <br />
+                <small>by {r.display_name || r.username}</small>
+              </button>
+            </li>
+          ))}
+        </ul>
       </>
     ),
-    [
-      review.place_name,
-      review.rating,
-      review.content,
-      review.display_name,
-      review.username,
-    ],
+    [place, onSelect],
   );
   return (
     <Marker position={position} icon={icon} eventHandlers={handlers}>
@@ -218,7 +286,7 @@ interface MapViewProps {
   onSelectReview: (review: Review) => void;
 }
 
-/** The Leaflet map: OSM tiles, coloured review markers, placement marker. */
+/** The Leaflet map: OSM tiles, one avg-colored marker per place, placement marker. */
 export default function MapView({
   reviews,
   draft,
@@ -230,6 +298,9 @@ export default function MapView({
   onDraftMove,
   onSelectReview,
 }: MapViewProps) {
+  // One marker per place, colored by the place's average rating.
+  const places = useMemo(() => groupReviewsByPlace(reviews), [reviews]);
+
   // Memoized so the draggable marker isn't snapped back mid-drag.
   const draftPos = useMemo<[number, number] | null>(
     () =>
@@ -265,8 +336,8 @@ export default function MapView({
         onMapClick={onMapClick}
       />
 
-      {reviews.map((r) => (
-        <ReviewMarker key={r.id} review={r} onSelect={onSelectReview} />
+      {places.map((p) => (
+        <PlaceMarker key={p.key} place={p} onSelect={onSelectReview} />
       ))}
 
       {draftPos && (

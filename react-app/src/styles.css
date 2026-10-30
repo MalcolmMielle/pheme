@@ -435,6 +435,28 @@ body {
   color: var(--star);
   margin: 2px 0;
 }
+.leaflet-popup-content .popup-review-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.leaflet-popup-content .popup-review-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  padding: 6px 2px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.leaflet-popup-content .popup-review-btn:hover {
+  background: var(--surface-elevated);
+}
 
 /* ── bottom-sheet drag handle (hidden on desktop) ───────────────────── */
 .sheet-handle {
