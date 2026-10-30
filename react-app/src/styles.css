@@ -359,7 +359,8 @@ body {
   transition: background .1s;
 }
 .search-item:last-child { border-bottom: none; }
-.search-item:hover {
+.search-item:hover,
+.search-item.active {
   background: var(--surface-elevated);
 }
 .search-item .place {
