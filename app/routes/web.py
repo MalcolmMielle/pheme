@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from app.config import config
 from app.db import (
     get_actor_by_username,
-    get_reviews,
+    get_review_by_id,
     hash_password,
     verify_password,
 )
@@ -29,8 +29,7 @@ templates = Jinja2Templates(directory="app/templates")
 @router.get("/review/{review_id}", response_class=HTMLResponse)
 async def review_page(request: Request, review_id: int) -> HTMLResponse:
     """Single review detail page."""
-    reviews = await get_reviews(limit=500)
-    review = next((r for r in reviews if r["id"] == review_id), None)
+    review = await get_review_by_id(review_id)
     if not review:
         raise HTTPException(404, "Review not found")
     return templates.TemplateResponse(
