@@ -54,6 +54,17 @@ export interface SearchMarker {
 }
 
 /**
+ * A place (from the global search or a map place marker) used to pre-fill
+ * the review form, so the user doesn't have to search for it again.
+ */
+export interface PlaceSelection {
+  lat: number;
+  lng: number;
+  name: string;
+  address: string;
+}
+
+/**
  * MapPage asks the map to focus this point, with padding so the point lands
  * in the visible area (desktop: beside the sidebar/panel; mobile: above the
  * bottom sheet and below the floating search bar).

@@ -457,6 +457,24 @@ body {
 .leaflet-popup-content .popup-review-btn:hover {
   background: var(--surface-elevated);
 }
+.leaflet-popup-content .popup-rate-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: white;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s;
+}
+.leaflet-popup-content .popup-rate-btn:hover {
+  background: var(--accent-hover);
+}
 
 /* ── bottom-sheet drag handle (hidden on desktop) ───────────────────── */
 .sheet-handle {

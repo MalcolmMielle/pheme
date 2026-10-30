@@ -14,6 +14,7 @@ import type {
   FocusTarget,
   Me,
   NominatimResult,
+  PlaceSelection,
   Review,
   SearchMarker,
 } from "../types";
@@ -102,16 +103,36 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
 
   const closeDetail = useCallback(() => setActiveReview(null), []);
 
-  const openForm = useCallback(() => {
-    if (!user) {
-      // Same as the old UI: the FAB sends logged-out users to /login.
-      window.location.href = "/login";
-      return;
-    }
-    setActiveReview(null);
-    setDraft({ lat: null, lng: null, placeName: "", placeAddress: "", label: "" });
-    setFormOpen(true);
-  }, [user]);
+  /**
+   * Open the review form. When a place is given (map place marker) — or was
+   * found earlier via the global search (searchMarker) — pre-fill the
+   * draft with it so the user doesn't have to search for it again.
+   */
+  const openForm = useCallback(
+    (place?: PlaceSelection) => {
+      if (!user) {
+        // Same as the old UI: the FAB sends logged-out users to /login.
+        window.location.href = "/login";
+        return;
+      }
+      setActiveReview(null);
+      const from = place ?? searchMarker;
+      setDraft(
+        from
+          ? {
+              lat: from.lat,
+              lng: from.lng,
+              placeName: from.name,
+              placeAddress: from.address,
+              label: from.name,
+            }
+          : { lat: null, lng: null, placeName: "", placeAddress: "", label: "" },
+      );
+      if (from) setFocus(makeFocus(from.lat, from.lng, 16, true));
+      setFormOpen(true);
+    },
+    [user, searchMarker, makeFocus],
+  );
 
   const closeForm = useCallback(() => {
     setFormOpen(false);
@@ -242,6 +263,7 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         onMapClick={onMapClick}
         onDraftMove={onDraftMove}
         onSelectReview={selectReview}
+        onRatePlace={openForm}
       />
 
       <aside className="sidebar" data-sheet={sheet} style={sheetStyle}>
@@ -303,7 +325,12 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
           onSelect={selectReview}
         />
 
-        <button type="button" className="fab" title="Add a review" onClick={openForm}>
+        <button
+          type="button"
+          className="fab"
+          title="Add a review"
+          onClick={() => openForm()}
+        >
           ＋
         </button>
       </aside>

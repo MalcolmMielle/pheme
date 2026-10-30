@@ -18,7 +18,13 @@ import {
 import "leaflet/dist/leaflet.css";
 
 import { stars } from "../api";
-import type { Draft, FocusTarget, Review, SearchMarker } from "../types";
+import type {
+  Draft,
+  FocusTarget,
+  PlaceSelection,
+  Review,
+  SearchMarker,
+} from "../types";
 
 const DEFAULT_CENTER: [number, number] = [37.7749, -122.4194];
 const DEFAULT_ZOOM = 13;
@@ -191,9 +197,11 @@ function MapController({
 function PlaceMarker({
   place,
   onSelect,
+  onRatePlace,
 }: {
   place: ReviewPlace;
   onSelect: (review: Review) => void;
+  onRatePlace: (place: PlaceSelection) => void;
 }) {
   const position = useMemo<[number, number]>(
     () => [place.lat, place.lng],
@@ -235,9 +243,23 @@ function PlaceMarker({
             </li>
           ))}
         </ul>
+        <button
+          type="button"
+          className="popup-rate-btn"
+          onClick={() =>
+            onRatePlace({
+              lat: place.lat,
+              lng: place.lng,
+              name: place.name,
+              address: place.address,
+            })
+          }
+        >
+          ＋ Add your review
+        </button>
       </>
     ),
-    [place, onSelect],
+    [place, onSelect, onRatePlace],
   );
   return (
     <Marker position={position} icon={icon} eventHandlers={handlers}>
@@ -284,6 +306,7 @@ interface MapViewProps {
   onMapClick: (lat: number, lng: number) => void;
   onDraftMove: (lat: number, lng: number) => void;
   onSelectReview: (review: Review) => void;
+  onRatePlace: (place: PlaceSelection) => void;
 }
 
 /** The Leaflet map: OSM tiles, one avg-colored marker per place, placement marker. */
@@ -297,6 +320,7 @@ export default function MapView({
   onMapClick,
   onDraftMove,
   onSelectReview,
+  onRatePlace,
 }: MapViewProps) {
   // One marker per place, colored by the place's average rating.
   const places = useMemo(() => groupReviewsByPlace(reviews), [reviews]);
@@ -337,7 +361,12 @@ export default function MapView({
       />
 
       {places.map((p) => (
-        <PlaceMarker key={p.key} place={p} onSelect={onSelectReview} />
+        <PlaceMarker
+          key={p.key}
+          place={p}
+          onSelect={onSelectReview}
+          onRatePlace={onRatePlace}
+        />
       ))}
 
       {draftPos && (
