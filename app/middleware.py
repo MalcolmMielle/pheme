@@ -42,7 +42,10 @@ class CSRFMiddleware:
         # Skip ActivityPub inbox endpoints (they use HTTP Signatures)
         # and the one-time bootstrap endpoint (called via curl)
         path: str = scope.get("path", "")
-        if "/inbox" in path or path == "/api/bootstrap":
+        is_inbox = path == "/inbox" or (
+            path.startswith("/actor/") and path.endswith("/inbox")
+        )
+        if is_inbox or path == "/api/bootstrap":
             await self.app(scope, receive, send)
             return
 
