@@ -18,8 +18,7 @@ import {
 import "leaflet/dist/leaflet.css";
 
 import { formatRating, stars } from "../api";
-import { groupReviewsByPlace, placeKey } from "../places";
-import type { ReviewPlace } from "../places";
+import { groupReviewsByPlace, placeKey, type ReviewPlace } from "../places";
 import type {
   Draft,
   FocusTarget,
@@ -30,6 +29,10 @@ import type {
 
 const DEFAULT_CENTER: [number, number] = [37.7749, -122.4194];
 const DEFAULT_ZOOM = 13;
+/** Only re-focus the map if the target is further away than this (degrees). */
+const FOCUS_EPSILON = 0.001;
+/** Always zoom in to at least this level when focusing a target. */
+const FOCUS_MIN_ZOOM = 14;
 
 /** Teardrop marker color by rating (ported from app.js). */
 const STAR_COLORS: Record<number, string> = {
@@ -132,7 +135,7 @@ function MapController({
     const dist =
       Math.abs(center.lat - focus.lat) + Math.abs(center.lng - focus.lng);
     // Only move the map if we're not already looking at this spot.
-    if (dist > 0.001 || map.getZoom() < 14) {
+    if (dist > FOCUS_EPSILON || map.getZoom() < FOCUS_MIN_ZOOM) {
       const point = L.latLng(focus.lat, focus.lng);
       map.fitBounds(L.latLngBounds([point, point]), {
         maxZoom: focus.zoom,
@@ -236,7 +239,7 @@ function SearchMarkerView({ marker }: { marker: SearchMarker }) {
   useEffect(() => {
     ref.current?.openPopup();
   }, [marker]);
-  // Memoized children — see ReviewMarker for why.
+  // Memoized children — see PlaceMarker for why.
   const popup = useMemo(
     () => (
       <>
