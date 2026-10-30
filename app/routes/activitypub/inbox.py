@@ -2,7 +2,7 @@
 Inbox endpoint and activity handlers.
 
 Receives activities from remote servers: Create (new review), Follow,
-Accept, Delete, and Undo.
+Accept, and Delete.
 """
 
 import json
@@ -86,8 +86,6 @@ async def post_inbox(username: str, request: Request) -> JSONResponse:
         return await _handle_accept(activity, sender_actor)
     elif activity_type == "Delete":
         return await _handle_delete(activity, sender_actor)
-    elif activity_type == "Undo":
-        return JSONResponse({"status": "ok"})
 
     return JSONResponse({"status": "ok"})
 
