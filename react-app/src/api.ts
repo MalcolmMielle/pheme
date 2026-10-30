@@ -81,6 +81,19 @@ export function stars(rating: number): string {
   return "★".repeat(rating) + "☆".repeat(5 - rating);
 }
 
+/**
+ * The server an actor is from, derived from their actor URI's host
+ * ("https://remote.example/users/alice" → "remote.example").
+ * Empty string if the URI can't be parsed.
+ */
+export function actorServer(actorUri: string): string {
+  try {
+    return new URL(actorUri).host;
+  } catch {
+    return "";
+  }
+}
+
 /** "4.5" for 4.5, "5" for 5 — label shown inside markers / next to averages. */
 export function formatRating(rating: number): string {
   const rounded = Math.round(rating * 10) / 10;

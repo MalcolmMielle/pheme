@@ -1,4 +1,4 @@
-import { stars } from "../api";
+import { actorServer, stars } from "../api";
 import type { Review } from "../types";
 
 interface ReviewListProps {
@@ -10,19 +10,25 @@ interface ReviewListProps {
 export default function ReviewList({ reviews, onSelect }: ReviewListProps) {
   return (
     <div className="review-list">
-      {reviews.map((r) => (
-        <div key={r.id} className="review-card" onClick={() => onSelect(r)}>
-          <div className="place">{r.place_name || "Unnamed place"}</div>
-          <div className="stars">{stars(r.rating)}</div>
-          <div className="snippet">{r.content}</div>
-          <div className="meta-line">
-            <span>{r.display_name || r.username}</span>
-            <span>
-              📍 {r.latitude.toFixed(3)}, {r.longitude.toFixed(3)}
-            </span>
+      {reviews.map((r) => {
+        const server = actorServer(r.actor_uri);
+        return (
+          <div key={r.id} className="review-card" onClick={() => onSelect(r)}>
+            <div className="place">{r.place_name || "Unnamed place"}</div>
+            <div className="stars">{stars(r.rating)}</div>
+            <div className="snippet">{r.content}</div>
+            <div className="meta-line">
+              <span>
+                {r.display_name || r.username}
+                {server && <span className="server"> @{server}</span>}
+              </span>
+              <span>
+                📍 {r.latitude.toFixed(3)}, {r.longitude.toFixed(3)}
+              </span>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

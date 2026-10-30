@@ -6,6 +6,8 @@ and served by app/main.py); these routes cover the standalone review page
 and the login/register/logout forms.
 """
 
+from urllib.parse import urlparse
+
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -32,10 +34,16 @@ async def review_page(request: Request, review_id: int) -> HTMLResponse:
     review = await get_review_by_id(review_id)
     if not review:
         raise HTTPException(404, "Review not found")
+    # The author's server, derived from their actor URI ("user@server").
+    actor_domain = urlparse(review["actor_uri"]).netloc
     return templates.TemplateResponse(
         request=request,
         name="review.html",
-        context={"review": review, "base_url": config.base_url},
+        context={
+            "review": review,
+            "base_url": config.base_url,
+            "actor_domain": actor_domain,
+        },
     )
 
 

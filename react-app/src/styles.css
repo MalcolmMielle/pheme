@@ -170,6 +170,9 @@ body {
   gap: 8px;
   align-items: center;
 }
+.review-card .meta-line .server {
+  opacity: 0.75;
+}
 .review-card .snippet {
   font-size: 0.8125rem;
   color: var(--text-secondary);

@@ -9,7 +9,7 @@
     <div class="rating">{% for i in range(review.rating) %}★{% endfor %}{% for i in range(5 - review.rating) %}☆{% endfor %}</div>
     <p class="content">{{ review.content }}</p>
     <p class="meta">
-      by <strong>{{ review.display_name or review.username }}</strong>
+      by <strong>{{ review.display_name or review.username }}</strong>{% if actor_domain %} <span class="actor-server">@{{ actor_domain }}</span>{% endif %}
       &middot; {{ review.created_at }}
     </p>
     <p class="coords">📍 {{ "%.4f"|format(review.latitude) }}, {{ "%.4f"|format(review.longitude) }}</p>

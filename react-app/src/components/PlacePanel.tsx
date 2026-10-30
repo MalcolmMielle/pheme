@@ -1,4 +1,4 @@
-import { formatRating, stars } from "../api";
+import { actorServer, formatRating, stars } from "../api";
 import type { PlaceSelection, Review } from "../types";
 
 interface PlacePanelProps {
@@ -52,18 +52,24 @@ export default function PlacePanel({
               </small>
             </div>
             <div className="review-list">
-              {reviews.map((r) => (
-                <div key={r.id} className="review-card review-card-static">
-                  <div className="stars">{stars(r.rating)}</div>
-                  <div className="snippet">{r.content}</div>
-                  <div className="meta-line">
-                    <span>{r.display_name || r.username}</span>
-                    <span>
-                      📍 {r.latitude.toFixed(3)}, {r.longitude.toFixed(3)}
-                    </span>
+              {reviews.map((r) => {
+                const server = actorServer(r.actor_uri);
+                return (
+                  <div key={r.id} className="review-card review-card-static">
+                    <div className="stars">{stars(r.rating)}</div>
+                    <div className="snippet">{r.content}</div>
+                    <div className="meta-line">
+                      <span>
+                        {r.display_name || r.username}
+                        {server && <span className="server"> @{server}</span>}
+                      </span>
+                      <span>
+                        📍 {r.latitude.toFixed(3)}, {r.longitude.toFixed(3)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         ) : (
