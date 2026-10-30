@@ -15,6 +15,7 @@ from app.activitypub.delivery import deliver_to_inbox, fanout_activity
 from app.auth import get_current_user
 from app.db import (
     count_reviews,
+    count_reviews_by_bounds,
     create_review,
     delete_review,
     follow_actor,
@@ -120,9 +121,10 @@ async def api_reviews(
         reviews = await get_reviews_by_bounds(
             min_lat, max_lat, min_lng, max_lng, limit=limit, offset=offset
         )
+        total = await count_reviews_by_bounds(min_lat, max_lat, min_lng, max_lng)
     else:
         reviews = await get_reviews(limit=limit, offset=offset)
-    total = await count_reviews()
+        total = await count_reviews()
     return JSONResponse(
         reviews,
         headers={"X-Total-Count": str(total)},

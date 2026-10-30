@@ -127,3 +127,20 @@ async def count_reviews() -> int:
     row = await db.execute("SELECT COUNT(*) AS cnt FROM reviews")
     result = await row.fetchone()
     return result["cnt"] if result else 0
+
+
+async def count_reviews_by_bounds(
+    min_lat: float,
+    max_lat: float,
+    min_lng: float,
+    max_lng: float,
+) -> int:
+    """Return the number of reviews within the given map bounds."""
+    db = await get_db()
+    row = await db.execute(
+        """SELECT COUNT(*) AS cnt FROM reviews
+           WHERE latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?""",
+        (min_lat, max_lat, min_lng, max_lng),
+    )
+    result = await row.fetchone()
+    return result["cnt"] if result else 0

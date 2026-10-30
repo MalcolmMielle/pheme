@@ -30,6 +30,7 @@ from app.db.follows import (
 )
 from app.db.reviews import (
     count_reviews,
+    count_reviews_by_bounds,
     create_review,
     delete_review,
     get_review_by_id,
@@ -60,6 +61,7 @@ __all__ = [
     "get_reviews_by_bounds",
     "review_exists",
     "count_reviews",
+    "count_reviews_by_bounds",
     # follows
     "follow_actor",
     "accept_follow",
