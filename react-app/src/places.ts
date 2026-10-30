@@ -32,30 +32,57 @@ export function reviewsAtPlace(
   return reviews.filter((r) => placeKey(r.latitude, r.longitude) === key);
 }
 
+/** Running totals while grouping reviews into a place. */
+interface PlaceGroup {
+  reviews: Review[];
+  latSum: number;
+  lngSum: number;
+  ratingSum: number;
+  /** Non-empty place name → how many reviews in the group use it. */
+  names: Map<string, number>;
+  address: string;
+}
+
 /**
  * Group reviews into places — one marker per place instead of one per
  * review.
  */
 export function groupReviewsByPlace(reviews: Review[]): ReviewPlace[] {
-  const groups = new Map<string, Review[]>();
+  const groups = new Map<string, PlaceGroup>();
   for (const r of reviews) {
     const key = placeKey(r.latitude, r.longitude);
-    const list = groups.get(key);
-    if (list) list.push(r);
-    else groups.set(key, [r]);
-  }
-  return [...groups.entries()].map(([key, list]) => {
-    const lat = list.reduce((sum, r) => sum + r.latitude, 0) / list.length;
-    const lng = list.reduce((sum, r) => sum + r.longitude, 0) / list.length;
-    const avgRating = list.reduce((sum, r) => sum + r.rating, 0) / list.length;
-    // Most common non-empty place name in the group.
-    const names = new Map<string, number>();
-    for (const r of list) {
-      const name = r.place_name.trim();
-      if (name) names.set(name, (names.get(name) ?? 0) + 1);
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        reviews: [],
+        latSum: 0,
+        lngSum: 0,
+        ratingSum: 0,
+        names: new Map(),
+        address: "",
+      };
+      groups.set(key, g);
     }
-    const name = [...names.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
-    const address = list.find((r) => r.place_address)?.place_address ?? "";
-    return { key, lat, lng, name, address, reviews: list, avgRating };
+    g.reviews.push(r);
+    g.latSum += r.latitude;
+    g.lngSum += r.longitude;
+    g.ratingSum += r.rating;
+    const name = r.place_name.trim();
+    if (name) g.names.set(name, (g.names.get(name) ?? 0) + 1);
+    if (!g.address && r.place_address) g.address = r.place_address;
+  }
+  return [...groups.entries()].map(([key, g]) => {
+    const n = g.reviews.length;
+    // Most common non-empty place name in the group.
+    const name = [...g.names.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
+    return {
+      key,
+      lat: g.latSum / n,
+      lng: g.lngSum / n,
+      name,
+      address: g.address,
+      reviews: g.reviews,
+      avgRating: g.ratingSum / n,
+    };
   });
 }
