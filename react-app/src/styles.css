@@ -340,6 +340,94 @@ body {
   font-size: 0.875rem;
 }
 
+/* ── admin panel ────────────────────────────────────────────────────── */
+.admin-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.admin-error { margin: 10px 20px 0; }
+.admin-loading {
+  padding: 16px 20px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0;
+}
+.admin-user-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.admin-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+.admin-user-name { flex: 1; font-weight: 500; }
+.admin-user-username {
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-left: 6px;
+  font-size: 0.8125rem;
+}
+.admin-badge {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--accent);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.admin-you { color: var(--text-secondary); font-size: 0.8125rem; }
+.admin-form {
+  flex: none;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface-elevated);
+}
+.admin-form label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.admin-form input:not([type="checkbox"]) {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--surface);
+}
+.admin-form input:not([type="checkbox"]):focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.admin-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-weight: 500 !important;
+  color: var(--text-primary) !important;
+  font-size: 0.875rem !important;
+}
+
 /* ── search dropdown ────────────────────────────────────────────────── */
 .search-dropdown {
   position: absolute;

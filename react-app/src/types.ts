@@ -22,8 +22,19 @@ export interface Me {
   id: number;
   username: string;
   display_name: string;
+  /** True for admin accounts — the SPA shows the admin panel to them. */
+  is_admin: boolean;
   /** Session CSRF token — include it in form-encoded posts (e.g. logout). */
   csrf_token: string;
+}
+
+/** A local account as listed by `GET /api/admin/users` (admin only). */
+export interface AdminUser {
+  id: number;
+  username: string;
+  display_name: string;
+  is_admin: boolean;
+  created_at: string;
 }
 
 /** A Nominatim search / reverse-geocode result. */

@@ -41,6 +41,8 @@ async def _bootstrap() -> None:
     if existing:
         logger.info("Actor '%s' already exists — skipping.", username)
     else:
+        # No explicit is_admin: as the first account on a fresh server,
+        # this one automatically becomes the first admin account.
         actor = await create_local_actor(
             username=username,
             display_name=display_name,

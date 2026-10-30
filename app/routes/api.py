@@ -15,8 +15,9 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.activitypub.actor import actor_to_ap, build_follow_activity
 from app.activitypub.delivery import deliver_to_inbox, fanout_activity
-from app.auth import get_current_user
+from app.auth import get_current_admin, get_current_user
 from app.db import (
+    count_admins,
     count_reviews,
     count_reviews_by_bounds,
     create_review,
@@ -29,6 +30,8 @@ from app.db import (
     get_reviews,
     get_reviews_by_bounds,
     hash_password,
+    list_local_actors,
+    set_actor_admin,
 )
 from app.config import config
 from app.routes.activitypub import create_local_actor, fetch_remote_actor
@@ -112,6 +115,7 @@ async def api_me(request: Request) -> JSONResponse:
             "id": actor["id"],
             "username": actor["username"],
             "display_name": actor["display_name"],
+            "is_admin": bool(actor.get("is_admin")),
             "csrf_token": request.session.get("csrf_token", ""),
         }
     )
@@ -362,12 +366,103 @@ async def api_bootstrap(
             {"status": "exists", "actor": actor_to_ap(existing).model_dump()}
         )
 
+    # No explicit is_admin: the first account created on the server
+    # automatically becomes the first admin (see create_local_actor).
     actor = await create_local_actor(
         username=username,
         display_name=display_name,
         password_hash=hash_password(password) if password else None,
     )
     return JSONResponse({"status": "created", "actor": actor_to_ap(actor).model_dump()})
+
+
+# ── admin endpoints ─────────────────────────────────────────────────────
+
+
+def _public_user(actor: dict[str, Any]) -> dict[str, Any]:
+    """Actor row reduced to the fields the admin UI needs (no keys/hashes)."""
+    return {
+        "id": actor["id"],
+        "username": actor["username"],
+        "display_name": actor["display_name"],
+        "is_admin": bool(actor.get("is_admin")),
+        "created_at": actor["created_at"],
+    }
+
+
+@router.get("/api/admin/users")
+async def api_admin_list_users(
+    admin: dict = Depends(get_current_admin),
+) -> JSONResponse:
+    """List all local accounts with their admin flag (admin only)."""
+    users = [_public_user(a) for a in await list_local_actors()]
+    return JSONResponse({"users": users, "admin_count": await count_admins()})
+
+
+@router.post("/api/admin/users")
+async def api_admin_create_user(
+    admin: dict = Depends(get_current_admin),
+    username: str = Form(...),
+    display_name: str = Form(...),
+    password: str = Form(...),
+    is_admin: bool = Form(False),
+) -> JSONResponse:
+    """Create a new local account, optionally as an admin (admin only)."""
+    existing = await get_actor_by_username(username)
+    if existing:
+        raise HTTPException(409, "Username already taken")
+
+    actor = await create_local_actor(
+        username=username,
+        display_name=display_name,
+        password_hash=hash_password(password),
+        is_admin=is_admin,
+    )
+    logger.info(
+        "Admin '%s' created account '%s' (is_admin=%s)",
+        admin["username"],
+        username,
+        is_admin,
+    )
+    return JSONResponse({"status": "created", "user": _public_user(actor)})
+
+
+@router.post("/api/admin/users/{user_id}/promote")
+async def api_admin_promote(
+    user_id: int,
+    admin: dict = Depends(get_current_admin),
+) -> JSONResponse:
+    """Grant admin to a local account (admin only)."""
+    target = await get_actor_by_id(user_id)
+    if not target or not target.get("is_local"):
+        raise HTTPException(404, "User not found")
+    await set_actor_admin(user_id, True)
+    logger.info(
+        "Admin '%s' promoted '%s' to admin", admin["username"], target["username"]
+    )
+    promoted = target | {"is_admin": 1}
+    return JSONResponse({"status": "promoted", "user": _public_user(promoted)})
+
+
+@router.post("/api/admin/users/{user_id}/demote")
+async def api_admin_demote(
+    user_id: int,
+    admin: dict = Depends(get_current_admin),
+) -> JSONResponse:
+    """Revoke admin from a local account (admin only).
+
+    An admin cannot demote themselves — that would risk locking the
+    server out of admin access entirely.
+    """
+    if user_id == admin["id"]:
+        raise HTTPException(403, "You cannot demote yourself")
+    target = await get_actor_by_id(user_id)
+    if not target or not target.get("is_local"):
+        raise HTTPException(404, "User not found")
+    await set_actor_admin(user_id, False)
+    logger.info("Admin '%s' demoted '%s'", admin["username"], target["username"])
+    demoted = target | {"is_admin": 0}
+    return JSONResponse({"status": "demoted", "user": _public_user(demoted)})
 
 
 # ── helpers ─────────────────────────────────────────────────────────────

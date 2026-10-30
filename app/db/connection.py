@@ -42,11 +42,15 @@ async def init_db() -> aiosqlite.Connection:
     # Wait up to 5s for locks instead of failing immediately
     await _db.execute("PRAGMA busy_timeout = 5000")
     await _db.executescript(SCHEMA)
-    # Migration: add password_hash to existing databases
-    try:
-        await _db.execute("ALTER TABLE actors ADD COLUMN password_hash TEXT")
-    except aiosqlite.OperationalError:
-        pass  # column already exists
+    # Migrations: add columns to existing databases
+    for column_def in (
+        "ALTER TABLE actors ADD COLUMN password_hash TEXT",
+        "ALTER TABLE actors ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0",
+    ):
+        try:
+            await _db.execute(column_def)
+        except aiosqlite.OperationalError:
+            pass  # column already exists
     await _db.commit()
     return _db
 
@@ -81,6 +85,7 @@ CREATE TABLE IF NOT EXISTS actors (
     following_uri   TEXT NOT NULL,
     is_local        INTEGER NOT NULL DEFAULT 1,
     password_hash   TEXT,
+    is_admin        INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

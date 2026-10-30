@@ -1,6 +1,6 @@
 /** API helpers — all endpoints are same-origin (Vite proxies them in dev). */
 
-import type { MapBounds, Me, NominatimResult, Review } from "./types";
+import type { AdminUser, MapBounds, Me, NominatimResult, Review } from "./types";
 
 /** Current session user, or null when logged out (401). */
 export async function fetchMe(): Promise<Me | null> {
@@ -74,6 +74,80 @@ export async function reverseGeocode(
   if (!resp.ok) return null;
   const data = await resp.json();
   return typeof data.display_name === "string" ? data.display_name : null;
+}
+
+/** ── admin endpoints (admin session required) ───────────────────────── */
+
+export interface AdminUserList {
+  users: AdminUser[];
+  admin_count: number;
+}
+
+/** Local accounts with their admin flag. Throws on 401/403. */
+export async function fetchAdminUsers(): Promise<AdminUserList> {
+  const resp = await fetch("/api/admin/users", {
+    headers: { Accept: "application/json" },
+  });
+  if (!resp.ok) throw new Error(`GET /api/admin/users failed: ${resp.status}`);
+  return resp.json();
+}
+
+/**
+ * Form-encoded POST with the session CSRF token — the CSRF middleware
+ * only validates form posts, so admin actions go through here.
+ * Resolves with the raw Response so callers can read the status.
+ */
+function adminPost(
+  path: string,
+  fields: Record<string, string>,
+  csrfToken: string,
+): Promise<Response> {
+  return fetch(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    body: new URLSearchParams({ ...fields, csrf_token: csrfToken }),
+  });
+}
+
+export interface NewUserPayload {
+  username: string;
+  displayName: string;
+  password: string;
+  /** Create the account directly as an admin. */
+  isAdmin: boolean;
+}
+
+/** Create a local account (admin only); isAdmin makes it an admin account. */
+export function createUser(
+  payload: NewUserPayload,
+  csrfToken: string,
+): Promise<Response> {
+  return adminPost(
+    "/api/admin/users",
+    {
+      username: payload.username,
+      display_name: payload.displayName,
+      password: payload.password,
+      is_admin: payload.isAdmin ? "true" : "false",
+    },
+    csrfToken,
+  );
+}
+
+/** Promote (makeAdmin=true) or demote a local account (admin only). */
+export function setUserAdmin(
+  userId: number,
+  makeAdmin: boolean,
+  csrfToken: string,
+): Promise<Response> {
+  return adminPost(
+    `/api/admin/users/${userId}/${makeAdmin ? "promote" : "demote"}`,
+    {},
+    csrfToken,
+  );
 }
 
 /** "★★★☆☆" for a 1–5 rating. */

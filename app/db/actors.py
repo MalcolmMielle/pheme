@@ -19,14 +19,15 @@ async def create_actor(
     followers_uri: str,
     following_uri: str,
     password_hash: str | None = None,
+    is_admin: bool = False,
 ) -> dict[str, Any]:
     db = await get_db()
     cursor = await db.execute(
         """INSERT INTO actors (username, display_name, summary,
            private_key_pem, public_key_pem, actor_uri,
            inbox_uri, outbox_uri, followers_uri, following_uri,
-           password_hash)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           password_hash, is_admin)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             username,
             display_name,
@@ -39,6 +40,7 @@ async def create_actor(
             followers_uri,
             following_uri,
             password_hash,
+            1 if is_admin else 0,
         ),
     )
     await db.commit()
@@ -73,6 +75,26 @@ async def list_local_actors() -> list[dict[str, Any]]:
     db = await get_db()
     rows = await db.execute("SELECT * FROM actors WHERE is_local = 1 ORDER BY username")
     return [dict(r) for r in await rows.fetchall()]
+
+
+async def set_actor_admin(actor_id: int, is_admin: bool) -> bool:
+    """Set an actor's admin flag. Returns False if the actor doesn't exist."""
+    db = await get_db()
+    cursor = await db.execute(
+        "UPDATE actors SET is_admin = ? WHERE id = ?", (1 if is_admin else 0, actor_id)
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
+async def count_admins() -> int:
+    """Number of local actors with the admin flag set."""
+    db = await get_db()
+    row = await db.execute(
+        "SELECT COUNT(*) AS n FROM actors WHERE is_local = 1 AND is_admin = 1"
+    )
+    result = await row.fetchone()
+    return int(result["n"]) if result else 0
 
 
 # ── password helpers ───────────────────────────────────────────────────

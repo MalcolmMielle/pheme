@@ -11,7 +11,13 @@ from fastapi import HTTPException
 
 from app.activitypub.signing import generate_keypair
 from app.config import config
-from app.db import create_actor, get_actor_by_uri, get_actor_by_username, get_db
+from app.db import (
+    count_admins,
+    create_actor,
+    get_actor_by_uri,
+    get_actor_by_username,
+    get_db,
+)
 
 logger = logging.getLogger("federated-reviews")
 
@@ -33,8 +39,16 @@ async def create_local_actor(
     display_name: str,
     summary: str = "",
     password_hash: str | None = None,
+    is_admin: bool | None = None,
 ) -> dict[str, Any]:
-    """Create a local actor — generate its keypair and derive all URIs."""
+    """Create a local actor — generate its keypair and derive all URIs.
+
+    is_admin=None (the default) applies the server rule: the first account
+    created while no admin exists becomes the first admin account. Pass an
+    explicit True/False to override (e.g. when an admin creates accounts).
+    """
+    if is_admin is None:
+        is_admin = await count_admins() == 0
     priv, pub = generate_keypair()
     base = actor_uri(username)
     return await create_actor(
@@ -49,6 +63,7 @@ async def create_local_actor(
         followers_uri=f"{base}/followers",
         following_uri=f"{base}/following",
         password_hash=password_hash,
+        is_admin=is_admin,
     )
 
 

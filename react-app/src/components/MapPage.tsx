@@ -5,6 +5,7 @@ import { createReview, fetchReviews, reverseGeocode } from "../api";
 import { useBottomSheet } from "../hooks/useBottomSheet";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { reviewsAtPlace } from "../places";
+import AdminPanel from "./AdminPanel";
 import MapView from "./MapView";
 import PlacePanel from "./PlacePanel";
 import ReviewForm from "./ReviewForm";
@@ -41,6 +42,8 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
    */
   const [selectedPlace, setSelectedPlace] = useState<PlaceSelection | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
+  /** Admin panel shown in the sidebar instead of the review list (admins only). */
+  const [adminOpen, setAdminOpen] = useState(false);
 
   const isMobile = useMediaQuery("(max-width: 768px)");
   const {
@@ -244,6 +247,12 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
     closeForm();
   }, [closeForm]);
 
+  /** Open the admin panel: leave any place panel / review form behind. */
+  const openAdmin = useCallback(() => {
+    closePlacePanel();
+    setAdminOpen(true);
+  }, [closePlacePanel]);
+
   /**
    * Map click while no form is open: select the clicked spot as a place and
    * open the place panel, like a search pick. The panel opens immediately
@@ -342,7 +351,9 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         >
           <span className="sheet-handle-bar" />
         </button>
-        {selectedPlace ? (
+        {adminOpen && user ? (
+          <AdminPanel currentUser={user} onClose={() => setAdminOpen(false)} />
+        ) : selectedPlace ? (
           <PlacePanel
             place={selectedPlace}
             reviews={reviewsAtPlace(
@@ -372,6 +383,15 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
                     >
                       👤 {user.display_name || user.username}
                     </span>
+                    {user.is_admin && (
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={openAdmin}
+                      >
+                        Admin
+                      </button>
+                    )}
                     <form method="post" action="/logout">
                       <input
                         type="hidden"

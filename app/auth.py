@@ -5,7 +5,7 @@ Uses Starlette's SessionMiddleware so each request carries a signed
 cookie with the logged-in user's actor id.
 """
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.db import get_actor_by_id
@@ -20,6 +20,14 @@ async def get_current_user(request: Request):
     if actor is None:
         request.session.clear()
         raise _LoginRequired()
+    return actor
+
+
+async def get_current_admin(request: Request):
+    """FastAPI dependency — current user, but only if they are an admin."""
+    actor = await get_current_user(request)
+    if not actor.get("is_admin"):
+        raise HTTPException(403, "Admin access required")
     return actor
 
 

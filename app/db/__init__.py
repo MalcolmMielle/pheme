@@ -12,12 +12,14 @@ All public functions are re-exported here for backward compatibility:
 """
 
 from app.db.actors import (
+    count_admins,
     create_actor,
     get_actor_by_id,
     get_actor_by_uri,
     get_actor_by_username,
     hash_password,
     list_local_actors,
+    set_actor_admin,
     verify_password,
 )
 from app.db.connection import SCHEMA, close_db, get_db, init_db
@@ -52,6 +54,8 @@ __all__ = [
     "get_actor_by_uri",
     "get_actor_by_username",
     "list_local_actors",
+    "set_actor_admin",
+    "count_admins",
     "hash_password",
     "verify_password",
     # reviews
