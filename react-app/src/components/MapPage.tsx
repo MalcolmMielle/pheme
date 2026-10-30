@@ -6,6 +6,7 @@ import { useBottomSheet } from "../hooks/useBottomSheet";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { reviewsAtPlace } from "../places";
 import AdminPanel from "./AdminPanel";
+import FollowPanel from "./FollowPanel";
 import MapView from "./MapView";
 import PlacePanel from "./PlacePanel";
 import ReviewForm from "./ReviewForm";
@@ -44,6 +45,8 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
   const [focus, setFocus] = useState<FocusTarget | null>(null);
   /** Admin panel shown in the sidebar instead of the review list (admins only). */
   const [adminOpen, setAdminOpen] = useState(false);
+  /** Follow panel shown in the sidebar instead of the review list. */
+  const [followOpen, setFollowOpen] = useState(false);
 
   const isMobile = useMediaQuery("(max-width: 768px)");
   const {
@@ -250,7 +253,15 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
   /** Open the admin panel: leave any place panel / review form behind. */
   const openAdmin = useCallback(() => {
     closePlacePanel();
+    setFollowOpen(false);
     setAdminOpen(true);
+  }, [closePlacePanel]);
+
+  /** Open the follow panel: leave any place panel / admin panel behind. */
+  const openFollow = useCallback(() => {
+    closePlacePanel();
+    setAdminOpen(false);
+    setFollowOpen(true);
   }, [closePlacePanel]);
 
   /**
@@ -353,6 +364,8 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         </button>
         {adminOpen && user ? (
           <AdminPanel currentUser={user} onClose={() => setAdminOpen(false)} />
+        ) : followOpen && user ? (
+          <FollowPanel currentUser={user} onClose={() => setFollowOpen(false)} />
         ) : selectedPlace ? (
           <PlacePanel
             place={selectedPlace}
@@ -392,6 +405,29 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
                       </span>
                     </span>
                     <div className="user-actions">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-soft"
+                        onClick={openFollow}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                          <circle cx="8.5" cy="7" r="4" />
+                          <line x1="20" y1="8" x2="20" y2="14" />
+                          <line x1="23" y1="11" x2="17" y2="11" />
+                        </svg>
+                        Follow
+                      </button>
                       {user.is_admin && (
                         <button
                           type="button"

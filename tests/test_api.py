@@ -1,5 +1,9 @@
 """Tests for the JSON API endpoints."""
 
+import unittest
+from unittest.mock import patch
+
+from app.routes.api import _resolve_actor_uri, _webfinger_schemes
 from tests.base import AsyncTestCase, get_csrf_token
 
 
@@ -306,3 +310,110 @@ class TestReviewsAPI(AsyncTestCase):
             data={"target": "https://example.com/actor/bob", "csrf_token": csrf},
         )
         assert resp.status_code in (303, 401, 403)
+
+
+class TestWebFingerSchemes(unittest.TestCase):
+    """Scheme selection for WebFinger: HTTPS for public hosts, HTTP first
+    for local/private hosts (dev servers without TLS)."""
+
+    def test_public_domain_https_only(self):
+        assert _webfinger_schemes("example.com") == ["https"]
+        assert _webfinger_schemes("example.com:8443") == ["https"]
+
+    def test_public_ip_https_only(self):
+        assert _webfinger_schemes("8.8.8.8") == ["https"]
+
+    def test_localhost_http_first(self):
+        assert _webfinger_schemes("localhost") == ["http", "https"]
+        assert _webfinger_schemes("localhost:8000") == ["http", "https"]
+        assert _webfinger_schemes("foo.localhost:8001") == ["http", "https"]
+
+    def test_loopback_and_private_ips_http_first(self):
+        assert _webfinger_schemes("127.0.0.1:8000") == ["http", "https"]
+        assert _webfinger_schemes("192.168.1.10:8000") == ["http", "https"]
+
+
+class _FakeResp:
+    def __init__(self, status_code: int, data: dict | None = None):
+        self.status_code = status_code
+        self._data = data or {}
+
+    def json(self):
+        return self._data
+
+
+def _fake_client_class(get_impl):
+    """Build a fake httpx.AsyncClient whose get() delegates to get_impl."""
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def get(self, url, params=None):
+            return await get_impl(url, params)
+
+    return FakeClient
+
+
+class TestResolveActorUri(AsyncTestCase):
+    async def test_direct_uri_passes_through(self):
+        uri = await _resolve_actor_uri("http://localhost:8000/actor/bob")
+        assert uri == "http://localhost:8000/actor/bob"
+
+    async def test_acct_resolves_via_http_webfinger_on_localhost(self):
+        """bob@localhost:8000 must resolve over plain http (dev server)."""
+        requested = []
+
+        async def fake_get(url, params=None):
+            requested.append(url)
+            return _FakeResp(
+                200,
+                {"links": [{"rel": "self", "href": "http://localhost:8000/actor/bob"}]},
+            )
+
+        with patch("app.routes.api.httpx.AsyncClient", _fake_client_class(fake_get)):
+            uri = await _resolve_actor_uri("bob@localhost:8000")
+
+        assert uri == "http://localhost:8000/actor/bob"
+        assert requested == ["http://localhost:8000/.well-known/webfinger"]
+
+    async def test_acct_falls_back_to_https_on_localhost(self):
+        """If http fails on a local host, https is still tried."""
+        requested = []
+
+        async def fake_get(url, params=None):
+            requested.append(url)
+            if url.startswith("http://"):
+                raise OSError("connection refused")
+            return _FakeResp(
+                200, {"links": [{"rel": "self", "href": "https://localhost/actor/bob"}]}
+            )
+
+        with patch("app.routes.api.httpx.AsyncClient", _fake_client_class(fake_get)):
+            uri = await _resolve_actor_uri("acct:bob@localhost")
+
+        assert uri == "https://localhost/actor/bob"
+        assert requested == [
+            "http://localhost/.well-known/webfinger",
+            "https://localhost/.well-known/webfinger",
+        ]
+
+    async def test_acct_public_domain_uses_https_only(self):
+        """Public hosts must never be downgraded to plain http."""
+        requested = []
+
+        async def fake_get(url, params=None):
+            requested.append(url)
+            return _FakeResp(404)
+
+        with patch("app.routes.api.httpx.AsyncClient", _fake_client_class(fake_get)):
+            uri = await _resolve_actor_uri("alice@example.com")
+
+        assert uri is None
+        assert requested == ["https://example.com/.well-known/webfinger"]

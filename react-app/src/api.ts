@@ -94,10 +94,10 @@ export async function fetchAdminUsers(): Promise<AdminUserList> {
 
 /**
  * Form-encoded POST with the session CSRF token — the CSRF middleware
- * only validates form posts, so admin actions go through here.
+ * only validates form posts, so these actions go through here.
  * Resolves with the raw Response so callers can read the status.
  */
-function adminPost(
+function formPost(
   path: string,
   fields: Record<string, string>,
   csrfToken: string,
@@ -110,6 +110,18 @@ function adminPost(
     },
     body: new URLSearchParams({ ...fields, csrf_token: csrfToken }),
   });
+}
+
+/**
+ * Follow an actor on another server by handle (user@domain, resolved via
+ * the remote server's WebFinger) or by full actor URI. Sends a signed
+ * Follow activity to the remote inbox; the remote server auto-accepts.
+ */
+export function followActor(
+  target: string,
+  csrfToken: string,
+): Promise<Response> {
+  return formPost("/api/follow", { target }, csrfToken);
 }
 
 export interface NewUserPayload {
@@ -125,7 +137,7 @@ export function createUser(
   payload: NewUserPayload,
   csrfToken: string,
 ): Promise<Response> {
-  return adminPost(
+  return formPost(
     "/api/admin/users",
     {
       username: payload.username,
@@ -143,7 +155,7 @@ export function setUserAdmin(
   makeAdmin: boolean,
   csrfToken: string,
 ): Promise<Response> {
-  return adminPost(
+  return formPost(
     `/api/admin/users/${userId}/${makeAdmin ? "promote" : "demote"}`,
     {},
     csrfToken,

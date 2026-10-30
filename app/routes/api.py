@@ -3,6 +3,7 @@ JSON API routes — review CRUD, follow, and bootstrap for the frontend.
 """
 
 import asyncio
+import ipaddress
 import logging
 import time
 import uuid
@@ -468,6 +469,26 @@ async def api_admin_demote(
 # ── helpers ─────────────────────────────────────────────────────────────
 
 
+def _webfinger_schemes(domain: str) -> list[str]:
+    """URL schemes to try for WebFinger, in priority order.
+
+    Public hosts are only contacted over HTTPS. Local/private hosts
+    (localhost, loopback or private IPs — e.g. a dev server at
+    http://localhost:8001, which has no TLS certificate) are tried over
+    plain HTTP first.
+    """
+    host = domain.split(":", 1)[0].strip("[]").lower()
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_loopback or ip.is_private:
+            return ["http", "https"]
+    except ValueError:
+        pass
+    if host == "localhost" or host.endswith(".localhost"):
+        return ["http", "https"]
+    return ["https"]
+
+
 async def _resolve_actor_uri(target: str) -> str | None:
     """Resolve an actor URI from a target string (URI or acct:user@domain)."""
     target = target.strip()
@@ -481,17 +502,23 @@ async def _resolve_actor_uri(target: str) -> str | None:
         target = target[5:]
     if "@" in target:
         username, _, domain = target.partition("@")
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    f"https://{domain}/.well-known/webfinger",
-                    params={"resource": f"acct:{username}@{domain}"},
+        for scheme in _webfinger_schemes(domain):
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.get(
+                        f"{scheme}://{domain}/.well-known/webfinger",
+                        params={"resource": f"acct:{username}@{domain}"},
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        for link in data.get("links", []):
+                            if link.get("rel") == "self":
+                                return link["href"]
+            except Exception as exc:
+                logger.warning(
+                    "WebFinger resolution failed for %s via %s: %s",
+                    target,
+                    scheme,
+                    exc,
                 )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    for link in data.get("links", []):
-                        if link.get("rel") == "self":
-                            return link["href"]
-        except Exception as exc:
-            logger.warning("WebFinger resolution failed for %s: %s", target, exc)
     return None

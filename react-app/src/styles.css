@@ -364,6 +364,14 @@ body {
   font-size: 0.875rem;
 }
 
+.form-success {
+  background: #f0fdf4;
+  color: #16a34a;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+}
+
 /* ── admin panel ────────────────────────────────────────────────────── */
 .admin-panel {
   flex: 1;
@@ -450,6 +458,54 @@ body {
   font-weight: 500 !important;
   color: var(--text-primary) !important;
   font-size: 0.875rem !important;
+}
+
+/* ── follow panel (federation) ──────────────────────────────────────── */
+.follow-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.follow-hint {
+  padding: 16px 20px 0;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.follow-hint code {
+  background: var(--surface-elevated);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+}
+.follow-error,
+.follow-success { margin: 12px 20px 0; }
+.follow-form {
+  flex: none;
+  margin-top: auto;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface-elevated);
+}
+.follow-form input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--surface);
+}
+.follow-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 /* ── search dropdown ────────────────────────────────────────────────── */
