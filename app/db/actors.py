@@ -2,6 +2,8 @@
 
 from typing import Any
 
+import bcrypt
+
 from app.db.connection import get_db
 
 
@@ -78,13 +80,9 @@ async def list_local_actors() -> list[dict[str, Any]]:
 
 def hash_password(password: str) -> str:
     """Return a bcrypt hash of *password*."""
-    import bcrypt
-
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(password: str, password_hash: str) -> bool:
     """Check *password* against a bcrypt hash."""
-    import bcrypt
-
     return bcrypt.checkpw(password.encode(), password_hash.encode())

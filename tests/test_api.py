@@ -98,6 +98,46 @@ class TestReviewsAPI(AsyncTestCase):
         assert len(reviews) == 1
         assert reviews[0]["content"] == "Great coffee!"
 
+    async def test_create_review_validates_payload(self):
+        """JSON and form bodies alike go through CreateReviewPayload."""
+        await self.register_user()  # logs in via /register
+
+        # JSON body (the SPA's format), rating out of range
+        resp = await self.client.post(
+            "/api/reviews",
+            json={"content": "x", "rating": 9, "latitude": 1.0, "longitude": 2.0},
+        )
+        assert resp.status_code == 422
+
+        # JSON body, missing longitude
+        resp = await self.client.post(
+            "/api/reviews",
+            json={"content": "x", "rating": 3, "latitude": 1.0},
+        )
+        assert resp.status_code == 422
+
+        # Form body, empty content
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
+            "/api/reviews",
+            data={
+                "content": "",
+                "rating": "3",
+                "latitude": "1",
+                "longitude": "2",
+                "csrf_token": csrf,
+            },
+        )
+        assert resp.status_code == 422
+
+        # Valid JSON body still works (rating coerced, as the SPA sends it)
+        resp = await self.client.post(
+            "/api/reviews",
+            json={"content": "Nice", "rating": 4, "latitude": 1.0, "longitude": 2.0},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["review"]["rating"] == 4
+
     async def test_create_review_with_bounds_filter(self):
         await self.register_user()
         csrf = await get_csrf_token(self.client, "/register")

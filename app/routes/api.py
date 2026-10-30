@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, ValidationError
 
 from app.activitypub.actor import actor_to_ap, build_follow_activity
 from app.activitypub.delivery import deliver_to_inbox, fanout_activity
@@ -169,6 +170,17 @@ async def api_get_review(review_id: int) -> JSONResponse:
     return JSONResponse(review)
 
 
+class CreateReviewPayload(BaseModel):
+    """Payload for POST /api/reviews — JSON body or form fields."""
+
+    content: str = Field(min_length=1)
+    rating: int = Field(ge=1, le=5)
+    latitude: float
+    longitude: float
+    place_name: str = ""
+    place_address: str = ""
+
+
 @router.post("/api/reviews")
 async def api_create_review(
     request: Request,
@@ -177,27 +189,21 @@ async def api_create_review(
     """Create a new review and federate it to followers.
 
     Accepts both form-encoded bodies (browser forms, curl) and JSON bodies
-    (the React SPA and future native clients).
+    (the React SPA and future native clients); both are validated against
+    CreateReviewPayload.
     """
     content_type = request.headers.get("content-type", "")
-    fields: dict[str, Any]
+    raw: Any
     if "application/json" in content_type:
-        fields = await request.json()
+        raw = await request.json()
     else:
         form = await request.form()
         # Keep plain text fields only (multipart uploads are not review data)
-        fields = {k: v for k, v in form.items() if isinstance(v, str)}
+        raw = {k: v for k, v in form.items() if isinstance(v, str)}
 
     try:
-        content = str(fields.get("content", ""))
-        rating = int(fields.get("rating", 0))
-        latitude = float(fields.get("latitude", 0))
-        longitude = float(fields.get("longitude", 0))
-        place_name = str(fields.get("place_name", ""))
-        place_address = str(fields.get("place_address", ""))
-    except (TypeError, ValueError):
-        return JSONResponse({"detail": "Invalid review payload"}, status_code=422)
-    if not content or not 1 <= rating <= 5:
+        payload = CreateReviewPayload.model_validate(raw)
+    except ValidationError:
         return JSONResponse(
             {"detail": "Required: content, rating (1-5), latitude, longitude"},
             status_code=422,
@@ -207,12 +213,12 @@ async def api_create_review(
     review = await create_review(
         actor_id=actor["id"],
         ap_id=ap_id,
-        content=content,
-        rating=rating,
-        latitude=latitude,
-        longitude=longitude,
-        place_name=place_name,
-        place_address=place_address,
+        content=payload.content,
+        rating=payload.rating,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        place_name=payload.place_name,
+        place_address=payload.place_address,
     )
 
     activity = {
@@ -226,12 +232,12 @@ async def api_create_review(
             "id": ap_id,
             "type": "Note",
             "attributedTo": actor["actor_uri"],
-            "content": content,
-            "latitude": latitude,
-            "longitude": longitude,
-            "rating": rating,
-            "placeName": place_name,
-            "placeAddress": place_address,
+            "content": payload.content,
+            "latitude": payload.latitude,
+            "longitude": payload.longitude,
+            "rating": payload.rating,
+            "placeName": payload.place_name,
+            "placeAddress": payload.place_address,
             "published": review["created_at"],
         },
     }
