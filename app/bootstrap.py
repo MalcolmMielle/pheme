@@ -22,12 +22,16 @@ logger = logging.getLogger("bootstrap")
 async def _bootstrap() -> None:
     """Create a default actor and seed demo reviews."""
     from app.db import (
+        close_db,
         create_review,
         get_actor_by_username,
-        get_db,
         hash_password,
+        init_db,
     )
     from app.routes.activitypub.helpers import create_local_actor
+
+    # Standalone script — no app lifespan, so manage the connection here.
+    await init_db()
 
     # ── Create default actor ────────────────────────────────────────────
     username = "alice"
@@ -154,8 +158,7 @@ async def _bootstrap() -> None:
         count,
     )
 
-    db = await get_db()
-    await db.close()
+    await close_db()
 
 
 def main() -> None:

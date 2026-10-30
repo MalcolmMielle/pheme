@@ -47,15 +47,18 @@ class AsyncTestCase(unittest.IsolatedAsyncioTestCase):
         config.database_path = os.environ["DATABASE_PATH"]
         config.secret_key = os.environ["SECRET_KEY"]
 
-        import app.db.connection as conn_module
+        # Fresh database per test. httpx's ASGITransport does not run the
+        # app lifespan, so tests drive init_db()/close_db() themselves —
+        # and must close the old connection first, since an aiosqlite
+        # connection is bound to the event loop that created it.
+        from app.db import close_db, init_db
 
-        if conn_module._db is not None:
-            await conn_module._db.close()
-            conn_module._db = None
+        await close_db()
 
         db_path = os.environ["DATABASE_PATH"]
         if os.path.exists(db_path):
             os.remove(db_path)
+        await init_db()
 
         from app.main import app
 
@@ -65,11 +68,9 @@ class AsyncTestCase(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         await self.client.aclose()
 
-        import app.db.connection as conn_module
+        from app.db import close_db
 
-        if conn_module._db is not None:
-            await conn_module._db.close()
-            conn_module._db = None
+        await close_db()
 
     async def register_user(
         self,

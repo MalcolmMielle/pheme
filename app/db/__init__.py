@@ -2,7 +2,7 @@
 Async SQLite database layer.
 
 Package layout:
-  connection   — get_db, SCHEMA, connection management
+  connection   — init_db/close_db/get_db, SCHEMA, connection management
   actors       — actor CRUD, password hashing
   reviews      — review CRUD, bounds queries, pagination
   follows      — follow/follower relationships
@@ -20,7 +20,7 @@ from app.db.actors import (
     list_local_actors,
     verify_password,
 )
-from app.db.connection import SCHEMA, get_db
+from app.db.connection import SCHEMA, close_db, get_db, init_db
 from app.db.follows import (
     accept_follow,
     follow_actor,
@@ -42,6 +42,8 @@ from app.db.reviews import (
 
 __all__ = [
     # connection
+    "init_db",
+    "close_db",
     "get_db",
     "SCHEMA",
     # actors

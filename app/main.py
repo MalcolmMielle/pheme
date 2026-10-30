@@ -10,6 +10,7 @@ Wires together:
 
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -18,6 +19,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.auth import _LoginRequired, login_required_handler
 from app.config import config
+from app.db import close_db, init_db
 from app.middleware import CSRFMiddleware
 from app.routes.activitypub import router as activitypub_router
 from app.routes.api import router as api_router
@@ -25,7 +27,16 @@ from app.routes.web import router as web_router
 
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Federated Reviews", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Own the database connection: open at startup, close on shutdown."""
+    await init_db()
+    yield
+    await close_db()
+
+
+app = FastAPI(title="Federated Reviews", version="0.1.0", lifespan=lifespan)
 
 # ── middleware ──────────────────────────────────────────────────────────
 # Order matters: CSRFMiddleware must be added BEFORE SessionMiddleware

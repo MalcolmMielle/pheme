@@ -291,3 +291,63 @@ class TestFollows(AsyncTestCase):
         alice_reviews = await get_reviews_by_actor(alice["id"])
         assert len(alice_reviews) == 1
         assert alice_reviews[0]["content"] == "Alice's review"
+
+
+class TestConnectionLifecycle(AsyncTestCase):
+    """The shared connection's lifecycle, owned by the FastAPI lifespan.
+
+    httpx's ASGITransport does not run the lifespan, so tests drive
+    init_db()/close_db() themselves (see AsyncTestCase.asyncSetUp) — these
+    tests pin down that contract.
+    """
+
+    async def test_get_db_returns_same_open_connection(self):
+        from app.db import get_db
+
+        db1 = await get_db()
+        db2 = await get_db()
+        assert db1 is db2
+        row = await db1.execute("SELECT 1 AS one")
+        result = await row.fetchone()
+        assert result is not None
+        assert result["one"] == 1
+
+    async def test_init_db_is_idempotent(self):
+        from app.db import get_db, init_db
+
+        assert await init_db() is await get_db()
+
+    async def test_close_db_when_not_open_is_noop(self):
+        from app.db import close_db
+
+        await close_db()
+        await close_db()  # must not raise
+
+    async def test_get_db_reopens_after_close(self):
+        from app.db import close_db, get_db
+
+        old = await get_db()
+        await close_db()
+        new = await get_db()  # lazy re-init
+        assert new is not old
+        # The old handle is really closed (aiosqlite: no active connection).
+        with self.assertRaises(ValueError):
+            await old.execute("SELECT 1")
+
+    async def test_lifespan_opens_at_startup_and_closes_at_shutdown(self):
+        from app.db import close_db, get_db
+        from app.main import app, lifespan
+
+        await close_db()  # simulate an app that has not started yet
+        async with lifespan(app):
+            inside = await get_db()  # opened by the lifespan
+            row = await inside.execute("SELECT COUNT(*) AS n FROM actors")
+            count = await row.fetchone()
+            assert count is not None
+            assert count["n"] == 0
+        # After shutdown the connection is closed: get_db() opens a
+        # different one and the old handle raises.
+        after = await get_db()
+        assert after is not inside
+        with self.assertRaises(ValueError):
+            await inside.execute("SELECT 1")
