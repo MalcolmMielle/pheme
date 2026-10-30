@@ -49,10 +49,10 @@ class Config:
     # Secret key for session signing — generated randomly if SECRET_KEY is not set.
     secret_key: str = field(default_factory=_get_secret_key)
 
-    # Enable uvicorn auto-reload (development only).
+    # Enable uvicorn auto-reload (development only — off unless asked for).
     reload: bool = field(
         default_factory=lambda: (
-            os.getenv("RELOAD", "true").lower() in ("1", "true", "yes")
+            os.getenv("RELOAD", "false").lower() in ("1", "true", "yes")
         )
     )
 

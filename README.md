@@ -269,7 +269,7 @@ app loads it automatically via [python-dotenv](https://pypi.org/project/python-d
 | `BASE_URL` | `http://localhost:8000` | Public URL of this server (used in all ActivityPub IDs) |
 | `HOST` | `127.0.0.1` | Bind address for uvicorn |
 | `PORT` | `8000` | Port for uvicorn |
-| `RELOAD` | `true` | Enable uvicorn auto-reload (set to `false` in production) |
+| `RELOAD` | `false` | Enable uvicorn auto-reload (development only) |
 | `DATABASE_PATH` | `data/reviews.db` | Path to the SQLite file |
 | `SECRET_KEY` | *(random, with warning)* | Session signing key — set this in production |
 
