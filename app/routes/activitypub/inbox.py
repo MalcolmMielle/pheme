@@ -99,15 +99,10 @@ async def _handle_create(
     if not ap_id or await review_exists(ap_id):
         return JSONResponse({"status": "duplicate"})
 
-    actor_uri_val = obj.get("attributedTo", sender_actor["actor_uri"])
-    local_actor = await get_actor_by_uri(actor_uri_val)
-    if not local_actor:
-        local_actor = sender_actor
-    elif local_actor["actor_uri"] != sender_actor["actor_uri"]:
-        local_actor = sender_actor
-
+    # Attribute the review to the signature-verified sender — the object's
+    # attributedTo is not trusted unless it is the sender itself.
     await create_review(
-        actor_id=local_actor["id"],
+        actor_id=sender_actor["id"],
         ap_id=ap_id,
         content=obj.get("content", ""),
         rating=obj.get("rating", 3),
