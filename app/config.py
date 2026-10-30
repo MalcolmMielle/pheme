@@ -62,10 +62,5 @@ class Config:
     def domain(self) -> str:
         return self.base_url.split("://", 1)[1].split("/")[0]
 
-    # Unique identifier for this server node.
-    @property
-    def node_id(self) -> str:
-        return f"{self.base_url}/actor/server"
-
 
 config = Config()

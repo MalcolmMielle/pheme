@@ -76,7 +76,6 @@ async def fetch_remote_actor(uri: str) -> dict[str, Any] | None:
                 db = await get_db()
                 existing = await get_actor_by_uri(uri)
                 if not existing:
-                    _priv, _pub = generate_keypair()
                     await db.execute(
                         """INSERT OR REPLACE INTO actors
                            (username, display_name, summary,
