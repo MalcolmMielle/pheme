@@ -2,7 +2,9 @@
 JSON API routes — review CRUD, follow, and bootstrap for the frontend.
 """
 
+import asyncio
 import logging
+import time
 import uuid
 from typing import Any
 
@@ -40,6 +42,55 @@ _NOMINATIM_HEADERS = {
     "Accept-Language": "en",
 }
 
+# Nominatim usage policy: at most 1 request/second — throttle upstream
+# calls and cache repeated lookups.
+_NOMINATIM_MIN_INTERVAL = 1.0
+_NOMINATIM_CACHE_TTL = 300.0
+_nominatim_cache: dict[tuple, tuple[float, Any]] = {}
+_nominatim_last_request = 0.0
+_nominatim_lock = asyncio.Lock()
+
+
+async def _nominatim_get(path: str, params: dict[str, Any]) -> JSONResponse:
+    """GET a Nominatim endpoint, cached and throttled to 1 req/s.
+
+    Only successful (200) responses are cached; upstream errors surface as
+    502 instead of leaking Nominatim's status/body to the SPA.
+    """
+    global _nominatim_last_request
+
+    key = (path, tuple(sorted(params.items())))
+    now = time.monotonic()
+    cached = _nominatim_cache.get(key)
+    if cached is not None and now - cached[0] < _NOMINATIM_CACHE_TTL:
+        return JSONResponse(cached[1])
+
+    async with _nominatim_lock:
+        wait = _NOMINATIM_MIN_INTERVAL - (time.monotonic() - _nominatim_last_request)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        _nominatim_last_request = time.monotonic()
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                resp = await client.get(
+                    f"{_NOMINATIM_BASE}{path}",
+                    params=params,
+                    headers=_NOMINATIM_HEADERS,
+                )
+            except httpx.RequestError as exc:
+                logger.warning("Nominatim %s failed: %s", path, exc)
+                raise HTTPException(502, "Geocoding service unavailable") from exc
+
+    if resp.status_code != 200:
+        logger.warning("Nominatim %s returned %d", path, resp.status_code)
+        raise HTTPException(502, "Geocoding service unavailable")
+
+    data = resp.json()
+    if len(_nominatim_cache) > 1000:
+        _nominatim_cache.clear()
+    _nominatim_cache[key] = (time.monotonic(), data)
+    return JSONResponse(data)
+
 
 @router.get("/api/me")
 async def api_me(request: Request) -> JSONResponse:
@@ -68,38 +119,16 @@ async def api_me(request: Request) -> JSONResponse:
 @router.get("/api/geocode")
 async def api_geocode(q: str, limit: int = 5) -> JSONResponse:
     """Proxy a place search to Nominatim (avoids exposing user IPs)."""
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            resp = await client.get(
-                f"{_NOMINATIM_BASE}/search",
-                params={
-                    "q": q,
-                    "format": "json",
-                    "limit": limit,
-                    "addressdetails": 1,
-                },
-                headers=_NOMINATIM_HEADERS,
-            )
-            return JSONResponse(resp.json())
-        except httpx.RequestError as exc:
-            logger.warning("Nominatim search failed: %s", exc)
-            raise HTTPException(502, "Geocoding service unavailable") from exc
+    return await _nominatim_get(
+        "/search",
+        {"q": q, "format": "json", "limit": limit, "addressdetails": 1},
+    )
 
 
 @router.get("/api/reverse-geocode")
 async def api_reverse_geocode(lat: float, lon: float) -> JSONResponse:
     """Proxy a reverse geocode lookup to Nominatim."""
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            resp = await client.get(
-                f"{_NOMINATIM_BASE}/reverse",
-                params={"lat": lat, "lon": lon, "format": "json"},
-                headers=_NOMINATIM_HEADERS,
-            )
-            return JSONResponse(resp.json())
-        except httpx.RequestError as exc:
-            logger.warning("Nominatim reverse geocode failed: %s", exc)
-            raise HTTPException(502, "Geocoding service unavailable") from exc
+    return await _nominatim_get("/reverse", {"lat": lat, "lon": lon, "format": "json"})
 
 
 @router.get("/api/reviews")
