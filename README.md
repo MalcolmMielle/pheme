@@ -227,7 +227,7 @@ federated-reviews/
 │       └── style.css         # Styles for the server-rendered pages
 ├── react-app/                # React + Vite + TypeScript SPA (the map page)
 │   ├── src/                  # Components: map, list, detail, review form
-│   ├── package.json          # Own JS dependencies (root package.json is {})
+│   ├── package.json          # JS dependencies
 │   └── dist/                 # Production build, served by FastAPI (gitignored)
 ├── tests/                    # unittest suite (68 tests)
 │   ├── base.py               # Shared test base: fresh DB + ASGI client per test
