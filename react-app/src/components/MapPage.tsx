@@ -164,20 +164,34 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
   }, []);
 
   /**
+   * Reverse-geocode a point and hand the display name to `apply`, which is
+   * responsible for updating whichever state still matches the coordinates.
+   */
+  const applyReverseGeocode = useCallback(
+    (lat: number, lng: number, apply: (displayName: string) => void) => {
+      reverseGeocode(lat, lng)
+        .then((displayName) => {
+          if (displayName) apply(displayName);
+        })
+        .catch((err) => console.error("Reverse geocode failed", err));
+    },
+    [],
+  );
+
+  /**
    * Map click while the form is open: drop the draggable placement marker
    * and reverse-geocode to fill the place name / address fields. Ignored
    * when the draft is locked to a specific place.
    */
-  const onMapClick = useCallback((lat: number, lng: number) => {
-    const label = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    setDraft((d) =>
-      d?.locked
-        ? d
-        : { lat, lng, placeName: "", placeAddress: "", label, locked: false },
-    );
-    reverseGeocode(lat, lng)
-      .then((displayName) => {
-        if (!displayName) return;
+  const onMapClick = useCallback(
+    (lat: number, lng: number) => {
+      const label = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      setDraft((d) =>
+        d?.locked
+          ? d
+          : { lat, lng, placeName: "", placeAddress: "", label, locked: false },
+      );
+      applyReverseGeocode(lat, lng, (displayName) =>
         setDraft((d) =>
           d && !d.locked && d.lat === lat && d.lng === lng
             ? {
@@ -186,10 +200,11 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
                 placeAddress: displayName,
               }
             : d,
-        );
-      })
-      .catch((err) => console.error("Reverse geocode failed", err));
-  }, []);
+        ),
+      );
+    },
+    [applyReverseGeocode],
+  );
 
   /**
    * Place picked in the global map search: drop the map marker, open the
@@ -227,20 +242,20 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
    * reverse geocode resolves. The spot is already in view, so the map
    * doesn't need to move.
    */
-  const onMapSelect = useCallback((lat: number, lng: number) => {
-    const coords = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    setSelectedPlace({ lat, lng, name: coords, address: coords });
-    reverseGeocode(lat, lng)
-      .then((displayName) => {
-        if (!displayName) return;
+  const onMapSelect = useCallback(
+    (lat: number, lng: number) => {
+      const coords = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      setSelectedPlace({ lat, lng, name: coords, address: coords });
+      applyReverseGeocode(lat, lng, (displayName) =>
         setSelectedPlace((p) =>
           p && p.lat === lat && p.lng === lng
             ? { ...p, name: displayName.split(",")[0], address: displayName }
             : p,
-        );
-      })
-      .catch((err) => console.error("Reverse geocode failed", err));
-  }, []);
+        ),
+      );
+    },
+    [applyReverseGeocode],
+  );
 
   /** Submit the review form. Returns success or an error message. */
   const submitReview = useCallback(
