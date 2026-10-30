@@ -54,6 +54,8 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
   } = useBottomSheet();
 
   const lastBounds = useRef<LatLngBounds | null>(null);
+  /** Aborts the in-flight review load when the bounds change again. */
+  const reviewsAbort = useRef<AbortController | null>(null);
 
   /**
    * Padding for map focus: desktop keeps the point clear of the sidebar;
@@ -93,10 +95,17 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
 
   const loadReviews = useCallback(async (bounds: LatLngBounds) => {
     lastBounds.current = bounds;
+    // Cancel any in-flight load — only the response for the latest
+    // bounds may update the map.
+    reviewsAbort.current?.abort();
+    const ctrl = new AbortController();
+    reviewsAbort.current = ctrl;
     try {
-      setReviews(await fetchReviews(bounds));
+      setReviews(await fetchReviews(bounds, ctrl.signal));
     } catch (err) {
-      console.error("Failed to load reviews", err);
+      if ((err as Error).name !== "AbortError") {
+        console.error("Failed to load reviews", err);
+      }
     }
   }, []);
 

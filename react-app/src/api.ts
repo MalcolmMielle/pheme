@@ -12,8 +12,11 @@ export async function fetchMe(): Promise<Me | null> {
   return resp.json();
 }
 
-/** Reviews within the given map bounds. */
-export async function fetchReviews(bounds: MapBounds): Promise<Review[]> {
+/** Reviews within the given map bounds. Pass a signal to cancel the request. */
+export async function fetchReviews(
+  bounds: MapBounds,
+  signal?: AbortSignal,
+): Promise<Review[]> {
   const params = new URLSearchParams({
     min_lat: String(bounds.getSouth()),
     max_lat: String(bounds.getNorth()),
@@ -22,6 +25,7 @@ export async function fetchReviews(bounds: MapBounds): Promise<Review[]> {
   });
   const resp = await fetch(`/api/reviews?${params}`, {
     headers: { Accept: "application/json" },
+    signal,
   });
   if (!resp.ok) throw new Error(`GET /api/reviews failed: ${resp.status}`);
   return resp.json();
