@@ -40,7 +40,13 @@ app.add_exception_handler(_LoginRequired, login_required_handler)
 
 # ── static files ────────────────────────────────────────────────────────
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+app.mount(
+    "/static",
+    StaticFiles(directory=os.path.join(_REPO_ROOT, "app", "static")),
+    name="static",
+)
 
 # ── routers ─────────────────────────────────────────────────────────────
 
@@ -52,7 +58,6 @@ app.include_router(api_router)
 # Registered LAST so the catch-all can never shadow the API, ActivityPub,
 # auth or /static routes above.
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DIST_DIR = os.path.join(_REPO_ROOT, "react-app", "dist")
 _ASSETS_DIR = os.path.join(_DIST_DIR, "assets")
 _INDEX_HTML = os.path.join(_DIST_DIR, "index.html")
