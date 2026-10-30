@@ -14,8 +14,6 @@ export default function SearchBox({ onSelect, onClear }: SearchBoxProps) {
   const [value, setValue] = useState("");
   return (
     <NominatimSearch
-      wrapperClass="map-search-wrapper"
-      inputClass="map-search"
       placeholder="Search for a place…"
       value={value}
       onChange={(v) => {

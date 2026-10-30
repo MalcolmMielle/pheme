@@ -8,9 +8,6 @@ interface NominatimSearchProps {
   onChange: (value: string) => void;
   onSelect: (result: NominatimResult) => void;
   placeholder?: string;
-  wrapperClass: string;
-  inputClass: string;
-  inputId?: string;
 }
 
 /**
@@ -22,9 +19,6 @@ export default function NominatimSearch({
   onChange,
   onSelect,
   placeholder,
-  wrapperClass,
-  inputClass,
-  inputId,
 }: NominatimSearchProps) {
   const [results, setResults] = useState<NominatimResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -75,11 +69,10 @@ export default function NominatimSearch({
   };
 
   return (
-    <div className={wrapperClass} ref={wrapper}>
+    <div className="map-search-wrapper" ref={wrapper}>
       <input
         type="text"
-        id={inputId}
-        className={inputClass}
+        className="map-search"
         placeholder={placeholder}
         autoComplete="off"
         value={value}
