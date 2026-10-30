@@ -5,7 +5,7 @@ follow / accept flows.
 
 from typing import Any
 
-from app.models import Accept, Actor, Follow, OrderedCollection
+from app.models import Accept, Actor, Follow
 
 
 def actor_to_ap(actor_row: dict[str, Any]) -> Actor:
@@ -51,14 +51,4 @@ def build_accept_activity(
         actor=target_actor_uri,
         object=follow_activity,
         to=[follow_activity.get("actor", "")],
-    )
-
-
-def build_empty_collection(uri: str) -> OrderedCollection:
-    """Return an empty OrderedCollection for a given URI."""
-    return OrderedCollection(
-        id=uri,
-        totalItems=0,
-        first=f"{uri}?page=1",
-        last=f"{uri}?page=1",
     )

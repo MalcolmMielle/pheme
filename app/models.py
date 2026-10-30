@@ -87,31 +87,6 @@ class Actor(ASObject):
     model_config = {"extra": "allow"}
 
 
-# ── Review (Note with location) ─────────────────────────────────────────
-
-
-class Review(ASObject):
-    """
-    A federated review.
-
-    Rendered as an ActivityStreams ``Note`` with extra location fields so
-    that standard fediverse software can at least display it, while our
-    own servers can parse the location metadata.
-    """
-
-    type: str = "Note"
-    attributedTo: str  # URI of the author Actor
-    content: str  # review text / HTML
-    # Location & rating extensions (not in ActivityStreams core)
-    latitude: float
-    longitude: float
-    rating: int = Field(ge=1, le=5)
-    placeName: str = ""
-    placeAddress: str = ""
-
-    model_config = {"extra": "allow"}
-
-
 # ── Activities ──────────────────────────────────────────────────────────
 
 
@@ -124,33 +99,9 @@ class Activity(ASObject):
     cc: list[str] = Field(default_factory=list)
 
 
-class Create(Activity):
-    type: str = "Create"
-
-
 class Follow(Activity):
     type: str = "Follow"
 
 
 class Accept(Activity):
     type: str = "Accept"
-
-
-class Undo(Activity):
-    type: str = "Undo"
-
-
-# ── Collections ─────────────────────────────────────────────────────────
-
-
-class OrderedCollection(BaseModel):
-    """ActivityStreams OrderedCollection (used for outbox, followers, etc.)."""
-
-    id: str
-    type: str = "OrderedCollection"
-    totalItems: int = 0
-    orderedItems: list[dict[str, Any]] = Field(default_factory=list)
-    first: str = ""
-    last: str = ""
-
-    model_config = {"extra": "allow"}
