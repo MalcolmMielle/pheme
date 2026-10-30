@@ -13,6 +13,7 @@ Flow:
      c. Log success / failure (we don't retry in MVP).
 """
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -69,18 +70,15 @@ async def fanout_activity(
     actor_private_key_pem: str,
     inbox_urls: list[str],
 ) -> dict[str, int]:
-    """Deliver an activity to every inbox in ``inbox_urls``.
+    """Deliver an activity to every inbox in ``inbox_urls``, in parallel.
 
     Returns ``{"ok": N, "fail": M}``.
     """
-    ok = 0
-    fail = 0
-    for url in inbox_urls:
-        success = await deliver_to_inbox(
-            url, activity, actor_key_id, actor_private_key_pem
+    results = await asyncio.gather(
+        *(
+            deliver_to_inbox(url, activity, actor_key_id, actor_private_key_pem)
+            for url in inbox_urls
         )
-        if success:
-            ok += 1
-        else:
-            fail += 1
-    return {"ok": ok, "fail": fail}
+    )
+    ok = sum(1 for success in results if success)
+    return {"ok": ok, "fail": len(results) - ok}
