@@ -79,8 +79,14 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
     [isMobile],
   );
 
+  /**
+   * Sheet state as shown — an open review form lives at the bottom of the
+   * sheet, so the sheet is forced expanded on mobile to give it room.
+   */
+  const shownSheet = formOpen ? "expanded" : sheet;
+
   /** Live height while the mobile bottom sheet is being dragged. */
-  const sheetBase = sheet === "expanded" ? "85dvh" : "var(--sheet-peek)";
+  const sheetBase = shownSheet === "expanded" ? "85dvh" : "var(--sheet-peek)";
   const sheetStyle =
     dragDy != null
       ? {
@@ -130,7 +136,9 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         label: place.name,
         locked: true,
       });
-      setFocus(makeFocus(place.lat, place.lng, 16, true));
+      // The form sits inside the sidebar, so only the sidebar width needs
+      // padding — no extra side panel.
+      setFocus(makeFocus(place.lat, place.lng, 16, false));
       setFormOpen(true);
     },
     [user, makeFocus],
@@ -191,17 +199,20 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         name: result.display_name.split(",")[0],
         address: result.display_name,
       });
-      setFocus(makeFocus(lat, lng, 16, formOpen || activeReview !== null));
+      setFocus(makeFocus(lat, lng, 16, activeReview !== null));
     },
-    [makeFocus, formOpen, activeReview],
+    [makeFocus, activeReview],
   );
 
   /**
-   * Close the place panel (or clear the search text): back to the standard
-   * sidebar, map marker removed, and the next ＋ opens a blank form where
-   * the location is picked with a map click.
+   * Close the place panel (✕ button or cleared search text): back to the
+   * standard sidebar, map marker removed — and the review form (which is
+   * bound to that place) closes too.
    */
-  const closePlacePanel = useCallback(() => setSelectedPlace(null), []);
+  const closePlacePanel = useCallback(() => {
+    setSelectedPlace(null);
+    closeForm();
+  }, [closeForm]);
 
   /**
    * Map click while no form is open: select the clicked spot as a place and
@@ -289,7 +300,7 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         onRatePlace={openForm}
       />
 
-      <aside className="sidebar" data-sheet={sheet} style={sheetStyle}>
+      <aside className="sidebar" data-sheet={shownSheet} style={sheetStyle}>
         <button
           type="button"
           className="sheet-handle"
@@ -310,6 +321,7 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
               selectedPlace.lat,
               selectedPlace.lng,
             )}
+            formOpen={formOpen}
             onSelectReview={selectReview}
             onRatePlace={openForm}
             onClose={closePlacePanel}
@@ -365,15 +377,17 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
             />
           </>
         )}
-      </aside>
 
-      {formOpen && draft && (
-        <ReviewForm
-          draft={draft}
-          onSubmit={submitReview}
-          onClose={closeForm}
-        />
-      )}
+        {/* The review form is the bottom part of the left panel, not a
+            separate side panel. */}
+        {formOpen && draft && (
+          <ReviewForm
+            draft={draft}
+            onSubmit={submitReview}
+            onClose={closeForm}
+          />
+        )}
+      </aside>
 
       {activeReview && <ReviewDetail review={activeReview} onClose={closeDetail} />}
     </div>

@@ -23,9 +23,7 @@ export default function ReviewForm({ draft, onSubmit, onClose }: ReviewFormProps
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const lat = draft.lat;
-  const lng = draft.lng;
-  const hasLocation = lat != null && lng != null;
+  const hasLocation = draft.lat != null && draft.lng != null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,9 +48,9 @@ export default function ReviewForm({ draft, onSubmit, onClose }: ReviewFormProps
   };
 
   return (
-    <div className="panel review-panel">
+    <div className="review-panel">
       <div className="panel-header">
-        <h2>{draft.placeName || "Write a Review"}</h2>
+        <h2>Write a Review</h2>
         <button
           type="button"
           className="icon-btn"
@@ -63,22 +61,6 @@ export default function ReviewForm({ draft, onSubmit, onClose }: ReviewFormProps
         </button>
       </div>
       <form className="review-form" onSubmit={handleSubmit}>
-        {hasLocation && (
-          <div className="selected-location">
-            📍 {draft.label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`}
-          </div>
-        )}
-
-        <label htmlFor="place-address">Address</label>
-        <input
-          type="text"
-          id="place-address"
-          className="place-address"
-          placeholder="Place address"
-          readOnly
-          value={draft.placeAddress}
-        />
-
         <label>Rating</label>
         <StarRating value={rating} onChange={setRating} />
 

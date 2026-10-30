@@ -5,6 +5,8 @@ interface PlacePanelProps {
   place: PlaceSelection;
   /** Existing reviews at this place (within the current map bounds). */
   reviews: Review[];
+  /** True while the review form is open at the bottom of the sidebar. */
+  formOpen: boolean;
   onSelectReview: (review: Review) => void;
   onRatePlace: (place: PlaceSelection) => void;
   onClose: () => void;
@@ -18,6 +20,7 @@ interface PlacePanelProps {
 export default function PlacePanel({
   place,
   reviews,
+  formOpen,
   onSelectReview,
   onRatePlace,
   onClose,
@@ -74,13 +77,15 @@ export default function PlacePanel({
             No reviews yet — be the first to rate this place.
           </p>
         )}
-        <button
-          type="button"
-          className="btn-primary place-rate-btn"
-          onClick={() => onRatePlace(place)}
-        >
-          ＋ Add a rating
-        </button>
+        {!formOpen && (
+          <button
+            type="button"
+            className="btn-primary place-rate-btn"
+            onClick={() => onRatePlace(place)}
+          >
+            ＋ Add a rating
+          </button>
+        )}
       </div>
     </div>
   );

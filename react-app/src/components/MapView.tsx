@@ -157,10 +157,13 @@ function MapController({
  */
 function PlaceMarker({
   place,
+  formOpen,
   onSelect,
   onRatePlace,
 }: {
   place: ReviewPlace;
+  /** True while the review form is open — hide the popup's rate button. */
+  formOpen: boolean;
   onSelect: (review: Review) => void;
   onRatePlace: (place: PlaceSelection) => void;
 }) {
@@ -204,23 +207,25 @@ function PlaceMarker({
             </li>
           ))}
         </ul>
-        <button
-          type="button"
-          className="popup-rate-btn"
-          onClick={() =>
-            onRatePlace({
-              lat: place.lat,
-              lng: place.lng,
-              name: place.name,
-              address: place.address,
-            })
-          }
-        >
-          ＋ Add your review
-        </button>
+        {!formOpen && (
+          <button
+            type="button"
+            className="popup-rate-btn"
+            onClick={() =>
+              onRatePlace({
+                lat: place.lat,
+                lng: place.lng,
+                name: place.name,
+                address: place.address,
+              })
+            }
+          >
+            ＋ Add your review
+          </button>
+        )}
       </>
     ),
-    [place, onSelect, onRatePlace],
+    [place, formOpen, onSelect, onRatePlace],
   );
   return (
     <Marker position={position} icon={icon} eventHandlers={handlers}>
@@ -328,6 +333,7 @@ export default function MapView({
         <PlaceMarker
           key={p.key}
           place={p}
+          formOpen={formOpen}
           onSelect={onSelectReview}
           onRatePlace={onRatePlace}
         />
