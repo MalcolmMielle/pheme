@@ -66,6 +66,7 @@ async def post_inbox(username: str, request: Request) -> JSONResponse:
         path=request.url.path,
         headers=sig_headers,
         public_key_pem=sender_actor["public_key_pem"],
+        body=body,
     ):
         raise HTTPException(401, "Invalid signature")
 

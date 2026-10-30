@@ -51,6 +51,7 @@ class TestSignAndVerify(unittest.TestCase):
                 "signature": headers["Signature"],
             },
             public_key_pem=pub,
+            body=body,
         )
         assert ok is True
 
@@ -78,6 +79,7 @@ class TestSignAndVerify(unittest.TestCase):
                 "signature": headers["Signature"],
             },
             public_key_pem=pub2,
+            body=body,
         )
         assert ok is False
 
@@ -115,6 +117,7 @@ class TestSignAndVerify(unittest.TestCase):
                 "signature": headers["Signature"],
             },
             public_key_pem=pub,
+            body=body,
         )
         assert ok is False
 
@@ -141,6 +144,7 @@ class TestSignAndVerify(unittest.TestCase):
                 "signature": headers["Signature"],
             },
             public_key_pem=pub,
+            body=body,
         )
         assert ok is True
 
@@ -173,5 +177,76 @@ class TestSignAndVerify(unittest.TestCase):
                 "signature": headers["Signature"],
             },
             public_key_pem=pub,
+            body=body,
         )
         assert ok is True
+
+    def test_verify_fails_with_tampered_body(self):
+        """The Digest must match the actual body — a swapped payload with a
+        captured signature+digest must be rejected."""
+        priv, pub = generate_keypair()
+        body = b'{"type":"Create"}'
+        url = "https://remote.example.com/inbox"
+
+        headers = sign_request(
+            method="POST",
+            url=url,
+            body=body,
+            key_id="https://example.com/actor/alice#main-key",
+            private_key_pem=priv,
+        )
+
+        ok = verify_signature(
+            method="POST",
+            path="/inbox",
+            headers={
+                "host": "remote.example.com",
+                "date": headers["Date"],
+                "digest": headers["Digest"],
+                "signature": headers["Signature"],
+            },
+            public_key_pem=pub,
+            body=b'{"type":"Delete"}',
+        )
+        assert ok is False
+
+    def test_verify_fails_with_stale_date(self):
+        """A correctly signed request with an old Date is a replay — reject."""
+        from datetime import datetime as real_datetime
+        from datetime import timedelta, timezone as real_timezone
+        from unittest import mock
+
+        import app.activitypub.signing as signing
+
+        priv, pub = generate_keypair()
+        body = b'{"type":"Create"}'
+        url = "https://remote.example.com/inbox"
+        old = real_datetime.now(real_timezone.utc) - timedelta(days=2)
+
+        class FakeDateTime(real_datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return old if tz is None else old.astimezone(tz)
+
+        with mock.patch.object(signing, "datetime", FakeDateTime):
+            headers = sign_request(
+                method="POST",
+                url=url,
+                body=body,
+                key_id="https://example.com/actor/alice#main-key",
+                private_key_pem=priv,
+            )
+
+        ok = verify_signature(
+            method="POST",
+            path="/inbox",
+            headers={
+                "host": "remote.example.com",
+                "date": headers["Date"],
+                "digest": headers["Digest"],
+                "signature": headers["Signature"],
+            },
+            public_key_pem=pub,
+            body=body,
+        )
+        assert ok is False

@@ -27,6 +27,7 @@ We use `cryptography` for RSA-SHA256 signing and verification.  The
 
 import base64
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
 
 from cryptography.exceptions import InvalidSignature
@@ -152,10 +153,15 @@ def verify_signature(
     path: str,
     headers: dict[str, str],
     public_key_pem: str,
+    body: bytes | None = None,
+    max_age_seconds: int = 12 * 3600,
 ) -> bool:
     """Verify an inbound signed request.
 
-    ``headers`` should be a case-insensitive dict.
+    ``headers`` should be a case-insensitive dict. When ``body`` is given,
+    the ``Digest`` header must be its SHA-256 — otherwise the signature
+    would not cover the payload. ``Date`` must be within
+    ``max_age_seconds`` of now, bounding replay of captured requests.
     """
     # Normalise to lower-case keys
     lower_headers: dict[str, str] = {k.lower(): v for k, v in headers.items()}
@@ -166,8 +172,33 @@ def verify_signature(
     except KeyError:
         return False
 
+    # Reject stale or unparsable dates (replay window).
+    try:
+        date_dt = parsedate_to_datetime(date)
+    except (TypeError, ValueError):
+        return False
+    if date_dt.tzinfo is None:
+        date_dt = date_dt.replace(tzinfo=timezone.utc)
+    age = abs((datetime.now(timezone.utc) - date_dt).total_seconds())
+    if age > max_age_seconds:
+        return False
+
     host = lower_headers.get("host", "")
     digest = lower_headers.get("digest", "")
+
+    # Bind the signature to the payload: the Digest header must match the
+    # actual request body.
+    if body is not None:
+        if not digest:
+            return False
+        algo, _, claimed = digest.partition("=")
+        if algo.strip().lower() != "sha-256":
+            return False
+        digest_obj = hashes.Hash(hashes.SHA256())
+        digest_obj.update(body)
+        actual = base64.b64encode(digest_obj.finalize()).decode()
+        if claimed.strip() != actual:
+            return False
 
     # Extract signature components
     sig_parts: dict[str, str] = {}
