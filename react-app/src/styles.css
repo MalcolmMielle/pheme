@@ -72,31 +72,55 @@ body {
   font-weight: 500;
 }
 
-/* ── user strip ─────────────────────────────────────────────────────── */
+/* ── user strip (account area) ──────────────────────────────────────── */
 .sidebar-user {
-  padding: 8px 12px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
-  font-size: 0.8125rem;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.sidebar-user span {
+.user-chip {
   flex: 1;
-  color: var(--text-secondary);
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
 }
-.link-btn {
-  background: none;
-  border: none;
+.avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.1);
   color: var(--accent);
   font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  text-decoration: none;
-  padding: 0;
-  font-family: inherit;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
 }
-.link-btn:hover { text-decoration: underline; }
+.user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.user-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The logout control is a form POST — let its button join the flex row. */
+.user-actions form { display: contents; }
+/* Logged-out strip: the two auth buttons share the full row. */
+.sidebar-user-anon .user-actions { flex: 1; }
+.sidebar-user-anon .btn { flex: 1; }
 
 /* ── global map search bar ──────────────────────────────────────────── */
 .map-search-wrapper {
@@ -469,20 +493,62 @@ body {
   text-transform: capitalize;
 }
 
-.btn-primary {
-  padding: 12px;
-  border: none;
+/* ── buttons ────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: white;
+  font-family: inherit;
   font-size: 0.9375rem;
   font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
-  transition: background .2s;
-  font-family: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
 }
-.btn-primary:hover { background: var(--accent-hover); }
-.btn-primary:disabled { opacity: .6; cursor: default; }
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+}
+.btn:disabled { opacity: .6; cursor: default; }
+.btn svg { flex: none; }
+
+/* Compact pill — used in the account strip and admin user rows. */
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  border-radius: 999px;
+}
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+.btn-secondary {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-elevated);
+  border-color: #cbd5e1;
+}
+
+.btn-soft { background: rgba(37, 99, 235, 0.1); color: var(--accent); }
+.btn-soft:hover:not(:disabled) { background: rgba(37, 99, 235, 0.16); }
+
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+.btn-danger-soft { background: rgba(239, 68, 68, 0.08); color: var(--danger); }
+.btn-danger-soft:hover:not(:disabled) { background: rgba(239, 68, 68, 0.14); }
 
 /* ── map popups ─────────────────────────────────────────────────────── */
 .leaflet-popup-content {
@@ -596,11 +662,12 @@ body {
   /* ≥ 44 px touch targets */
   .icon-btn { width: 44px; height: 44px; }
   .star { padding: 8px 6px; font-size: 1.75rem; }
-  .link-btn {
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-  }
+  .btn { min-height: 44px; }
+  .btn-sm { padding: 10px 16px; }
   .search-item { padding: 12px 14px; }
   .review-card { padding: 16px; }
+
+  /* the sheet peek row is short — keep avatar + buttons, drop the name */
+  .user-name { display: none; }
+  .avatar { width: 36px; height: 36px; }
 }

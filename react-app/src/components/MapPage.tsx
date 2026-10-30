@@ -375,43 +375,81 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
             </div>
 
             {userLoaded && (
-              <div className="sidebar-user">
+              <div
+                className={`sidebar-user${user ? "" : " sidebar-user-anon"}`}
+              >
                 {user ? (
                   <>
                     <span
+                      className="user-chip"
                       title={`Logged in as ${user.display_name || user.username}`}
                     >
-                      👤 {user.display_name || user.username}
+                      <span className="avatar" aria-hidden="true">
+                        {(user.display_name || user.username).charAt(0)}
+                      </span>
+                      <span className="user-name">
+                        {user.display_name || user.username}
+                      </span>
                     </span>
-                    {user.is_admin && (
-                      <button
-                        type="button"
-                        className="link-btn"
-                        onClick={openAdmin}
-                      >
-                        Admin
-                      </button>
-                    )}
-                    <form method="post" action="/logout">
-                      <input
-                        type="hidden"
-                        name="csrf_token"
-                        value={user.csrf_token}
-                      />
-                      <button type="submit" className="link-btn">
-                        Logout
-                      </button>
-                    </form>
+                    <div className="user-actions">
+                      {user.is_admin && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-soft"
+                          onClick={openAdmin}
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                          </svg>
+                          Admin
+                        </button>
+                      )}
+                      <form method="post" action="/logout">
+                        <input
+                          type="hidden"
+                          name="csrf_token"
+                          value={user.csrf_token}
+                        />
+                        <button type="submit" className="btn btn-sm btn-ghost">
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                            <polyline points="16 17 21 12 16 7" />
+                            <line x1="21" y1="12" x2="9" y2="12" />
+                          </svg>
+                          Logout
+                        </button>
+                      </form>
+                    </div>
                   </>
                 ) : (
-                  <>
-                    <a href="/login" className="link-btn">
-                      Sign in
-                    </a>
-                    <a href="/register" className="link-btn">
+                  <div className="user-actions">
+                    <a href="/register" className="btn btn-sm btn-secondary">
                       Register
                     </a>
-                  </>
+                    <a href="/login" className="btn btn-sm btn-primary">
+                      Sign in
+                    </a>
+                  </div>
                 )}
               </div>
             )}

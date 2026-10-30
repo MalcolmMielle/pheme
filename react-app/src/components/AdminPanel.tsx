@@ -140,7 +140,7 @@ export default function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
               ) : (
                 <button
                   type="button"
-                  className="link-btn"
+                  className={`btn btn-sm ${u.is_admin ? "btn-danger-soft" : "btn-secondary"}`}
                   disabled={busy}
                   onClick={() => toggleAdmin(u)}
                 >
@@ -182,7 +182,7 @@ export default function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
           />
           Create as admin
         </label>
-        <button type="submit" className="btn-primary" disabled={busy}>
+        <button type="submit" className="btn btn-primary" disabled={busy}>
           {busy ? "Working…" : "Create Account"}
         </button>
       </form>

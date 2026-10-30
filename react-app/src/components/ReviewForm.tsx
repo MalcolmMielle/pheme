@@ -67,7 +67,7 @@ export default function ReviewForm({ onSubmit, onClose }: ReviewFormProps) {
 
         {error && <div className="form-error">{error}</div>}
 
-        <button type="submit" className="btn-primary" disabled={submitting}>
+        <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? "Posting…" : "Post Review"}
         </button>
       </form>

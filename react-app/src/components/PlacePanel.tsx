@@ -80,7 +80,7 @@ export default function PlacePanel({
         {!formOpen && (
           <button
             type="button"
-            className="btn-primary place-rate-btn"
+            className="btn btn-primary place-rate-btn"
             onClick={() => onRatePlace(place)}
           >
             ＋ Add a rating
