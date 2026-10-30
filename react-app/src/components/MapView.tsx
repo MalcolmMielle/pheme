@@ -75,25 +75,28 @@ interface MapControllerProps {
   focus: FocusTarget | null;
   onBoundsChange: (bounds: L.LatLngBounds) => void;
   onMapClick: (lat: number, lng: number) => void;
+  onMapSelect: (lat: number, lng: number) => void;
 }
 
 /**
  * Wires Leaflet events to React: bounds reload on moveend, map click to
- * place a review (only while the form is open), and focus targets.
+ * place a review pin (while the form is open) or to select the clicked
+ * spot as a place (otherwise), and focus targets.
  */
 function MapController({
   formOpen,
   focus,
   onBoundsChange,
   onMapClick,
+  onMapSelect,
 }: MapControllerProps) {
   const map = useMap();
 
   // Keep the latest props in a ref so the (stable) Leaflet handlers never
   // go stale.
-  const latest = useRef({ formOpen, onBoundsChange, onMapClick });
+  const latest = useRef({ formOpen, onBoundsChange, onMapClick, onMapSelect });
   useEffect(() => {
-    latest.current = { formOpen, onBoundsChange, onMapClick };
+    latest.current = { formOpen, onBoundsChange, onMapClick, onMapSelect };
   });
 
   const events = useMemo<LeafletEventHandlerFnMap>(
@@ -104,8 +107,11 @@ function MapController({
         // Ignore clicks on markers/popups — they have their own handlers.
         const target = mouse.originalEvent?.target as HTMLElement | undefined;
         if (target?.closest(".leaflet-marker-icon, .leaflet-popup")) return;
-        if (latest.current.formOpen) {
-          latest.current.onMapClick(mouse.latlng.lat, mouse.latlng.lng);
+        const { formOpen, onMapClick, onMapSelect } = latest.current;
+        if (formOpen) {
+          onMapClick(mouse.latlng.lat, mouse.latlng.lng);
+        } else {
+          onMapSelect(mouse.latlng.lat, mouse.latlng.lng);
         }
       },
     }),
@@ -259,6 +265,7 @@ interface MapViewProps {
   focus: FocusTarget | null;
   onBoundsChange: (bounds: L.LatLngBounds) => void;
   onMapClick: (lat: number, lng: number) => void;
+  onMapSelect: (lat: number, lng: number) => void;
   onDraftMove: (lat: number, lng: number) => void;
   onSelectReview: (review: Review) => void;
   onRatePlace: (place: PlaceSelection) => void;
@@ -273,6 +280,7 @@ export default function MapView({
   focus,
   onBoundsChange,
   onMapClick,
+  onMapSelect,
   onDraftMove,
   onSelectReview,
   onRatePlace,
@@ -313,6 +321,7 @@ export default function MapView({
         focus={focus}
         onBoundsChange={onBoundsChange}
         onMapClick={onMapClick}
+        onMapSelect={onMapSelect}
       />
 
       {places.map((p) => (

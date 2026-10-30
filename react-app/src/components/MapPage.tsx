@@ -110,41 +110,27 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
   const closeDetail = useCallback(() => setActiveReview(null), []);
 
   /**
-   * Open the review form. With an explicit place (place panel / place
-   * marker "add your review") the draft is pre-filled with it; otherwise
-   * (FAB) the form opens blank and the location is picked with a map
-   * click.
+   * Open the review form for a specific place (place panel / place marker
+   * "add your review"). The draft is pre-filled with the place and locked,
+   * so map clicks can't move the location.
    */
   const openForm = useCallback(
-    (place?: PlaceSelection) => {
+    (place: PlaceSelection) => {
       if (!user) {
-        // Same as the old UI: the FAB sends logged-out users to /login.
+        // Logged out — send to /login.
         window.location.href = "/login";
         return;
       }
       setActiveReview(null);
-      if (place) {
-        // Rating a specific place — lock the location so map clicks can't
-        // move it.
-        setDraft({
-          lat: place.lat,
-          lng: place.lng,
-          placeName: place.name,
-          placeAddress: place.address,
-          label: place.name,
-          locked: true,
-        });
-        setFocus(makeFocus(place.lat, place.lng, 16, true));
-      } else {
-        setDraft({
-          lat: null,
-          lng: null,
-          placeName: "",
-          placeAddress: "",
-          label: "",
-          locked: false,
-        });
-      }
+      setDraft({
+        lat: place.lat,
+        lng: place.lng,
+        placeName: place.name,
+        placeAddress: place.address,
+        label: place.name,
+        locked: true,
+      });
+      setFocus(makeFocus(place.lat, place.lng, 16, true));
       setFormOpen(true);
     },
     [user, makeFocus],
@@ -153,10 +139,6 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
   const closeForm = useCallback(() => {
     setFormOpen(false);
     setDraft(null);
-  }, []);
-
-  const onDraftChange = useCallback((patch: Partial<Draft>) => {
-    setDraft((d) => (d ? { ...d, ...patch } : d));
   }, []);
 
   const onDraftMove = useCallback((lat: number, lng: number) => {
@@ -195,31 +177,6 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
       .catch((err) => console.error("Reverse geocode failed", err));
   }, []);
 
-  /** Place picked in the review form's search: fill the draft, move the map. */
-  const onPlaceSelected = useCallback((result: NominatimResult) => {
-    const lat = parseFloat(result.lat);
-    const lng = parseFloat(result.lon);
-    const name = result.display_name.split(",")[0];
-    setDraft((d) => ({
-      ...(d ?? {
-        lat: null,
-        lng: null,
-        placeName: "",
-        placeAddress: "",
-        label: "",
-        locked: false,
-      }),
-      lat,
-      lng,
-      placeName: name,
-      placeAddress: result.display_name,
-      label: name,
-      // A place was explicitly picked — lock the location.
-      locked: true,
-    }));
-    setFocus(makeFocus(lat, lng, 16, true));
-  }, [makeFocus]);
-
   /**
    * Place picked in the global map search: drop the map marker, open the
    * place panel in the sidebar, and move the map to the place.
@@ -245,6 +202,29 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
    * the location is picked with a map click.
    */
   const closePlacePanel = useCallback(() => setSelectedPlace(null), []);
+
+  /**
+   * Map click while no form is open: select the clicked spot as a place and
+   * open the place panel, like a search pick. The panel opens immediately
+   * with the coordinates — the real name/address are filled in when the
+   * reverse geocode resolves. The spot is already in view, so the map
+   * doesn't need to move.
+   */
+  const onMapSelect = useCallback((lat: number, lng: number) => {
+    setActiveReview(null);
+    const coords = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    setSelectedPlace({ lat, lng, name: coords, address: coords });
+    reverseGeocode(lat, lng)
+      .then((displayName) => {
+        if (!displayName) return;
+        setSelectedPlace((p) =>
+          p && p.lat === lat && p.lng === lng
+            ? { ...p, name: displayName.split(",")[0], address: displayName }
+            : p,
+        );
+      })
+      .catch((err) => console.error("Reverse geocode failed", err));
+  }, []);
 
   /** Submit the review form. Returns success or an error message. */
   const submitReview = useCallback(
@@ -303,6 +283,7 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         focus={focus}
         onBoundsChange={loadReviews}
         onMapClick={onMapClick}
+        onMapSelect={onMapSelect}
         onDraftMove={onDraftMove}
         onSelectReview={selectReview}
         onRatePlace={openForm}
@@ -382,15 +363,6 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
               activeId={activeReview?.id ?? null}
               onSelect={selectReview}
             />
-
-            <button
-              type="button"
-              className="fab"
-              title="Add a review"
-              onClick={() => openForm()}
-            >
-              ＋
-            </button>
           </>
         )}
       </aside>
@@ -398,8 +370,6 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
       {formOpen && draft && (
         <ReviewForm
           draft={draft}
-          onDraftChange={onDraftChange}
-          onPlaceSelected={onPlaceSelected}
           onSubmit={submitReview}
           onClose={closeForm}
         />

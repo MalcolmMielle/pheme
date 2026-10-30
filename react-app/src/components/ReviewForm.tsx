@@ -1,13 +1,10 @@
 import { useState } from "react";
 
-import NominatimSearch from "./NominatimSearch";
 import StarRating from "./StarRating";
-import type { Draft, NominatimResult } from "../types";
+import type { Draft } from "../types";
 
 interface ReviewFormProps {
   draft: Draft;
-  onDraftChange: (patch: Partial<Draft>) => void;
-  onPlaceSelected: (result: NominatimResult) => void;
   onSubmit: (
     content: string,
     rating: number,
@@ -16,17 +13,11 @@ interface ReviewFormProps {
 }
 
 /**
- * Review creation panel: Nominatim place search, address auto-fill,
- * star rating, content. The map click / draggable placement marker is
- * handled by MapPage + MapView through the draft.
+ * Review creation panel for a fixed place (opened from the place panel /
+ * place marker — the location cannot be changed here): read-only place
+ * info, star rating, content.
  */
-export default function ReviewForm({
-  draft,
-  onDraftChange,
-  onPlaceSelected,
-  onSubmit,
-  onClose,
-}: ReviewFormProps) {
+export default function ReviewForm({ draft, onSubmit, onClose }: ReviewFormProps) {
   const [content, setContent] = useState("");
   const [rating, setRating] = useState(5);
   const [submitting, setSubmitting] = useState(false);
@@ -39,7 +30,7 @@ export default function ReviewForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!hasLocation) {
-      setError("Please search for and select a place first.");
+      setError("No place selected.");
       return;
     }
     if (!content.trim()) {
@@ -61,7 +52,7 @@ export default function ReviewForm({
   return (
     <div className="panel review-panel">
       <div className="panel-header">
-        <h2>Write a Review</h2>
+        <h2>{draft.placeName || "Write a Review"}</h2>
         <button
           type="button"
           className="icon-btn"
@@ -72,27 +63,9 @@ export default function ReviewForm({
         </button>
       </div>
       <form className="review-form" onSubmit={handleSubmit}>
-        <label htmlFor="place-name">Search for a place</label>
-        <NominatimSearch
-          wrapperClass="search-wrapper"
-          inputClass="place-name"
-          inputId="place-name"
-          placeholder="e.g. Blue Bottle Coffee, San Francisco"
-          value={draft.placeName}
-          onChange={(placeName) => onDraftChange({ placeName })}
-          onSelect={onPlaceSelected}
-        />
-
         {hasLocation && (
           <div className="selected-location">
-            {draft.locked ? "🔒" : "📍"}{" "}
-            {draft.label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`}
-            {draft.locked && (
-              <small className="selected-location-hint">
-                {" "}
-                — locked to this place (search above to pick another)
-              </small>
-            )}
+            📍 {draft.label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`}
           </div>
         )}
 
@@ -101,7 +74,7 @@ export default function ReviewForm({
           type="text"
           id="place-address"
           className="place-address"
-          placeholder="Auto-filled from search"
+          placeholder="Place address"
           readOnly
           value={draft.placeAddress}
         />

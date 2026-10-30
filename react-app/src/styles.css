@@ -227,33 +227,6 @@ body {
   margin-top: 12px;
 }
 
-/* ── FAB ────────────────────────────────────────────────────────────── */
-.fab {
-  position: absolute;
-  bottom: 24px;
-  right: 24px;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: none;
-  background: var(--accent);
-  color: white;
-  font-size: 28px;
-  font-weight: 300;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(37,99,235,.4);
-  transition: transform .2s, box-shadow .2s;
-  z-index: 1001;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: inherit;
-}
-.fab:hover {
-  transform: scale(1.06);
-  box-shadow: 0 6px 20px rgba(37,99,235,.5);
-}
-
 /* ── panels (review form, detail) ──────────────────────────────────── */
 .panel {
   position: fixed;
@@ -373,9 +346,6 @@ body {
   border-radius: var(--radius-sm);
   text-align: center;
 }
-.selected-location-hint {
-  color: var(--text-secondary);
-}
 .place-address[readonly] {
   background: var(--surface-elevated);
   color: var(--text-secondary);
@@ -391,9 +361,6 @@ body {
 }
 
 /* ── search dropdown ────────────────────────────────────────────────── */
-.search-wrapper {
-  position: relative;
-}
 .search-dropdown {
   position: absolute;
   top: 100%;
@@ -603,21 +570,8 @@ body {
     box-shadow: var(--shadow-md);
   }
 
-  /* FAB floats above the peek sheet, over the list when expanded */
-  .fab {
-    position: fixed;
-    right: 16px;
-    transition: transform .2s, box-shadow .2s,
-                bottom .25s cubic-bezier(.4,0,.2,1);
-  }
-  .sidebar[data-sheet="peek"] .fab {
-    bottom: calc(var(--sheet-peek) + 16px);
-  }
-  .sidebar[data-sheet="expanded"] .fab { bottom: 16px; }
-
-  /* review list scrolls inside the sheet, clear of the FAB */
+  /* review list scrolls inside the sheet */
   .review-list {
-    padding-bottom: 96px;
     overscroll-behavior: contain;
   }
 
