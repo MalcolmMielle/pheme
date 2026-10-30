@@ -4,7 +4,6 @@
 
 :root {
   --sidebar-w: 380px;
-  --panel-w: 400px;
   --surface: #ffffff;
   --surface-elevated: #f8fafc;
   --text-primary: #1e293b;
@@ -143,10 +142,15 @@ body {
   transition: background .15s;
   border: 1px solid transparent;
 }
-.review-card:hover,
-.review-card.active {
+.review-card:hover {
   background: var(--surface-elevated);
   border-color: var(--border);
+}
+.review-card-static,
+.review-card-static:hover {
+  cursor: default;
+  background: none;
+  border-color: transparent;
 }
 .review-card .place {
   font-weight: 600;
@@ -227,30 +231,7 @@ body {
   margin-top: 12px;
 }
 
-/* ── panels (review form, detail) ──────────────────────────────────── */
-.panel {
-  position: fixed;
-  top: 0;
-  left: var(--sidebar-w);
-  width: var(--panel-w);
-  height: 100vh;
-  height: 100dvh;
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
-  z-index: 999;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  animation: panel-in .25s cubic-bezier(.4,0,.2,1);
-}
-@keyframes panel-in {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
-}
-@keyframes panel-up {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
+/* ── panel header (place panel, review form) ───────────────────────── */
 .panel-header {
   padding: 20px;
   border-bottom: 1px solid var(--border);
@@ -411,34 +392,6 @@ body {
 .btn-primary:hover { background: var(--accent-hover); }
 .btn-primary:disabled { opacity: .6; cursor: default; }
 
-/* ── detail panel ──────────────────────────────────────────────────── */
-.detail-body {
-  padding: 20px;
-}
-.detail-body h2 {
-  font-size: 1.2rem;
-  margin: 0 0 4px;
-}
-.detail-body .address {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  margin: 0 0 8px;
-}
-.detail-body .stars {
-  color: var(--star);
-  font-size: 1.1rem;
-  margin-bottom: 12px;
-}
-.detail-body .content {
-  line-height: 1.6;
-  margin-bottom: 16px;
-  overflow-wrap: break-word;
-}
-.detail-body .meta {
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-}
-
 /* ── map popups ─────────────────────────────────────────────────────── */
 .leaflet-popup-content {
   font-family: inherit;
@@ -450,28 +403,6 @@ body {
 .leaflet-popup-content .popup-stars {
   color: var(--star);
   margin: 2px 0;
-}
-.leaflet-popup-content .popup-review-list {
-  list-style: none;
-  margin: 6px 0 0;
-  padding: 0;
-  max-height: 160px;
-  overflow-y: auto;
-}
-.leaflet-popup-content .popup-review-btn {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  border-top: 1px solid var(--border);
-  padding: 6px 2px;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-.leaflet-popup-content .popup-review-btn:hover {
-  background: var(--surface-elevated);
 }
 .leaflet-popup-content .popup-rate-btn {
   display: block;
@@ -499,10 +430,9 @@ body {
 
 /* ── responsive: real mobile-first layout (phase 3) ───────────────────
    Full-screen map; the sidebar becomes a draggable bottom sheet (peek /
-   expanded); the global search floats over the map at the top; the FAB
-   floats above the sheet; detail + form panels become full-screen
-   slide-up sheets; 100dvh heights; ≥ 44 px touch targets. Desktop keeps
-   the 380 px sidebar + 400 px panels look. */
+   expanded); the global search floats over the map at the top; the place
+   panel and review form live inside the sheet; 100dvh heights; ≥ 44 px
+   touch targets. Desktop keeps the 380 px sidebar look. */
 @media (max-width: 768px) {
   .sidebar {
     --sheet-peek: 140px;
@@ -569,20 +499,6 @@ body {
   /* review list scrolls inside the sheet */
   .review-list {
     overscroll-behavior: contain;
-  }
-
-  /* panels become full-screen slide-up sheets */
-  .panel {
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100vh;
-    height: 100dvh;
-    border-radius: 0;
-    z-index: 1002;
-    animation: panel-up .25s cubic-bezier(.4,0,.2,1);
   }
 
   /* ≥ 44 px touch targets */

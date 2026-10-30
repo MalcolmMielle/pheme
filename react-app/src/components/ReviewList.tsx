@@ -3,24 +3,15 @@ import type { Review } from "../types";
 
 interface ReviewListProps {
   reviews: Review[];
-  activeId: number | null;
   onSelect: (review: Review) => void;
 }
 
 /** Sidebar review cards, synced to the visible map bounds. */
-export default function ReviewList({
-  reviews,
-  activeId,
-  onSelect,
-}: ReviewListProps) {
+export default function ReviewList({ reviews, onSelect }: ReviewListProps) {
   return (
     <div className="review-list">
       {reviews.map((r) => (
-        <div
-          key={r.id}
-          className={`review-card${r.id === activeId ? " active" : ""}`}
-          onClick={() => onSelect(r)}
-        >
+        <div key={r.id} className="review-card" onClick={() => onSelect(r)}>
           <div className="place">{r.place_name || "Unnamed place"}</div>
           <div className="stars">{stars(r.rating)}</div>
           <div className="snippet">{r.content}</div>

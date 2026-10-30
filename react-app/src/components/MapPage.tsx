@@ -7,7 +7,6 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { reviewsAtPlace } from "../places";
 import MapView from "./MapView";
 import PlacePanel from "./PlacePanel";
-import ReviewDetail from "./ReviewDetail";
 import ReviewForm from "./ReviewForm";
 import ReviewList from "./ReviewList";
 import SearchBox from "./SearchBox";
@@ -21,7 +20,6 @@ import type {
 } from "../types";
 
 const SIDEBAR_W = 380;
-const PANEL_W = 400;
 
 interface MapPageProps {
   user: Me | null;
@@ -34,7 +32,6 @@ interface MapPageProps {
  */
 export default function MapPage({ user, userLoaded }: MapPageProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [activeReview, setActiveReview] = useState<Review | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   /**
@@ -59,19 +56,18 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
   const lastBounds = useRef<LatLngBounds | null>(null);
 
   /**
-   * Padding for map focus: desktop keeps the point clear of the sidebar
-   * and any open panel; mobile keeps it clear of the floating search bar
-   * and the bottom sheet.
+   * Padding for map focus: desktop keeps the point clear of the sidebar;
+   * mobile keeps it clear of the floating search bar and the bottom sheet.
    */
   const makeFocus = useCallback(
-    (lat: number, lng: number, zoom: number, panelOpen: boolean): FocusTarget =>
+    (lat: number, lng: number, zoom: number): FocusTarget =>
       isMobile
         ? { lat, lng, zoom, padLeft: 30, padTop: 84, padRight: 30, padBottom: 164 }
         : {
             lat,
             lng,
             zoom,
-            padLeft: SIDEBAR_W + (panelOpen ? PANEL_W : 0) + 30,
+            padLeft: SIDEBAR_W + 30,
             padTop: 30,
             padRight: 30,
             padBottom: 30,
@@ -104,16 +100,27 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
     }
   }, []);
 
-  const selectReview = useCallback(
-    (review: Review) => {
-      setActiveReview(review);
-      setFormOpen(false);
-      setFocus(makeFocus(review.latitude, review.longitude, 15, true));
+  /** Select a place (map marker, map click, search): open the place panel. */
+  const selectPlace = useCallback(
+    (place: PlaceSelection) => {
+      setSelectedPlace(place);
+      setFocus(makeFocus(place.lat, place.lng, 16));
     },
     [makeFocus],
   );
 
-  const closeDetail = useCallback(() => setActiveReview(null), []);
+  /** A review card was clicked — open the panel of its place. */
+  const selectReview = useCallback(
+    (review: Review) => {
+      selectPlace({
+        lat: review.latitude,
+        lng: review.longitude,
+        name: review.place_name,
+        address: review.place_address,
+      });
+    },
+    [selectPlace],
+  );
 
   /**
    * Open the review form for a specific place (place panel / place marker
@@ -127,7 +134,6 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         window.location.href = "/login";
         return;
       }
-      setActiveReview(null);
       setDraft({
         lat: place.lat,
         lng: place.lng,
@@ -137,8 +143,8 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         locked: true,
       });
       // The form sits inside the sidebar, so only the sidebar width needs
-      // padding — no extra side panel.
-      setFocus(makeFocus(place.lat, place.lng, 16, false));
+      // padding.
+      setFocus(makeFocus(place.lat, place.lng, 16));
       setFormOpen(true);
     },
     [user, makeFocus],
@@ -199,9 +205,9 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         name: result.display_name.split(",")[0],
         address: result.display_name,
       });
-      setFocus(makeFocus(lat, lng, 16, activeReview !== null));
+      setFocus(makeFocus(lat, lng, 16));
     },
-    [makeFocus, activeReview],
+    [makeFocus],
   );
 
   /**
@@ -222,7 +228,6 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
    * doesn't need to move.
    */
   const onMapSelect = useCallback((lat: number, lng: number) => {
-    setActiveReview(null);
     const coords = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     setSelectedPlace({ lat, lng, name: coords, address: coords });
     reverseGeocode(lat, lng)
@@ -296,7 +301,7 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         onMapClick={onMapClick}
         onMapSelect={onMapSelect}
         onDraftMove={onDraftMove}
-        onSelectReview={selectReview}
+        onSelectPlace={selectPlace}
         onRatePlace={openForm}
       />
 
@@ -322,7 +327,6 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
               selectedPlace.lng,
             )}
             formOpen={formOpen}
-            onSelectReview={selectReview}
             onRatePlace={openForm}
             onClose={closePlacePanel}
           />
@@ -370,11 +374,7 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
 
             <SearchBox onSelect={onSearchPlaceSelected} onClear={closePlacePanel} />
 
-            <ReviewList
-              reviews={reviews}
-              activeId={activeReview?.id ?? null}
-              onSelect={selectReview}
-            />
+            <ReviewList reviews={reviews} onSelect={selectReview} />
           </>
         )}
 
@@ -388,8 +388,6 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
           />
         )}
       </aside>
-
-      {activeReview && <ReviewDetail review={activeReview} onClose={closeDetail} />}
     </div>
   );
 }

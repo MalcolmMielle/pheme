@@ -18,7 +18,7 @@ import {
 import "leaflet/dist/leaflet.css";
 
 import { formatRating, stars } from "../api";
-import { groupReviewsByPlace } from "../places";
+import { groupReviewsByPlace, placeKey } from "../places";
 import type { ReviewPlace } from "../places";
 import type {
   Draft,
@@ -147,24 +147,23 @@ function MapController({
 
 /**
  * One marker per place, colored by the average rating of all its reviews.
- * The popup lists every review at the place — clicking one opens its
- * detail; clicking the marker itself opens the latest review (reviews
- * arrive sorted by created_at DESC). The position/icon/handlers props are
- * memoized: react-leaflet compares `position` by reference and would
- * otherwise call `setLatLng` on every render — which re-fires the
+ * Clicking the marker opens the place panel (left sidebar) — the popup
+ * just shows the place's name and average. The position/icon/handlers
+ * props are memoized: react-leaflet compares `position` by reference and
+ * would otherwise call `setLatLng` on every render — which re-fires the
  * marker's `move` event and makes an open popup auto-pan the map back to
  * itself.
  */
 function PlaceMarker({
   place,
   formOpen,
-  onSelect,
+  onSelectPlace,
   onRatePlace,
 }: {
   place: ReviewPlace;
   /** True while the review form is open — hide the popup's rate button. */
   formOpen: boolean;
-  onSelect: (review: Review) => void;
+  onSelectPlace: (place: PlaceSelection) => void;
   onRatePlace: (place: PlaceSelection) => void;
 }) {
   const position = useMemo<[number, number]>(
@@ -172,9 +171,19 @@ function PlaceMarker({
     [place.lat, place.lng],
   );
   const icon = markerIcon(place.avgRating);
+  // Pass a review's coordinates (same place bucket as the group) so the
+  // place panel finds this place's reviews and no extra marker is drawn.
   const handlers = useMemo<LeafletEventHandlerFnMap>(
-    () => ({ click: () => onSelect(place.reviews[0]) }),
-    [onSelect, place],
+    () => ({
+      click: () =>
+        onSelectPlace({
+          lat: place.reviews[0].latitude,
+          lng: place.reviews[0].longitude,
+          name: place.name,
+          address: place.address,
+        }),
+    }),
+    [onSelectPlace, place],
   );
   // Memoized: react-leaflet calls popup.update() whenever the children
   // identity changes while the popup is open, and Leaflet's update()
@@ -190,23 +199,6 @@ function PlaceMarker({
           {formatRating(place.avgRating)} avg · {place.reviews.length} review
           {place.reviews.length !== 1 ? "s" : ""}
         </small>
-        <ul className="popup-review-list">
-          {place.reviews.map((r) => (
-            <li key={r.id}>
-              <button
-                type="button"
-                className="popup-review-btn"
-                onClick={() => onSelect(r)}
-              >
-                <span className="popup-stars">{stars(r.rating)}</span>{" "}
-                {r.content.substring(0, 60)}
-                {r.content.length > 60 ? "…" : ""}
-                <br />
-                <small>by {r.display_name || r.username}</small>
-              </button>
-            </li>
-          ))}
-        </ul>
         {!formOpen && (
           <button
             type="button"
@@ -225,7 +217,7 @@ function PlaceMarker({
         )}
       </>
     ),
-    [place, formOpen, onSelect, onRatePlace],
+    [place, formOpen, onRatePlace],
   );
   return (
     <Marker position={position} icon={icon} eventHandlers={handlers}>
@@ -272,7 +264,7 @@ interface MapViewProps {
   onMapClick: (lat: number, lng: number) => void;
   onMapSelect: (lat: number, lng: number) => void;
   onDraftMove: (lat: number, lng: number) => void;
-  onSelectReview: (review: Review) => void;
+  onSelectPlace: (place: PlaceSelection) => void;
   onRatePlace: (place: PlaceSelection) => void;
 }
 
@@ -287,11 +279,17 @@ export default function MapView({
   onMapClick,
   onMapSelect,
   onDraftMove,
-  onSelectReview,
+  onSelectPlace,
   onRatePlace,
 }: MapViewProps) {
   // One marker per place, colored by the place's average rating.
   const places = useMemo(() => groupReviewsByPlace(reviews), [reviews]);
+
+  // The selected place's own marker is enough when it coincides with a
+  // reviewed place — don't draw a second marker on top.
+  const showSearchMarker =
+    searchMarker != null &&
+    !places.some((p) => p.key === placeKey(searchMarker.lat, searchMarker.lng));
 
   // Memoized so the draggable marker isn't snapped back mid-drag.
   const draftPos = useMemo<[number, number] | null>(
@@ -334,7 +332,7 @@ export default function MapView({
           key={p.key}
           place={p}
           formOpen={formOpen}
-          onSelect={onSelectReview}
+          onSelectPlace={onSelectPlace}
           onRatePlace={onRatePlace}
         />
       ))}
@@ -345,7 +343,7 @@ export default function MapView({
         <Marker position={draftPos} draggable eventHandlers={draftHandlers} />
       )}
 
-      {searchMarker && (
+      {showSearchMarker && searchMarker && (
         <SearchMarkerView
           key={`${searchMarker.lat},${searchMarker.lng}`}
           marker={searchMarker}

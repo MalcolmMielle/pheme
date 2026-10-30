@@ -7,7 +7,6 @@ interface PlacePanelProps {
   reviews: Review[];
   /** True while the review form is open at the bottom of the sidebar. */
   formOpen: boolean;
-  onSelectReview: (review: Review) => void;
   onRatePlace: (place: PlaceSelection) => void;
   onClose: () => void;
 }
@@ -21,7 +20,6 @@ export default function PlacePanel({
   place,
   reviews,
   formOpen,
-  onSelectReview,
   onRatePlace,
   onClose,
 }: PlacePanelProps) {
@@ -55,11 +53,7 @@ export default function PlacePanel({
             </div>
             <div className="review-list">
               {reviews.map((r) => (
-                <div
-                  key={r.id}
-                  className="review-card"
-                  onClick={() => onSelectReview(r)}
-                >
+                <div key={r.id} className="review-card review-card-static">
                   <div className="stars">{stars(r.rating)}</div>
                   <div className="snippet">{r.content}</div>
                   <div className="meta-line">
