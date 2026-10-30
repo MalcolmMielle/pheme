@@ -21,15 +21,13 @@ logger = logging.getLogger("bootstrap")
 
 async def _bootstrap() -> None:
     """Create a default actor and seed demo reviews."""
-    from app.activitypub.signing import generate_keypair
-    from app.config import config
     from app.db import (
-        create_actor,
         create_review,
         get_actor_by_username,
         get_db,
         hash_password,
     )
+    from app.routes.activitypub.helpers import create_local_actor
 
     # ── Create default actor ────────────────────────────────────────────
     username = "alice"
@@ -39,19 +37,10 @@ async def _bootstrap() -> None:
     if existing:
         logger.info("Actor '%s' already exists — skipping.", username)
     else:
-        priv, pub = generate_keypair()
-        base = f"{config.base_url}/actor/{username}"
-        actor = await create_actor(
+        actor = await create_local_actor(
             username=username,
             display_name=display_name,
             summary="Avid local reviewer",
-            private_key_pem=priv,
-            public_key_pem=pub,
-            actor_uri=base,
-            inbox_uri=f"{base}/inbox",
-            outbox_uri=f"{base}/outbox",
-            followers_uri=f"{base}/followers",
-            following_uri=f"{base}/following",
             password_hash=hash_password(password),
         )
         logger.info("Created actor '%s' (%s).", username, actor["actor_uri"])

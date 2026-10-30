@@ -10,15 +10,14 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app.activitypub.signing import generate_keypair
 from app.config import config
 from app.db import (
-    create_actor,
     get_actor_by_username,
     get_reviews,
     hash_password,
     verify_password,
 )
+from app.routes.activitypub import create_local_actor
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -67,19 +66,9 @@ async def register(
             status_code=409,
         )
 
-    priv, pub = generate_keypair()
-    actor_uri_val = f"{config.base_url}/actor/{username}"
-    actor = await create_actor(
+    actor = await create_local_actor(
         username=username,
         display_name=display_name,
-        summary="",
-        private_key_pem=priv,
-        public_key_pem=pub,
-        actor_uri=actor_uri_val,
-        inbox_uri=f"{actor_uri_val}/inbox",
-        outbox_uri=f"{actor_uri_val}/outbox",
-        followers_uri=f"{actor_uri_val}/followers",
-        following_uri=f"{actor_uri_val}/following",
         password_hash=hash_password(password),
     )
 

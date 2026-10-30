@@ -11,7 +11,7 @@ from fastapi import HTTPException
 
 from app.activitypub.signing import generate_keypair
 from app.config import config
-from app.db import get_actor_by_uri, get_actor_by_username, get_db
+from app.db import create_actor, get_actor_by_uri, get_actor_by_username, get_db
 
 logger = logging.getLogger("federated-reviews")
 
@@ -26,6 +26,30 @@ def inbox_uri(username: str) -> str:
 
 def outbox_uri(username: str) -> str:
     return f"{actor_uri(username)}/outbox"
+
+
+async def create_local_actor(
+    username: str,
+    display_name: str,
+    summary: str = "",
+    password_hash: str | None = None,
+) -> dict[str, Any]:
+    """Create a local actor — generate its keypair and derive all URIs."""
+    priv, pub = generate_keypair()
+    base = actor_uri(username)
+    return await create_actor(
+        username=username,
+        display_name=display_name,
+        summary=summary,
+        private_key_pem=priv,
+        public_key_pem=pub,
+        actor_uri=base,
+        inbox_uri=inbox_uri(username),
+        outbox_uri=outbox_uri(username),
+        followers_uri=f"{base}/followers",
+        following_uri=f"{base}/following",
+        password_hash=password_hash,
+    )
 
 
 async def require_local_actor(username: str) -> dict[str, Any]:

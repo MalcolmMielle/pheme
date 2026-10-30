@@ -12,11 +12,9 @@ from fastapi.responses import JSONResponse
 
 from app.activitypub.actor import actor_to_ap, build_follow_activity
 from app.activitypub.delivery import deliver_to_inbox, fanout_activity
-from app.activitypub.signing import generate_keypair
 from app.auth import get_current_user
 from app.db import (
     count_reviews,
-    create_actor,
     create_review,
     delete_review,
     follow_actor,
@@ -29,7 +27,7 @@ from app.db import (
     hash_password,
 )
 from app.config import config
-from app.routes.activitypub import actor_uri, fetch_remote_actor, inbox_uri, outbox_uri
+from app.routes.activitypub import create_local_actor, fetch_remote_actor
 
 logger = logging.getLogger("federated-reviews")
 
@@ -327,18 +325,9 @@ async def api_bootstrap(
             {"status": "exists", "actor": actor_to_ap(existing).model_dump()}
         )
 
-    priv, pub = generate_keypair()
-    actor = await create_actor(
+    actor = await create_local_actor(
         username=username,
         display_name=display_name,
-        summary="",
-        private_key_pem=priv,
-        public_key_pem=pub,
-        actor_uri=actor_uri(username),
-        inbox_uri=inbox_uri(username),
-        outbox_uri=outbox_uri(username),
-        followers_uri=f"{actor_uri(username)}/followers",
-        following_uri=f"{actor_uri(username)}/following",
         password_hash=hash_password(password) if password else None,
     )
     return JSONResponse({"status": "created", "actor": actor_to_ap(actor).model_dump()})

@@ -19,6 +19,7 @@ from app.routes.activitypub.actor import router as actor_router
 from app.routes.activitypub.collections import router as collections_router
 from app.routes.activitypub.helpers import (
     actor_uri,
+    create_local_actor,
     fetch_remote_actor,
     inbox_uri,
     outbox_uri,
@@ -38,4 +39,5 @@ __all__ = [
     "inbox_uri",
     "outbox_uri",
     "fetch_remote_actor",
+    "create_local_actor",
 ]
