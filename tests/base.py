@@ -53,6 +53,7 @@ class AsyncTestCase(unittest.IsolatedAsyncioTestCase):
         config.base_url = os.environ["BASE_URL"]
         config.database_path = os.environ["DATABASE_PATH"]
         config.secret_key = os.environ["SECRET_KEY"]
+        config.registration_mode = "open"
 
         # Fresh database per test. httpx's ASGITransport does not run the
         # app lifespan, so tests drive init_db()/close_db() themselves —

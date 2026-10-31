@@ -193,3 +193,179 @@ class TestAuth(AsyncTestCase):
         )
         assert resp.status_code == 303
         assert resp.headers["location"] == "/login"
+
+
+class TestRegistrationValidation(AsyncTestCase):
+    """RegisterForm (Pydantic) rejects bad input with a 400 + message."""
+
+    async def _post(self, username: str, password: str = "password123") -> object:
+        return await self.client.post(
+            "/register",
+            data={"username": username, "display_name": "X", "password": password},
+            follow_redirects=False,
+        )
+
+    async def test_username_pattern_rejected(self):
+        resp = await self._post("Bad Name!")
+        assert resp.status_code == 400
+        assert "username" in resp.text
+
+    async def test_reserved_username_rejected(self):
+        resp = await self._post("login")
+        assert resp.status_code == 400
+
+    async def test_short_password_rejected(self):
+        resp = await self._post("validname", password="short")
+        assert resp.status_code == 400
+        assert "password" in resp.text
+
+    async def test_valid_registration_still_works(self):
+        resp = await self._post("good_name")
+        assert resp.status_code == 303
+
+
+class TestRegistrationModes(AsyncTestCase):
+    """REGISTRATION_MODE=closed refuses; =invite requires a valid code."""
+
+    async def _set_mode(self, mode: str) -> None:
+        from app.config import config
+
+        config.registration_mode = mode
+
+    async def test_closed_mode(self):
+        await self._set_mode("closed")
+        resp = await self.client.get("/register")
+        assert resp.status_code == 200
+        assert "closed" in resp.text.lower()
+        resp = await self.client.post(
+            "/register",
+            data={
+                "username": "closed1",
+                "display_name": "X",
+                "password": "password123",
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 403
+
+    async def test_invite_mode_requires_code(self):
+        await self._set_mode("invite")
+        resp = await self.client.post(
+            "/register",
+            data={"username": "nocode", "display_name": "X", "password": "password123"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 403
+        assert "invite" in resp.text.lower()
+
+    async def test_invite_code_prefilled_on_form(self):
+        await self._set_mode("invite")
+        resp = await self.client.get("/register", params={"code": "abc123"})
+        assert resp.status_code == 200
+        assert 'value="abc123"' in resp.text
+
+    async def test_invite_flow_create_use_reuse(self):
+        await self._set_mode("invite")
+        # Bootstrap the admin (one-time, CSRF-exempt), then log in as them.
+        await self.client.post(
+            "/api/bootstrap",
+            data={
+                "username": "admin",
+                "display_name": "Admin",
+                "password": "adminpass123",
+            },
+        )
+        resp = await self.client.post(
+            "/login",
+            data={"username": "admin", "password": "adminpass123"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        # Admin creates an invite code.
+        resp = await self.client.post("/api/admin/invites", data={})
+        assert resp.status_code == 200
+        code = resp.json()["invite"]["code"]
+        assert f"code={code}" in resp.json()["invite"]["register_url"]
+        # Registering with the code works.
+        resp = await self.client.post(
+            "/register",
+            data={
+                "username": "invited",
+                "display_name": "Invited",
+                "password": "password123",
+                "code": code,
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        # The one-time code is now spent.
+        resp = await self.client.post(
+            "/register",
+            data={
+                "username": "second",
+                "display_name": "S",
+                "password": "password123",
+                "code": code,
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 403
+
+
+class TestSessionCookieFlags(AsyncTestCase):
+    async def test_session_cookie_has_max_age_httponly_samesite(self):
+        resp = await self.client.post(
+            "/register",
+            data={"username": "cookie", "display_name": "C", "password": "password123"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        cookies = resp.headers.get_list("set-cookie")
+        session_cookie = next(c for c in cookies if c.startswith("session=")).lower()
+        assert "max-age=2592000" in session_cookie  # default 30 days
+        assert "httponly" in session_cookie
+        assert "samesite=lax" in session_cookie
+        # Test server runs on plain http — no Secure flag expected.
+        assert "secure" not in session_cookie
+
+
+class TestRateLimit(AsyncTestCase):
+    async def test_login_rate_limited_after_5_per_minute(self):
+        from app.main import app
+
+        app.state.limiter.enabled = True
+        try:
+            for _ in range(5):
+                resp = await self.client.post(
+                    "/login", data={"username": "ghost", "password": "wrongpass"}
+                )
+                assert resp.status_code == 401
+            resp = await self.client.post(
+                "/login", data={"username": "ghost", "password": "wrongpass"}
+            )
+            assert resp.status_code == 429
+        finally:
+            app.state.limiter.enabled = False
+
+    async def test_register_rate_limited_after_3_per_minute(self):
+        from app.main import app
+
+        app.state.limiter.enabled = True
+        try:
+            for i in range(3):
+                resp = await self.client.post(
+                    "/register",
+                    data={
+                        "username": f"rl{i}",
+                        "display_name": "X",
+                        "password": "short",  # 400, but still counted
+                    },
+                )
+                assert resp.status_code == 400
+            resp = await self.client.post(
+                "/register",
+                data={"username": "rl3", "display_name": "X", "password": "short"},
+            )
+            assert resp.status_code == 429
+        finally:
+            app.state.limiter.enabled = False

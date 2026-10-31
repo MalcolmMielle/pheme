@@ -121,7 +121,7 @@ async def api_me(request: Request) -> JSONResponse:
     if user_id is None:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     actor = await get_actor_by_id(user_id)
-    if actor is None:
+    if actor is None or actor.get("is_suspended"):
         request.session.clear()
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     return JSONResponse(
