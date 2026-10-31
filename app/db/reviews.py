@@ -87,7 +87,7 @@ def _actor_uri_where(actor_uris: list[str] | None) -> tuple[str, list[str]]:
 
 
 async def get_reviews(
-    limit: int = 100,
+    limit: int = 200,
     offset: int = 0,
     actor_uris: list[str] | None = None,
 ) -> list[dict[str, Any]]:

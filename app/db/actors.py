@@ -103,18 +103,25 @@ async def set_actor_suspended(actor_id: int, is_suspended: bool) -> bool:
 async def delete_actor(actor_id: int) -> bool:
     """Delete an actor and all their local content (reviews, follows, invites).
 
-    Invite codes referencing the actor (as creator or user) are deleted too:
+    Follow rows are removed on both sides — the actor's own follows and rows
+    where other actors follow them — so no orphans linger. Invite codes
+    referencing the actor (as creator or user) are deleted too:
     ``created_by``/``used_by`` are foreign keys with no ON DELETE clause, and
     a used invite must never become valid again, so NULLing is not an option.
 
     Returns False if the actor doesn't exist.
     """
     db = await get_db()
-    row = await db.execute("SELECT id FROM actors WHERE id = ?", (actor_id,))
-    if not await row.fetchone():
+    row = await db.execute("SELECT actor_uri FROM actors WHERE id = ?", (actor_id,))
+    result = await row.fetchone()
+    if not result:
         return False
+    actor_uri = result["actor_uri"]
     await db.execute("DELETE FROM reviews WHERE actor_id = ?", (actor_id,))
-    await db.execute("DELETE FROM follows WHERE actor_id = ?", (actor_id,))
+    await db.execute(
+        "DELETE FROM follows WHERE actor_id = ? OR target_actor_uri = ?",
+        (actor_id, actor_uri),
+    )
     await db.execute(
         "DELETE FROM invite_codes WHERE created_by = ? OR used_by = ?",
         (actor_id, actor_id),

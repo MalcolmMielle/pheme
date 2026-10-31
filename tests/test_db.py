@@ -267,6 +267,24 @@ class TestFollows(AsyncTestCase):
         inboxes = await get_follower_inboxes(alice["id"])
         assert bob["inbox_uri"] in inboxes
 
+    async def test_delete_actor_removes_incoming_follows(self):
+        """Deleting an actor must also drop follow rows where others follow
+        them — otherwise orphan rows linger forever."""
+        from app.db import delete_actor, get_db
+
+        alice = await _make_actor("alice")
+        bob = await _make_actor("bob")
+        await follow_actor(bob["id"], alice["actor_uri"])
+        await accept_follow(bob["id"], alice["actor_uri"])
+        assert await get_followers(alice["id"]) == [bob["actor_uri"]]
+
+        assert await delete_actor(alice["id"])
+        db = await get_db()
+        row = await db.execute("SELECT COUNT(*) AS n FROM follows")
+        result = await row.fetchone()
+        assert result is not None
+        assert result["n"] == 0
+
     async def test_reviews_by_actor(self):
         from app.db import get_reviews_by_actor
 
