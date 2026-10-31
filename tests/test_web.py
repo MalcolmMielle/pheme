@@ -197,6 +197,73 @@ class TestAuth(AsyncTestCase):
         assert resp.headers["location"] == "/login"
 
 
+class TestLoginWithStaleSessionCookie(AsyncTestCase):
+    """Regression: browsers carry a session cookie from before the
+    starlette-csrf middleware existed. The plain HTML login/register forms
+    cannot send an X-CSRFToken header, so those endpoints must stay exempt —
+    otherwise users get 403 and cannot log in at all."""
+
+    async def _raw_client_with_session_cookie(self) -> httpx.AsyncClient:
+        """A client (no CSRF request hook) holding only a session cookie."""
+        from httpx import ASGITransport
+
+        from app.main import app
+
+        await self.register_user(username="stale", password="password123")
+        session = self.client.cookies.get("session")
+        assert session
+        raw = httpx.AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://testserver"
+        )
+        raw.headers["Cookie"] = f"session={session}"
+        return raw
+
+    async def test_login_form_works_with_session_cookie_no_csrf_header(self):
+        raw = await self._raw_client_with_session_cookie()
+        try:
+            resp = await raw.post(
+                "/login",
+                data={"username": "stale", "password": "password123"},
+                follow_redirects=False,
+            )
+            assert resp.status_code == 303
+            assert resp.headers["location"] == "/"
+        finally:
+            await raw.aclose()
+
+    async def test_register_form_works_with_session_cookie_no_csrf_header(self):
+        raw = await self._raw_client_with_session_cookie()
+        try:
+            resp = await raw.post(
+                "/register",
+                data={
+                    "username": "newbie",
+                    "display_name": "New",
+                    "password": "password123",
+                },
+                follow_redirects=False,
+            )
+            assert resp.status_code == 303
+        finally:
+            await raw.aclose()
+
+    async def test_authenticated_posts_still_require_csrf_header(self):
+        """The exemption must not open the rest: a logged-in POST without a
+        matching X-CSRFToken header is still rejected."""
+        await self.register_user()
+        resp = await self.client.post(
+            "/api/reviews",
+            data={
+                "content": "x",
+                "rating": "5",
+                "latitude": "0",
+                "longitude": "0",
+            },
+            headers={"X-CSRFToken": "bogus"},
+        )
+        assert resp.status_code == 403
+
+
 class TestRegistrationValidation(AsyncTestCase):
     """RegisterForm (Pydantic) rejects bad input with a 400 + message."""
 
