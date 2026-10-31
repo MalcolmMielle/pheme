@@ -7,7 +7,6 @@ and the login/register/logout forms.
 """
 
 import secrets
-from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -28,6 +27,7 @@ from app.db import (
 from app.forms import RegisterForm, first_validation_error
 from app.ratelimit import limiter
 from app.routes.activitypub import create_local_actor
+from app.routes.activitypub.helpers import sqlite_to_datetime
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -48,9 +48,7 @@ def _format_review_date(value: str) -> str:
     string ever differs.
     """
     try:
-        dt = datetime.strptime(value.strip(), "%Y-%m-%d %H:%M:%S").replace(
-            tzinfo=timezone.utc
-        )
+        dt = sqlite_to_datetime(value)
     except ValueError:
         return value
     return dt.strftime("%d %b %Y, %H:%M UTC")

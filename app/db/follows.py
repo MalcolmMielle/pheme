@@ -37,34 +37,29 @@ async def unfollow_actor(actor_id: int, target_actor_uri: str) -> bool:
     return cursor.rowcount > 0
 
 
-async def get_followers(actor_id: int) -> list[str]:
-    """Return actor URIs of actors that follow *this* actor."""
+async def _follower_actors(actor_id: int) -> list[dict[str, Any]]:
+    """Accepted followers of *this* actor, joined with their actor rows."""
     actor = await get_actor_by_id(actor_id)
     if not actor:
         return []
     db = await get_db()
     rows = await db.execute(
-        """SELECT a.actor_uri FROM follows f
+        """SELECT a.* FROM follows f
            JOIN actors a ON f.actor_id = a.id
            WHERE f.target_actor_uri = ? AND f.is_accepted = 1""",
         (actor["actor_uri"],),
     )
-    return [r["actor_uri"] for r in await rows.fetchall()]
+    return [dict(r) for r in await rows.fetchall()]
+
+
+async def get_followers(actor_id: int) -> list[str]:
+    """Return actor URIs of actors that follow *this* actor."""
+    return [a["actor_uri"] for a in await _follower_actors(actor_id)]
 
 
 async def get_follower_inboxes(actor_id: int) -> list[str]:
     """Return inbox URIs of actors that follow *this* actor (for federation fan-out)."""
-    actor = await get_actor_by_id(actor_id)
-    if not actor:
-        return []
-    db = await get_db()
-    rows = await db.execute(
-        """SELECT a.inbox_uri FROM follows f
-           JOIN actors a ON f.actor_id = a.id
-           WHERE f.target_actor_uri = ? AND f.is_accepted = 1""",
-        (actor["actor_uri"],),
-    )
-    return [r["inbox_uri"] for r in await rows.fetchall()]
+    return [a["inbox_uri"] for a in await _follower_actors(actor_id)]
 
 
 async def get_following(actor_id: int) -> list[str]:

@@ -148,6 +148,18 @@ def sign_request(
     }
 
 
+def parse_signature_header(signature: str) -> dict[str, str]:
+    """Parse a ``Signature`` header into its ``key="value"`` components."""
+    parts: dict[str, str] = {}
+    for part in signature.split(","):
+        part = part.strip()
+        if "=" not in part:
+            continue
+        key, _, value = part.partition("=")
+        parts[key.strip()] = value.strip().strip('"')
+    return parts
+
+
 def verify_signature(
     method: str,
     path: str,
@@ -201,13 +213,7 @@ def verify_signature(
             return False
 
     # Extract signature components
-    sig_parts: dict[str, str] = {}
-    for part in signature.split(","):
-        part = part.strip()
-        if "=" not in part:
-            continue
-        key, _, value = part.partition("=")
-        sig_parts[key.strip()] = value.strip().strip('"')
+    sig_parts = parse_signature_header(signature)
 
     signature_b64 = sig_parts.get("signature", "")
 

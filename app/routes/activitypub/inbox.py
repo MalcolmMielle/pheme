@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 
 from app.activitypub.actor import build_accept_activity
 from app.activitypub.delivery import deliver_to_inbox
-from app.activitypub.signing import verify_signature
+from app.activitypub.signing import parse_signature_header, verify_signature
 from app.db import (
     accept_follow,
     create_review,
@@ -49,13 +49,9 @@ async def post_inbox(username: str, request: Request) -> JSONResponse:
         "signature": request.headers.get("signature", ""),
     }
 
-    signature = request.headers.get("signature", "")
-    sender_key_id = ""
-    for part in signature.split(","):
-        part = part.strip()
-        if part.startswith("keyId="):
-            sender_key_id = part.split("=", 1)[1].strip().strip('"')
-
+    sender_key_id = parse_signature_header(request.headers.get("signature", "")).get(
+        "keyId", ""
+    )
     sender_actor_uri = sender_key_id.split("#")[0] if sender_key_id else ""
 
     sender_actor = await get_actor_by_uri(sender_actor_uri)

@@ -43,12 +43,16 @@ def outbox_uri(username: str) -> str:
 # These converters translate at the federation boundary.
 
 
-def iso8601_from_sqlite(value: str) -> str:
-    """SQLite UTC text -> ISO-8601 UTC ("2026-08-02 21:45:00" -> "...T21:45:00Z")."""
-    dt = datetime.strptime(value.strip(), "%Y-%m-%d %H:%M:%S").replace(
+def sqlite_to_datetime(value: str) -> datetime:
+    """SQLite UTC text ("2026-08-02 21:45:00") -> aware UTC datetime."""
+    return datetime.strptime(value.strip(), "%Y-%m-%d %H:%M:%S").replace(
         tzinfo=timezone.utc
     )
-    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def iso8601_from_sqlite(value: str) -> str:
+    """SQLite UTC text -> ISO-8601 UTC ("2026-08-02 21:45:00" -> "...T21:45:00Z")."""
+    return sqlite_to_datetime(value).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def sqlite_from_iso8601(value: str) -> str | None:
