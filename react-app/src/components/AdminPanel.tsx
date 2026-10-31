@@ -80,15 +80,12 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
       return;
     }
     const ok = await runAction(() =>
-      createUser(
-        {
-          username: username.trim(),
-          displayName: displayName.trim() || username.trim(),
-          password,
-          isAdmin: makeAdmin,
-        },
-        currentUser.csrf_token,
-      ),
+      createUser({
+        username: username.trim(),
+        displayName: displayName.trim() || username.trim(),
+        password,
+        isAdmin: makeAdmin,
+      }),
     );
     if (ok) {
       setUsername("");
@@ -99,9 +96,7 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
   };
 
   const toggleAdmin = (user: AdminUser) =>
-    runAction(() =>
-      setUserAdmin(user.id, !user.is_admin, currentUser.csrf_token),
-    );
+    runAction(() => setUserAdmin(user.id, !user.is_admin));
 
   return (
     <div className="admin-panel">

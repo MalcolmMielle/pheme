@@ -5,19 +5,26 @@ Shared test helpers — the stdlib-unittest replacement for the old pytest
 
 import asyncio
 import os
-import re
 import unittest
 
+import httpx
 from httpx import ASGITransport, AsyncClient
 
 
 async def get_csrf_token(client: AsyncClient, path: str = "/login") -> str:
-    """Fetch a page and extract the CSRF token from the hidden form field."""
-    resp = await client.get(path)
-    match = re.search(r'name="csrf_token" value="([^"]+)"', resp.text)
-    if not match:
-        raise ValueError(f"No CSRF token found on {path}")
-    return match.group(1)
+    """Fetch a page (which sets the ``csrftoken`` cookie) and return its value.
+
+    CSRF protection is starlette-csrf's double-submit cookie: the token lives
+    in the ``csrftoken`` cookie and must be sent back as the ``X-CSRFToken``
+    header. The request hook installed in ``AsyncTestCase`` attaches the
+    header automatically; this helper returns the raw value for tests that
+    want to reference it explicitly.
+    """
+    await client.get(path)
+    token = client.cookies.get("csrftoken")
+    if not token:
+        raise ValueError(f"No csrftoken cookie after GET {path}")
+    return token
 
 
 class AsyncTestCase(unittest.IsolatedAsyncioTestCase):
@@ -68,6 +75,16 @@ class AsyncTestCase(unittest.IsolatedAsyncioTestCase):
 
         transport = ASGITransport(app=app)
         self.client = AsyncClient(transport=transport, base_url="http://testserver")
+
+        async def _add_csrf_header(request: httpx.Request) -> None:
+            # Mimic the browser + SPA: send the double-submit X-CSRFToken
+            # header whenever the csrftoken cookie is present — unless the
+            # test set the header explicitly (to test a bad token).
+            token = self.client.cookies.get("csrftoken")
+            if token and "X-CSRFToken" not in request.headers:
+                request.headers["X-CSRFToken"] = token
+
+        self.client.event_hooks["request"].append(_add_csrf_header)
 
     async def asyncTearDown(self) -> None:
         await self.client.aclose()

@@ -1,11 +1,6 @@
 import { useState } from "react";
 
 import { followActor } from "../api";
-import type { Me } from "../types";
-
-interface FollowPanelProps {
-  currentUser: Me;
-}
 
 interface FollowResult {
   target: string;
@@ -20,7 +15,7 @@ interface FollowResult {
  * federating that actor's new reviews to this server.
  * Embedded in the profile page.
  */
-export default function FollowPanel({ currentUser }: FollowPanelProps) {
+export default function FollowPanel() {
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +32,7 @@ export default function FollowPanel({ currentUser }: FollowPanelProps) {
     setError(null);
     setResult(null);
     try {
-      const resp = await followActor(value, currentUser.csrf_token);
+      const resp = await followActor(value);
       if (resp.status === 401) {
         // Session gone — go to the login page.
         window.location.href = "/login";

@@ -76,9 +76,11 @@ async def review_page(request: Request, review_id: int) -> HTMLResponse:
 # ── auth routes ────────────────────────────────────────────────────────
 
 
-@router.get("/register", response_class=HTMLResponse)
-async def register_form(request: Request) -> HTMLResponse:
-    """Show the registration form."""
+@router.get("/register", response_class=HTMLResponse, response_model=None)
+async def register_form(request: Request) -> HTMLResponse | RedirectResponse:
+    """Show the registration form (redirect to / if already logged in)."""
+    if request.session.get("user_id"):
+        return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse(request=request, name="register.html", context={})
 
 

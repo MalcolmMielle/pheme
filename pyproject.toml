@@ -17,6 +17,7 @@ dependencies = [
     "bcrypt>=4.0,<4.1",
     "python-dotenv>=1.2.2",
     "slowapi>=0.1.10",
+    "starlette-csrf>=3.0.0",
 ]
 
 [project.scripts]

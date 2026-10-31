@@ -161,8 +161,6 @@ button.user-chip:hover .user-name { color: var(--accent); }
   align-items: center;
   gap: 6px;
 }
-/* The logout control is a form POST — let its button join the flex row. */
-.user-actions form { display: contents; }
 /* Logged-out strip: the two auth buttons share the full row. */
 .sidebar-user-anon .user-actions { flex: 1; }
 .sidebar-user-anon .btn { flex: 1; }
@@ -576,7 +574,6 @@ button.user-chip:hover .user-name { color: var(--accent); }
   letter-spacing: -0.01em;
   flex: 1;
 }
-.profile-logout { display: contents; }
 
 /* Centered single column — cards don't stretch across wide screens. */
 .profile-content {

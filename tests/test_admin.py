@@ -158,7 +158,7 @@ class TestAdminAccess(AdminTestCase):
         resp = await self.client.post(
             "/api/admin/users",
             data={"username": "x", "display_name": "X", "password": "pw123456"},
-            headers=JSON_HEADERS,
+            headers={**JSON_HEADERS, "X-CSRFToken": "bogus"},
         )
         assert resp.status_code == 403  # CSRF middleware rejects before the route
 

@@ -64,14 +64,14 @@ class TestAuth(AsyncTestCase):
         assert resp.status_code == 409
         assert "already taken" in resp.text
 
-    async def test_register_rejects_missing_csrf(self):
+    async def test_logout_rejects_bad_csrf_header(self):
+        """starlette-csrf rejects unsafe requests whose x-csrftoken header
+        does not match the csrftoken cookie once a session cookie exists."""
+        await self.register_user()
         resp = await self.client.post(
-            "/register",
-            data={
-                "username": "nocsrf",
-                "display_name": "No CSRF",
-                "password": "password123",
-            },
+            "/logout",
+            data={},
+            headers={"X-CSRFToken": "bogus"},
             follow_redirects=False,
         )
         assert resp.status_code == 403

@@ -69,7 +69,7 @@ class TestReviewsAPI(AsyncTestCase):
         # Should redirect to login (303) — auth check happens after CSRF
         assert resp.status_code in (303, 401, 403)
 
-    async def test_create_review_rejects_missing_csrf(self):
+    async def test_create_review_rejects_bad_csrf_header(self):
         await self.register_user()  # logs in via /register
         resp = await self.client.post(
             "/api/reviews",
@@ -79,6 +79,7 @@ class TestReviewsAPI(AsyncTestCase):
                 "latitude": "37.0",
                 "longitude": "-122.0",
             },
+            headers={"X-CSRFToken": "bogus"},
         )
         assert resp.status_code == 403
 

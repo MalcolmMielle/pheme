@@ -108,8 +108,9 @@ async def _nominatim_get(path: str, params: dict[str, Any]) -> JSONResponse:
 async def api_me(request: Request) -> JSONResponse:
     """Current session user for the SPA, or 401 JSON when logged out.
 
-    Also returns the session's CSRF token so the SPA can include it in
-    form-encoded posts (e.g. logout) — JSON requests are CSRF-exempt.
+    The CSRF token is not returned here — the SPA reads the ``csrftoken``
+    cookie (starlette-csrf double-submit) and sends it as the x-csrftoken
+    header on unsafe requests.
     """
     user_id = request.session.get("user_id")
     if user_id is None:
@@ -125,7 +126,6 @@ async def api_me(request: Request) -> JSONResponse:
             "display_name": actor["display_name"],
             "is_admin": bool(actor.get("is_admin")),
             "actor_uri": actor["actor_uri"],
-            "csrf_token": request.session.get("csrf_token", ""),
         }
     )
 

@@ -103,7 +103,6 @@
     <p>Welcome back to Federated Reviews</p>
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
     <form method="post">
-      <input type="hidden" name="csrf_token" value="{{ request.session.csrf_token }}">
       <label for="username">Username</label>
       <input type="text" id="username" name="username" required autofocus>
       <label for="password">Password</label>

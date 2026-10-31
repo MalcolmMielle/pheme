@@ -10,6 +10,7 @@ Wires together:
 
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -18,11 +19,11 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.sessions import SessionMiddleware
+from starlette_csrf import CSRFMiddleware
 
 from app.auth import _LoginRequired, login_required_handler
 from app.config import config
 from app.db import close_db, init_db
-from app.middleware import CSRFMiddleware
 from app.ratelimit import limiter
 from app.routes.activitypub import router as activitypub_router
 from app.routes.api import router as api_router
@@ -42,10 +43,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Federated Reviews", version="0.1.0", lifespan=lifespan)
 
 # ── middleware ──────────────────────────────────────────────────────────
-# Order matters: CSRFMiddleware must be added BEFORE SessionMiddleware
-# so that Session runs first (outermost) and populates scope["session"].
 
-app.add_middleware(CSRFMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=config.secret_key,
@@ -54,6 +52,26 @@ app.add_middleware(
     # Mark the session cookie Secure when the server is served over HTTPS,
     # so it is never sent over plain HTTP.
     https_only=config.base_url.startswith("https://"),
+)
+
+# CSRF protection via the starlette-csrf library (double-submit cookie):
+# every unsafe request that carries the session cookie must present an
+# x-csrftoken header matching the signed csrftoken cookie. ActivityPub
+# inboxes (HTTP-Signature auth) and the one-time bootstrap endpoint are
+# exempt. The cookie is not HttpOnly so the SPA can read it and send the
+# header.
+app.add_middleware(
+    CSRFMiddleware,
+    secret=config.secret_key,
+    sensitive_cookies={"session"},
+    exempt_urls=[
+        re.compile(r"^/inbox$"),
+        re.compile(r"^/actor/[^/]+/inbox$"),
+        re.compile(r"^/api/bootstrap$"),
+    ],
+    cookie_secure=config.base_url.startswith("https://"),
+    cookie_samesite="lax",
+    cookie_httponly=False,
 )
 
 # Rate limiter (slowapi) — auth routes opt in with @limiter.limit(...)

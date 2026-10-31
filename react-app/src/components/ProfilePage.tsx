@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { actorServer, fetchMyFollowing, unfollowActor } from "../api";
+import { actorServer, fetchMyFollowing, logout, unfollowActor } from "../api";
 import AdminPanel from "./AdminPanel";
 import FollowPanel from "./FollowPanel";
 import type { FollowingEntry, Me } from "../types";
@@ -40,7 +40,7 @@ export default function ProfilePage({ user, onBack }: ProfilePageProps) {
     setBusyUri(entry.actor_uri);
     setError(null);
     try {
-      const resp = await unfollowActor(entry.actor_uri, user.csrf_token);
+      const resp = await unfollowActor(entry.actor_uri);
       if (resp.status === 401) {
         window.location.href = "/login";
         return;
@@ -73,27 +73,28 @@ export default function ProfilePage({ user, onBack }: ProfilePageProps) {
           ← Map
         </button>
         <h1>Profile</h1>
-        <form method="post" action="/logout" className="profile-logout">
-          <input type="hidden" name="csrf_token" value={user.csrf_token} />
-          <button type="submit" className="btn btn-sm btn-ghost">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            Log out
-          </button>
-        </form>
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost"
+          onClick={() => void logout()}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          Log out
+        </button>
       </header>
 
       <div className="profile-content">
@@ -162,7 +163,7 @@ export default function ProfilePage({ user, onBack }: ProfilePageProps) {
 
         <section className="profile-section">
           <h2 className="profile-section-title">Follow a user</h2>
-          <FollowPanel currentUser={user} />
+          <FollowPanel />
         </section>
 
         {user.is_admin && (

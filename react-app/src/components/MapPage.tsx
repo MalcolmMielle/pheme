@@ -1,7 +1,7 @@
 import type { LatLngBounds } from "leaflet";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ApiError, createReview, fetchReviews, reverseGeocode } from "../api";
+import { ApiError, createReview, fetchReviews, logout, reverseGeocode } from "../api";
 import { useBottomSheet } from "../hooks/useBottomSheet";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { reviewsAtPlace } from "../places";
@@ -399,31 +399,28 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
                       </span>
                     </button>
                     <div className="user-actions">
-                      <form method="post" action="/logout">
-                        <input
-                          type="hidden"
-                          name="csrf_token"
-                          value={user.csrf_token}
-                        />
-                        <button type="submit" className="btn btn-sm btn-ghost">
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                            <polyline points="16 17 21 12 16 7" />
-                            <line x1="21" y1="12" x2="9" y2="12" />
-                          </svg>
-                          Logout
-                        </button>
-                      </form>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => void logout()}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                          <polyline points="16 17 21 12 16 7" />
+                          <line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                        Logout
+                      </button>
                     </div>
                   </>
                 ) : (

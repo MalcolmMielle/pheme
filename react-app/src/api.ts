@@ -20,6 +20,29 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * CSRF helpers — the server uses starlette-csrf (double-submit cookie): every
+ * unsafe request that carries the session cookie must send an `X-CSRFToken`
+ * header matching the `csrftoken` cookie. The cookie is readable by JS.
+ */
+function csrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+function csrfHeaders(): Record<string, string> {
+  return { "X-CSRFToken": csrfToken() };
+}
+
+/** Log out (POST /logout with the CSRF header), then go back to the map. */
+export async function logout(): Promise<void> {
+  await fetch("/logout", {
+    method: "POST",
+    headers: { ...csrfHeaders(), Accept: "application/json" },
+  });
+  window.location.href = "/";
+}
+
 /** Current session user, or null when logged out (401). */
 export async function fetchMe(): Promise<Me | null> {
   const resp = await fetch("/api/me", {
@@ -85,6 +108,7 @@ export async function createReview(
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
+      ...csrfHeaders(),
     },
     body: JSON.stringify(payload),
   });
@@ -126,22 +150,19 @@ export async function fetchAdminUsers(): Promise<AdminUserList> {
 }
 
 /**
- * Form-encoded POST with the session CSRF token — the CSRF middleware
- * only validates form posts, so these actions go through here.
+ * Form-encoded POST with the X-CSRFToken header (starlette-csrf
+ * double-submit) — required for every unsafe request made while logged in.
  * Resolves with the raw Response so callers can read the status.
  */
-function formPost(
-  path: string,
-  fields: Record<string, string>,
-  csrfToken: string,
-): Promise<Response> {
+function formPost(path: string, fields: Record<string, string>): Promise<Response> {
   return fetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
       Accept: "application/json",
+      ...csrfHeaders(),
     },
-    body: new URLSearchParams({ ...fields, csrf_token: csrfToken }),
+    body: new URLSearchParams(fields),
   });
 }
 
@@ -150,22 +171,16 @@ function formPost(
  * the remote server's WebFinger) or by full actor URI. Sends a signed
  * Follow activity to the remote inbox; the remote server auto-accepts.
  */
-export function followActor(
-  target: string,
-  csrfToken: string,
-): Promise<Response> {
-  return formPost("/api/follow", { target }, csrfToken);
+export function followActor(target: string): Promise<Response> {
+  return formPost("/api/follow", { target });
 }
 
 /**
  * Unfollow an actor by URI or handle. Removes the local follow and sends
  * a signed Undo activity to the remote inbox (best effort).
  */
-export function unfollowActor(
-  target: string,
-  csrfToken: string,
-): Promise<Response> {
-  return formPost("/api/unfollow", { target }, csrfToken);
+export function unfollowActor(target: string): Promise<Response> {
+  return formPost("/api/unfollow", { target });
 }
 
 export interface NewUserPayload {
@@ -177,32 +192,23 @@ export interface NewUserPayload {
 }
 
 /** Create a local account (admin only); isAdmin makes it an admin account. */
-export function createUser(
-  payload: NewUserPayload,
-  csrfToken: string,
-): Promise<Response> {
-  return formPost(
-    "/api/admin/users",
-    {
-      username: payload.username,
-      display_name: payload.displayName,
-      password: payload.password,
-      is_admin: payload.isAdmin ? "true" : "false",
-    },
-    csrfToken,
-  );
+export function createUser(payload: NewUserPayload): Promise<Response> {
+  return formPost("/api/admin/users", {
+    username: payload.username,
+    display_name: payload.displayName,
+    password: payload.password,
+    is_admin: payload.isAdmin ? "true" : "false",
+  });
 }
 
 /** Promote (makeAdmin=true) or demote a local account (admin only). */
 export function setUserAdmin(
   userId: number,
   makeAdmin: boolean,
-  csrfToken: string,
 ): Promise<Response> {
   return formPost(
     `/api/admin/users/${userId}/${makeAdmin ? "promote" : "demote"}`,
     {},
-    csrfToken,
   );
 }
 

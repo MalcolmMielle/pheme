@@ -29,8 +29,6 @@ export interface Me {
   is_admin: boolean;
   /** This server's actor URI for the user, e.g. "http://localhost:8000/actor/alice". */
   actor_uri: string;
-  /** Session CSRF token — include it in form-encoded posts (e.g. logout). */
-  csrf_token: string;
 }
 
 /** One entry of the logged-in user's following list, from `GET /api/me/following`. */
