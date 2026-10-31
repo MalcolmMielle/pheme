@@ -1,4 +1,4 @@
-/* ── Federated Reviews — styles for the server-rendered pages ─────────
+/* ── Pheme — styles for the server-rendered pages ──────────────────────
    (standalone review detail; the auth pages carry their own inline
    <style> in the `head` block).
    The map page is the React SPA in react-app/ — its styles (design tokens
