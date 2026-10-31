@@ -1,4 +1,4 @@
-# 🗺️ Federated Reviews
+# 🗺️ Pheme
 
 A decentralised review platform that looks and feels like Google Maps /
 OpenStreetMap — but built on ActivityPub so that independent servers can
@@ -52,8 +52,8 @@ Node.js ≥ 20
 
 ```bash
 # Clone and enter the project
-git clone <repo-url> federated-reviews
-cd federated-reviews
+git clone <repo-url> pheme
+cd pheme
 
 # Install backend dependencies
 uv sync
@@ -69,7 +69,7 @@ cd react-app && npm install && npm run build && cd ..
 uv run bootstrap
 
 # Start the development server
-uv run fedreviews
+uv run pheme
 ```
 
 Open **<http://localhost:8000>** — you should see a map of San Francisco with
@@ -84,7 +84,7 @@ Run the backend and the Vite dev server side by side — the Vite server
 
 ```bash
 # Terminal 1 — backend
-uv run fedreviews
+uv run pheme
 
 # Terminal 2 — React dev server
 cd react-app && npm run dev
@@ -127,16 +127,16 @@ then post — the API accepts both form-encoded and JSON bodies:
 ```bash
 # Log in (keeps the session cookie; the first response also sets the
 # csrftoken cookie used for CSRF protection)
-curl -s -c /tmp/fedreviews-cookies -b /tmp/fedreviews-cookies \
+curl -s -c /tmp/pheme-cookies -b /tmp/pheme-cookies \
   -X POST http://localhost:8000/login \
   -d "username=alice&password=<password-from-bootstrap>"
 
 # CSRF (starlette-csrf double-submit): while logged in, every unsafe
 # request must send the csrftoken cookie's value back as a header.
-CSRF=$(awk '$6=="csrftoken" {print $7}' /tmp/fedreviews-cookies)
+CSRF=$(awk '$6=="csrftoken" {print $7}' /tmp/pheme-cookies)
 
 # Form-encoded or JSON both work — include the X-CSRFToken header either way
-curl -b /tmp/fedreviews-cookies -X POST http://localhost:8000/api/reviews \
+curl -b /tmp/pheme-cookies -X POST http://localhost:8000/api/reviews \
   -H "X-CSRFToken: $CSRF" \
   -d "content=Great coffee and friendly staff!" \
   -d "rating=5" \
@@ -145,7 +145,7 @@ curl -b /tmp/fedreviews-cookies -X POST http://localhost:8000/api/reviews \
   -d "place_name=Best Coffee" \
   -d "place_address=123 Main St"
 
-curl -b /tmp/fedreviews-cookies -X POST http://localhost:8000/api/reviews \
+curl -b /tmp/pheme-cookies -X POST http://localhost:8000/api/reviews \
   -H "X-CSRFToken: $CSRF" \
   -H "Content-Type: application/json" \
   -d '{"content":"Great coffee and friendly staff!","rating":5,"latitude":37.7749,"longitude":-122.4194,"place_name":"Best Coffee","place_address":"123 Main St"}'
@@ -155,7 +155,7 @@ curl -b /tmp/fedreviews-cookies -X POST http://localhost:8000/api/reviews \
 
 ```bash
 # Terminal 1 — "Server A" on port 8000
-uv run fedreviews
+uv run pheme
 
 # Terminal 2 — "Server B" on port 8001
 BASE_URL=http://localhost:8001 DATABASE_PATH=data/reviews-b.db \
@@ -192,7 +192,7 @@ uv run basedpyright app/ tests/         # type check
 ## Project layout
 
 ```
-federated-reviews/
+pheme/
 ├── app/
 │   ├── main.py               # FastAPI application — entry point + serves react-app/dist
 │   ├── config.py             # Config from environment / .env / defaults

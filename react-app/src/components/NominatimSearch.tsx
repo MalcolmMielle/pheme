@@ -102,6 +102,7 @@ export default function NominatimSearch({
 
   return (
     <div className="map-search-wrapper" ref={wrapper}>
+      <span className="search-icon" aria-hidden="true" />
       <input
         type="text"
         className="map-search"

@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
 
-import { actorServer, fetchMyFollowing, logout, unfollowActor } from "../api";
+import {
+  actorServer,
+  avatarColor,
+  fetchMyFollowing,
+  logout,
+  unfollowActor,
+} from "../api";
 import AdminPanel from "./AdminPanel";
 import FollowPanel from "./FollowPanel";
+import ThemeToggle from "./ThemeToggle";
 import type { FollowingEntry, Me } from "../types";
 
 interface ProfilePageProps {
@@ -73,6 +80,7 @@ export default function ProfilePage({ user, onBack }: ProfilePageProps) {
           ← Map
         </button>
         <h1>Profile</h1>
+        <ThemeToggle />
         <button
           type="button"
           className="btn btn-sm btn-ghost"
@@ -136,7 +144,13 @@ export default function ProfilePage({ user, onBack }: ProfilePageProps) {
                 const fserver = actorServer(f.actor_uri);
                 return (
                   <div className="following-item" key={f.actor_uri}>
-                    <span className="avatar" aria-hidden="true">
+                    <span
+                      className="avatar following-avatar"
+                      style={{
+                        background: avatarColor(f.display_name || f.username),
+                      }}
+                      aria-hidden="true"
+                    >
                       {(f.display_name || f.username).charAt(0)}
                     </span>
                     <span className="following-name">

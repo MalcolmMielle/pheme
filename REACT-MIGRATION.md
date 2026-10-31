@@ -1,7 +1,7 @@
 # React migration — job spec
 
 **Status: NOT STARTED.** This file is the complete handoff for converting the
-Federated Reviews web interface from Jinja2 + vanilla JS to React
+Pheme web interface from Jinja2 + vanilla JS to React
 (Vite + TypeScript). Everything a future session needs is in here.
 
 **To relaunch the job:** open a new session in this repo and say:
@@ -14,7 +14,7 @@ Git state at time of writing: branch `fix/security-hardening` @ `beb2e64`
 
 ## 1. Project context
 
-**federated-reviews** — a decentralized, ActivityPub-federated review platform
+**pheme** — a decentralized, ActivityPub-federated review platform
 ("Mastodon, but for location-based reviews"). Every server runs its own
 instance; reviews are tied to lat/lng and federate between servers.
 
@@ -22,7 +22,7 @@ instance; reviews are tied to lat/lng and federate between servers.
   hand-rolled ActivityPub (WebFinger, Actor, Inbox/Outbox, Followers/Following,
   HTTP Signatures RSA-SHA256), session-cookie auth (Starlette
   `SessionMiddleware` + itsdangerous), bcrypt password hashing via passlib.
-- **Stack tooling:** Python ≥ 3.13, `uv`. Run server: `uv run fedreviews`
+- **Stack tooling:** Python ≥ 3.13, `uv`. Run server: `uv run pheme`
   (port 8000). Seed demo data: `uv run bootstrap` (actor `alice` + 8 reviews
   in San Francisco). Lint: `uv run ruff check app/`.
 - **DB:** `data/reviews.db` (gitignored). Tables: `actors`, `reviews`,
@@ -107,7 +107,7 @@ hack (sidebar → 100vw) — replace with a real phone layout (see phase 3).
 ## 4. Target architecture
 
 ```
-federated-reviews/
+pheme/
 ├── app/                  # Python backend (FastAPI) — minimal changes, see §6
 ├── react-app/            # NEW: Vite + React + TypeScript SPA
 │   ├── package.json      # own deps; root package.json stays {}
@@ -120,7 +120,7 @@ federated-reviews/
 - **Dev:** `npm run dev` in `react-app/` (Vite, port 5173) with
   `server.proxy` forwarding `/api`, `/actor`, `/.well-known`, `/login`,
   `/register`, `/logout`, `/review`, `/static` → `http://localhost:8000`
-  (backend running via `uv run fedreviews`). Cookie auth works through the
+  (backend running via `uv run pheme`). Cookie auth works through the
   proxy if `changeOrigin` + cookie domain are handled (same-origin via proxy
   is the default path of least resistance).
 - **Prod/dev serve:** FastAPI mounts `react-app/dist` assets and adds an SPA
@@ -185,7 +185,7 @@ Replace the `@media` hack with a real phone layout:
    Keep `style.css` only if still referenced.
 
 ### Phase 5 — verify
-- `npm run build` succeeds; `uv run fedreviews` serves the built app at `/`.
+- `npm run build` succeeds; `uv run pheme` serves the built app at `/`.
 - Manual smoke: map loads with seeded reviews, markers, sidebar, search,
   detail panel, form submit creates a review, auth flow works, phone-width
   layout works (browser devtools device mode).

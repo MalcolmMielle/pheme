@@ -1,4 +1,11 @@
-import { actorServer, formatDate, formatRating, stars } from "../api";
+import {
+  actorServer,
+  avatarColor,
+  formatDate,
+  formatRating,
+  formatRelative,
+} from "../api";
+import Stars from "./Stars";
 import type { PlaceSelection, Review } from "../types";
 
 interface PlacePanelProps {
@@ -45,7 +52,7 @@ export default function PlacePanel({
         {avg != null ? (
           <>
             <div className="place-panel-avg">
-              <span className="stars">{stars(Math.round(avg))}</span>{" "}
+              <Stars value={avg} size={16} />{" "}
               <small>
                 {formatRating(avg)} avg · {reviews.length} review
                 {reviews.length !== 1 ? "s" : ""}
@@ -54,19 +61,31 @@ export default function PlacePanel({
             <div className="review-list">
               {reviews.map((r) => {
                 const server = actorServer(r.actor_uri);
+                const who = r.display_name || r.username;
                 return (
                   <div key={r.id} className="review-card review-card-static">
-                    <div className="stars">{stars(r.rating)}</div>
-                    <div className="snippet">{r.content}</div>
-                    <div className="meta-line">
-                      <span>
-                        {r.display_name || r.username}
-                        {server && <span className="server"> @{server}</span>}
-                      </span>
-                      <span className="date">{formatDate(r.created_at)}</span>
-                      <span>
-                        📍 {r.latitude.toFixed(3)}, {r.longitude.toFixed(3)}
-                      </span>
+                    <span
+                      className="avatar review-avatar"
+                      style={{ background: avatarColor(who) }}
+                      aria-hidden="true"
+                    >
+                      {who.charAt(0)}
+                    </span>
+                    <div className="review-card-main">
+                      <Stars value={r.rating} size={12} />
+                      <div className="snippet">{r.content}</div>
+                      <div className="meta-line">
+                        <span className="who">
+                          {who}
+                          {server && <span className="server"> @{server}</span>}
+                        </span>
+                        <span className="date" title={formatDate(r.created_at)}>
+                          {formatRelative(r.created_at)}
+                        </span>
+                        <span className="coords">
+                          📍 {r.latitude.toFixed(3)}, {r.longitude.toFixed(3)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -74,9 +93,23 @@ export default function PlacePanel({
             </div>
           </>
         ) : (
-          <p className="place-empty">
-            No reviews yet — be the first to rate this place.
-          </p>
+          <div className="empty-state place-empty">
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z" />
+              <path d="M12 12.5v-5M9.5 10 12 7.5 14.5 10" />
+            </svg>
+            <p>No reviews yet — be the first to rate this place.</p>
+          </div>
         )}
         {!formOpen && (
           <button

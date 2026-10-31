@@ -17,8 +17,9 @@ import {
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
-import { formatRating, stars } from "../api";
+import { formatRating, ratingColor } from "../api";
 import { groupReviewsByPlace, placeKey, type ReviewPlace } from "../places";
+import Stars from "./Stars";
 import type {
   Draft,
   FocusTarget,
@@ -34,31 +35,23 @@ const FOCUS_EPSILON = 0.001;
 /** Always zoom in to at least this level when focusing a target. */
 const FOCUS_MIN_ZOOM = 14;
 
-/** Teardrop marker color by rating (ported from app.js). */
-const STAR_COLORS: Record<number, string> = {
-  1: "#ef4444",
-  2: "#f97316",
-  3: "#eab308",
-  4: "#84cc16",
-  5: "#22c55e",
-};
-
 const iconCache = new Map<string, DivIcon>();
 
 /**
  * Teardrop marker colored by (possibly fractional) average rating — the
  * color comes from the nearest whole star, the label shows the average.
+ * The inner `marker-pin` div carries the pop-in animation (Leaflet owns the
+ * outer element's transform for positioning).
  */
 function markerIcon(avgRating: number): DivIcon {
   const label = formatRating(avgRating);
   let icon = iconCache.get(label);
   if (!icon) {
-    const star = Math.min(5, Math.max(1, Math.round(avgRating)));
-    const color = STAR_COLORS[star] || "#2563eb";
+    const color = ratingColor(avgRating);
     icon = L.divIcon({
       className: "custom-marker",
       html:
-        `<div style="width:32px;height:32px;border-radius:50% 50% 50% 0;` +
+        `<div class="marker-pin" style="width:32px;height:32px;border-radius:50% 50% 50% 0;` +
         `background:${color};color:white;display:flex;align-items:center;` +
         `justify-content:center;font-weight:700;font-size:13px;` +
         `box-shadow:0 2px 6px rgba(0,0,0,.3);transform:rotate(-45deg);` +
@@ -197,7 +190,7 @@ function PlaceMarker({
       <>
         <strong>{place.name || "Unnamed place"}</strong>
         <br />
-        <span className="popup-stars">{stars(Math.round(place.avgRating))}</span>{" "}
+        <Stars value={place.avgRating} size={13} />{" "}
         <small>
           {formatRating(place.avgRating)} avg · {place.reviews.length} review
           {place.reviews.length !== 1 ? "s" : ""}

@@ -312,9 +312,28 @@ export function deleteInvite(inviteId: number): Promise<Response> {
   });
 }
 
-/** "★★★☆☆" for a 1–5 rating. */
-export function stars(rating: number): string {
-  return "★".repeat(rating) + "☆".repeat(5 - rating);
+/** Teardrop marker / rating chip colors by nearest whole star. */
+const RATING_COLORS: Record<number, string> = {
+  1: "#ef4444",
+  2: "#f97316",
+  3: "#eab308",
+  4: "#84cc16",
+  5: "#22c55e",
+};
+
+/** Color encoding a rating (1–5) — used for map markers and rating chips. */
+export function ratingColor(rating: number): string {
+  const star = Math.min(5, Math.max(1, Math.round(rating)));
+  return RATING_COLORS[star] ?? "#5b5bd6";
+}
+
+/** Deterministic avatar background for a name — hue from a string hash. */
+export function avatarColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = (h * 31 + name.charCodeAt(i)) % 360;
+  }
+  return `hsl(${h} 62% 55%)`;
 }
 
 /**
@@ -355,4 +374,28 @@ export function formatDate(value: string): string {
     minute: "2-digit",
   });
   return `${date}, ${time}`;
+}
+
+/**
+ * Relative format for a review's created_at ("just now", "5m ago",
+ * "3h ago", "2d ago"); older than a week falls back to the absolute date.
+ * Same UTC parsing as formatDate.
+ */
+export function formatRelative(value: string): string {
+  const normalized = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return value;
+  const seconds = Math.max(0, (Date.now() - d.getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }

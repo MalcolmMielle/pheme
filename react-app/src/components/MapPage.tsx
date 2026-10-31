@@ -1,5 +1,5 @@
 import type { LatLngBounds } from "leaflet";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
 import {
   ApiError,
@@ -17,6 +17,7 @@ import PlacePanel from "./PlacePanel";
 import ReviewForm from "./ReviewForm";
 import ReviewList from "./ReviewList";
 import SearchBox from "./SearchBox";
+import ThemeToggle from "./ThemeToggle";
 import type {
   Draft,
   FocusTarget,
@@ -41,6 +42,8 @@ interface MapPageProps {
  */
 export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
+  /** True while a review load is in flight (drives skeleton cards). */
+  const [loading, setLoading] = useState(true);
   /** "all" = everything in bounds; "following" = own + followed; "local" = this server. */
   const [scope, setScope] = useState<ReviewScope>("all");
   const [formOpen, setFormOpen] = useState(false);
@@ -121,6 +124,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
       reviewsAbort.current?.abort();
       const ctrl = new AbortController();
       reviewsAbort.current = ctrl;
+      setLoading(true);
       try {
         setReviews(await fetchReviews(bounds, ctrl.signal, scope));
       } catch (err) {
@@ -131,6 +135,8 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
           return;
         }
         console.error("Failed to load reviews", err);
+      } finally {
+        if (reviewsAbort.current === ctrl) setLoading(false);
       }
     },
     [scope],
@@ -389,10 +395,35 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         ) : (
           <>
             <div className="sidebar-header">
-              <h1>🗺️ Pheme</h1>
-              <span className="review-count">
-                {reviews.length} review{reviews.length !== 1 ? "s" : ""}
-              </span>
+              <h1 className="wordmark">
+                <svg
+                  className="wordmark-logo"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <linearGradient id="wordmark-g" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stopColor="#5b5bd6" />
+                      <stop offset="1" stopColor="#a855f7" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    fill="url(#wordmark-g)"
+                    d="M12 1.8a7.2 7.2 0 0 0-7.2 7.2c0 5.4 7.2 13.2 7.2 13.2s7.2-7.8 7.2-13.2A7.2 7.2 0 0 0 12 1.8z"
+                  />
+                  <path
+                    fill="#fff"
+                    d="M12 6.1l1.25 2.53 2.79.4-2.02 1.97.48 2.78L12 12.65l-2.5 1.31.48-2.78-2.02-1.97 2.79-.4z"
+                  />
+                </svg>
+                Pheme
+              </h1>
+              <div className="header-actions">
+                <span className="review-count">
+                  {reviews.length} review{reviews.length !== 1 ? "s" : ""}
+                </span>
+                <ThemeToggle />
+              </div>
             </div>
 
             {userLoaded && (
@@ -456,38 +487,12 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
 
             <SearchBox onSelect={onSearchPlaceSelected} onClear={closePlacePanel} />
 
-            <div className="scope-toggle" role="group" aria-label="Review scope">
-              <button
-                type="button"
-                className={scope === "all" ? "active" : ""}
-                onClick={() => setScope("all")}
-                title="All reviews in this area"
-              >
-                All
-              </button>
-              {user && (
-                <button
-                  type="button"
-                  className={scope === "following" ? "active" : ""}
-                  onClick={() => setScope("following")}
-                  title="Only your reviews and reviews from people you follow"
-                >
-                  Following
-                </button>
-              )}
-              <button
-                type="button"
-                className={scope === "local" ? "active" : ""}
-                onClick={() => setScope("local")}
-                title="Only reviews from users on this server"
-              >
-                Local
-              </button>
-            </div>
+            <ScopeToggle scope={scope} onChange={setScope} loggedIn={!!user} />
 
             <ReviewList
               reviews={reviews}
               onSelect={selectReview}
+              loading={loading}
               emptyMessage={
                 scope === "following"
                   ? "No reviews from you or people you follow in this area."
@@ -505,6 +510,58 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
           <ReviewForm onSubmit={submitReview} onClose={closeForm} />
         )}
       </aside>
+    </div>
+  );
+}
+
+/** Segmented scope control (All / Following / Local) with a sliding thumb. */
+function ScopeToggle({
+  scope,
+  onChange,
+  loggedIn,
+}: {
+  scope: ReviewScope;
+  onChange: (scope: ReviewScope) => void;
+  loggedIn: boolean;
+}) {
+  const options: { value: ReviewScope; label: string; title: string }[] = [
+    { value: "all", label: "All", title: "All reviews in this area" },
+    ...(loggedIn
+      ? [
+          {
+            value: "following" as ReviewScope,
+            label: "Following",
+            title: "Only your reviews and reviews from people you follow",
+          },
+        ]
+      : []),
+    {
+      value: "local",
+      label: "Local",
+      title: "Only reviews from users on this server",
+    },
+  ];
+  const active = options.findIndex((o) => o.value === scope);
+  return (
+    <div
+      className="scope-toggle"
+      role="group"
+      aria-label="Review scope"
+      style={{ "--active": active, "--count": options.length } as CSSProperties}
+    >
+      <span className="scope-thumb" aria-hidden="true" />
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          className={scope === o.value ? "active" : ""}
+          aria-pressed={scope === o.value}
+          onClick={() => onChange(o.value)}
+          title={o.title}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
