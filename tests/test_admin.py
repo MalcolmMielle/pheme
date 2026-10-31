@@ -61,24 +61,18 @@ class TestFirstAccountIsAdmin(AsyncTestCase):
         resp = await self.client.get("/api/me", headers=JSON_HEADERS)
         assert resp.json()["is_admin"] is True
 
-    async def test_bootstrap_second_actor_is_not_admin(self):
+    async def test_bootstrap_is_one_time(self):
+        """Once any local account exists, /api/bootstrap refuses to create
+        more — it must not be an unauthenticated account-creation backdoor."""
         await self.client.post(
             "/api/bootstrap",
             data={"username": "admin", "display_name": "Admin", "password": "secret"},
         )
-        await self.client.post(
+        resp = await self.client.post(
             "/api/bootstrap",
             data={"username": "other", "display_name": "Other", "password": "secret"},
         )
-        csrf = await get_csrf_token(self.client, "/login")
-        resp = await self.client.post(
-            "/login",
-            data={"username": "other", "password": "secret", "csrf_token": csrf},
-            follow_redirects=False,
-        )
-        assert resp.status_code == 303
-        resp = await self.client.get("/api/me", headers=JSON_HEADERS)
-        assert resp.json()["is_admin"] is False
+        assert resp.status_code == 403
 
     async def test_next_account_becomes_admin_when_server_has_none(self):
         """Legacy databases (accounts but no admin) — the next account

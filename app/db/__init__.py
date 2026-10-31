@@ -6,6 +6,7 @@ Package layout:
   actors       — actor CRUD, password hashing
   reviews      — review CRUD, bounds queries, pagination
   follows      — follow/follower relationships
+  invites      — one-time invite codes for the "invite" registration mode
 
 All public functions are re-exported here for backward compatibility:
     from app.db import create_actor, get_reviews, follow_actor, ...
@@ -14,6 +15,7 @@ All public functions are re-exported here for backward compatibility:
 from app.db.actors import (
     count_admins,
     create_actor,
+    delete_actor,
     get_actor_by_id,
     get_actor_by_uri,
     get_actor_by_username,
@@ -31,6 +33,13 @@ from app.db.follows import (
     get_following,
     get_following_actors,
     unfollow_actor,
+)
+from app.db.invites import (
+    consume_invite,
+    create_invite,
+    delete_invite,
+    get_valid_invite,
+    list_invites,
 )
 from app.db.reviews import (
     count_reviews,
@@ -58,6 +67,7 @@ __all__ = [
     "list_local_actors",
     "set_actor_admin",
     "count_admins",
+    "delete_actor",
     "hash_password",
     "verify_password",
     # reviews
@@ -78,4 +88,10 @@ __all__ = [
     "get_following",
     "get_following_actors",
     "unfollow_actor",
+    # invites
+    "create_invite",
+    "get_valid_invite",
+    "consume_invite",
+    "list_invites",
+    "delete_invite",
 ]

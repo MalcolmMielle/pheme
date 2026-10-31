@@ -59,6 +59,20 @@ class Config:
         default_factory=lambda: int(os.getenv("SESSION_MAX_AGE", str(30 * 24 * 3600)))
     )
 
+    # Registration policy: "open" (anyone can register), "invite" (a valid
+    # one-time invite code is required), "closed" (only admins create
+    # accounts, via the admin API).
+    registration_mode: str = field(
+        default_factory=lambda: os.getenv("REGISTRATION_MODE", "open").lower()
+    )
+
+    def __post_init__(self) -> None:
+        if self.registration_mode not in ("open", "invite", "closed"):
+            raise ValueError(
+                f"REGISTRATION_MODE must be open, invite or closed "
+                f"(got {self.registration_mode!r})"
+            )
+
     # Enable uvicorn auto-reload (development only — off unless asked for).
     reload: bool = field(
         default_factory=lambda: (

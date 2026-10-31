@@ -21,7 +21,9 @@ from app.db import (
     count_admins,
     count_reviews,
     count_reviews_by_bounds,
+    create_invite,
     create_review,
+    delete_invite,
     delete_review,
     follow_actor,
     get_actor_by_id,
@@ -34,6 +36,7 @@ from app.db import (
     get_reviews,
     get_reviews_by_bounds,
     hash_password,
+    list_invites,
     list_local_actors,
     set_actor_admin,
     unfollow_actor,
@@ -128,6 +131,12 @@ async def api_me(request: Request) -> JSONResponse:
             "actor_uri": actor["actor_uri"],
         }
     )
+
+
+@router.get("/api/meta")
+async def api_meta() -> JSONResponse:
+    """Public server metadata for the SPA (registration mode, etc.)."""
+    return JSONResponse({"registration_mode": config.registration_mode})
 
 
 @router.get("/api/me/following")
@@ -472,6 +481,11 @@ async def api_bootstrap(
             {"status": "exists", "actor": actor_to_ap(existing).model_dump()}
         )
 
+    # One-time setup only: once any local account exists, bootstrap refuses —
+    # otherwise it would be an unauthenticated account-creation backdoor.
+    if await list_local_actors():
+        raise HTTPException(403, "Server already has accounts — bootstrap is one-time")
+
     # No explicit is_admin: the first account created on the server
     # automatically becomes the first admin (see create_local_actor).
     actor = await create_local_actor(
@@ -576,6 +590,64 @@ async def api_admin_demote(
     logger.info("Admin '%s' demoted '%s'", admin["username"], target["username"])
     demoted = target | {"is_admin": 0}
     return JSONResponse({"status": "demoted", "user": _public_user(demoted)})
+
+
+# ── invite codes (registration mode "invite") ───────────────────────────
+
+
+def _public_invite(invite: dict[str, Any]) -> dict[str, Any]:
+    """Invite row reduced to what the admin UI needs, plus a shareable URL."""
+    return {
+        "id": invite["id"],
+        "code": invite["code"],
+        "created_by": invite.get("created_by_username"),
+        "used_by": invite.get("used_by_username"),
+        "used_at": invite["used_at"],
+        "created_at": invite["created_at"],
+        "expires_at": invite["expires_at"],
+        "register_url": f"{config.base_url}/register?code={invite['code']}",
+    }
+
+
+@router.get("/api/admin/invites")
+async def api_admin_list_invites(
+    admin: dict = Depends(get_current_admin),
+) -> JSONResponse:
+    """List all invite codes (admin only)."""
+    invites = await list_invites()
+    return JSONResponse(
+        {
+            "invites": [_public_invite(i) for i in invites],
+            "registration_mode": config.registration_mode,
+        }
+    )
+
+
+@router.post("/api/admin/invites")
+async def api_admin_create_invite(
+    expires_in_days: int | None = Form(None),
+    admin: dict = Depends(get_current_admin),
+) -> JSONResponse:
+    """Create a one-time invite code (admin only), optionally expiring."""
+    invite = await create_invite(admin["id"], expires_in_days)
+    logger.info(
+        "Admin '%s' created an invite code (expires_in_days=%s)",
+        admin["username"],
+        expires_in_days,
+    )
+    return JSONResponse({"status": "created", "invite": _public_invite(invite)})
+
+
+@router.delete("/api/admin/invites/{invite_id}")
+async def api_admin_delete_invite(
+    invite_id: int,
+    admin: dict = Depends(get_current_admin),
+) -> JSONResponse:
+    """Revoke an unused invite code (admin only)."""
+    if not await delete_invite(invite_id):
+        raise HTTPException(404, "Invite not found or already used")
+    logger.info("Admin '%s' revoked invite #%s", admin["username"], invite_id)
+    return JSONResponse({"status": "deleted"})
 
 
 # ── helpers ─────────────────────────────────────────────────────────────

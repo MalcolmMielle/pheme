@@ -17,8 +17,11 @@ from pydantic import ValidationError
 
 from app.config import config
 from app.db import (
+    consume_invite,
+    delete_actor,
     get_actor_by_username,
     get_review_by_id,
+    get_valid_invite,
     hash_password,
     verify_password,
 )
@@ -77,11 +80,23 @@ async def review_page(request: Request, review_id: int) -> HTMLResponse:
 
 
 @router.get("/register", response_class=HTMLResponse, response_model=None)
-async def register_form(request: Request) -> HTMLResponse | RedirectResponse:
-    """Show the registration form (redirect to / if already logged in)."""
+async def register_form(
+    request: Request, code: str = ""
+) -> HTMLResponse | RedirectResponse:
+    """Show the registration form (redirect to / if already logged in).
+
+    ``code`` is a pre-filled invite code (``/register?code=...``).
+    """
     if request.session.get("user_id"):
         return RedirectResponse(url="/", status_code=303)
-    return templates.TemplateResponse(request=request, name="register.html", context={})
+    return templates.TemplateResponse(
+        request=request,
+        name="register.html",
+        context={
+            "registration_mode": config.registration_mode,
+            "invite_code": code,
+        },
+    )
 
 
 @router.post("/register", response_model=None)
@@ -91,8 +106,40 @@ async def register(
     username: str = Form(...),
     display_name: str = Form(...),
     password: str = Form(...),
+    code: str = Form(""),
 ) -> HTMLResponse | RedirectResponse:
-    """Create a new local actor with a password and log in."""
+    """Create a new local actor with a password and log in.
+
+    Honors REGISTRATION_MODE: "closed" refuses, "invite" requires a valid
+    one-time invite code, "open" allows anyone.
+    """
+    mode = config.registration_mode
+    if mode == "closed":
+        return templates.TemplateResponse(
+            request=request,
+            name="register.html",
+            context={
+                "registration_mode": mode,
+                "error": "Registration is closed on this server. "
+                "Ask an admin for an account.",
+            },
+            status_code=403,
+        )
+
+    invite = None
+    if mode == "invite":
+        invite = await get_valid_invite(code)
+        if invite is None:
+            return templates.TemplateResponse(
+                request=request,
+                name="register.html",
+                context={
+                    "registration_mode": mode,
+                    "error": "Invalid, used or expired invite code.",
+                },
+                status_code=403,
+            )
+
     try:
         form = RegisterForm(
             username=username, display_name=display_name, password=password
@@ -101,7 +148,7 @@ async def register(
         return templates.TemplateResponse(
             request=request,
             name="register.html",
-            context={"error": first_validation_error(exc)},
+            context={"registration_mode": mode, "error": first_validation_error(exc)},
             status_code=400,
         )
 
@@ -110,7 +157,7 @@ async def register(
         return templates.TemplateResponse(
             request=request,
             name="register.html",
-            context={"error": "Username already taken."},
+            context={"registration_mode": mode, "error": "Username already taken."},
             status_code=409,
         )
 
@@ -119,6 +166,19 @@ async def register(
         display_name=form.display_name,
         password_hash=hash_password(form.password),
     )
+
+    if invite is not None and not await consume_invite(invite["id"], actor["id"]):
+        # Lost a race on the one-time code — remove the account we just made.
+        await delete_actor(actor["id"])
+        return templates.TemplateResponse(
+            request=request,
+            name="register.html",
+            context={
+                "registration_mode": mode,
+                "error": "Invite code was just used by someone else.",
+            },
+            status_code=403,
+        )
 
     request.session["user_id"] = actor["id"]
     return RedirectResponse(url="/", status_code=303)

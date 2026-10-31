@@ -89,6 +89,19 @@ async def set_actor_admin(actor_id: int, is_admin: bool) -> bool:
     return cursor.rowcount > 0
 
 
+async def delete_actor(actor_id: int) -> bool:
+    """Delete an actor row. Returns False if the actor doesn't exist.
+
+    Only safe for actors with no content (e.g. a just-registered account
+    whose invite claim lost a race) — admin deletion of a user with
+    reviews uses the cascade delete in ``app.db.reviews``/moderation.
+    """
+    db = await get_db()
+    cursor = await db.execute("DELETE FROM actors WHERE id = ?", (actor_id,))
+    await db.commit()
+    return cursor.rowcount > 0
+
+
 async def count_admins() -> int:
     """Number of local actors with the admin flag set."""
     db = await get_db()

@@ -112,6 +112,16 @@ CREATE TABLE IF NOT EXISTS follows (
     UNIQUE(actor_id, target_actor_uri)
 );
 
+CREATE TABLE IF NOT EXISTS invite_codes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    code        TEXT NOT NULL UNIQUE,
+    created_by  INTEGER NOT NULL REFERENCES actors(id),
+    used_by     INTEGER REFERENCES actors(id),
+    used_at     TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at  TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_reviews_lat_lng ON reviews(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_reviews_actor ON reviews(actor_id);
 CREATE INDEX IF NOT EXISTS idx_follows_actor ON follows(actor_id);
