@@ -1,6 +1,7 @@
 """Tests for ActivityPub endpoints (WebFinger, Actor, Outbox, etc.)."""
 
 import json
+import unittest
 
 from app.activitypub.signing import generate_keypair, sign_request
 from app.db import (
@@ -141,6 +142,40 @@ class TestFollowersFollowing(AsyncTestCase):
         assert resp.status_code == 200
         data = resp.json()
         assert data["totalItems"] == 0
+
+
+class TestFetchGuard(unittest.IsolatedAsyncioTestCase):
+    """SSRF guard — server-side fetches must refuse dangerous targets."""
+
+    async def test_rejects_non_http_schemes(self):
+        from app.activitypub.fetchguard import check_fetch_url
+
+        assert await check_fetch_url("file:///etc/passwd") is not None
+        assert await check_fetch_url("ftp://example.com/x") is not None
+
+    async def test_rejects_metadata_and_unspecified_addresses(self):
+        from app.activitypub.fetchguard import check_fetch_url
+
+        assert (
+            await check_fetch_url("http://169.254.169.254/latest/meta-data") is not None
+        )
+        assert await check_fetch_url("http://0.0.0.0/") is not None
+        assert await check_fetch_url("http://[fe80::1]/") is not None
+
+    async def test_public_host_requires_https(self):
+        from app.activitypub.fetchguard import check_fetch_url
+
+        assert await check_fetch_url("http://8.8.8.8/x") is not None
+        assert await check_fetch_url("https://8.8.8.8/x") is None
+
+    async def test_loopback_and_private_allowed_over_http(self):
+        # Local dev federation (e.g. a second instance on localhost:8001)
+        # has no TLS certificate.
+        from app.activitypub.fetchguard import check_fetch_url
+
+        assert await check_fetch_url("http://127.0.0.1:8001/actor/bob") is None
+        assert await check_fetch_url("http://localhost:8001/actor/bob") is None
+        assert await check_fetch_url("http://192.168.1.10:8001/inbox") is None
 
 
 class TestInbox(AsyncTestCase):

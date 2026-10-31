@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.activitypub.actor import actor_to_ap, build_follow_activity
 from app.activitypub.delivery import deliver_to_inbox, fanout_activity
+from app.activitypub.fetchguard import check_fetch_url
 from app.auth import get_current_admin, get_current_user
 from app.db import (
     count_admins,
@@ -747,10 +748,15 @@ async def _resolve_actor_uri(target: str) -> str | None:
     if "@" in target:
         username, _, domain = target.partition("@")
         for scheme in _webfinger_schemes(domain):
+            url = f"{scheme}://{domain}/.well-known/webfinger"
+            reason = await check_fetch_url(url)
+            if reason is not None:
+                logger.warning("WebFinger lookup %s refused: %s", url, reason)
+                continue
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     resp = await client.get(
-                        f"{scheme}://{domain}/.well-known/webfinger",
+                        url,
                         params={"resource": f"acct:{username}@{domain}"},
                     )
                     if resp.status_code == 200:

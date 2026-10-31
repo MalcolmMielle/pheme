@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 from fastapi import HTTPException
 
+from app.activitypub.fetchguard import check_fetch_url
 from app.activitypub.signing import generate_keypair
 from app.config import config
 from app.db import (
@@ -106,7 +107,15 @@ async def require_local_actor(username: str) -> dict[str, Any]:
 
 
 async def fetch_remote_actor(uri: str) -> dict[str, Any] | None:
-    """Fetch a remote actor document over HTTP, caching in the DB."""
+    """Fetch a remote actor document over HTTP, caching in the DB.
+
+    The URI comes from user input (follow target) or an unverified inbox
+    signature — refuse anything the SSRF guard rejects.
+    """
+    reason = await check_fetch_url(uri)
+    if reason is not None:
+        logger.warning("Refusing to fetch remote actor %s: %s", uri, reason)
+        return None
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             resp = await client.get(

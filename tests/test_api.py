@@ -337,6 +337,24 @@ class TestReviewsAPI(AsyncTestCase):
         )
         assert resp.status_code in (303, 401, 403)
 
+    async def test_follow_rejects_ssrf_targets(self):
+        """Follow targets must not make the server fetch internal/metadata
+        endpoints — the fetch guard refuses them with a 400 (and no outbound
+        request is made)."""
+        await self.register_user()
+        csrf = await get_csrf_token(self.client, "/register")
+        for target in (
+            "http://169.254.169.254/latest/meta-data",
+            "http://0.0.0.0/",
+            "http://8.8.8.8/actor/bob",  # public host over plain http
+            "metadata@169.254.169.254",  # via WebFinger resolution
+        ):
+            resp = await self.client.post(
+                "/api/follow",
+                data={"target": target, "csrf_token": csrf},
+            )
+            assert resp.status_code == 400, target
+
 
 class TestWebFingerSchemes(unittest.TestCase):
     """Scheme selection for WebFinger: HTTPS for public hosts, HTTP first

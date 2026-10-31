@@ -20,6 +20,7 @@ from typing import Any
 
 import httpx
 
+from app.activitypub.fetchguard import check_fetch_url
 from app.activitypub.signing import sign_request
 
 logger = logging.getLogger("pheme.delivery")
@@ -33,8 +34,14 @@ async def deliver_to_inbox(
 ) -> bool:
     """Deliver a single activity to one remote inbox.
 
-    Returns ``True`` on success (HTTP 2xx/202), ``False`` on failure.
+    Returns ``True`` on success (HTTP 2xx), ``False`` on failure. The inbox
+    URL comes from a remote actor document — refuse anything the SSRF guard
+    rejects.
     """
+    reason = await check_fetch_url(inbox_url)
+    if reason is not None:
+        logger.warning("Refusing delivery to %s: %s", inbox_url, reason)
+        return False
     body = json.dumps(activity).encode()
     headers = sign_request(
         method="POST",
@@ -48,7 +55,7 @@ async def deliver_to_inbox(
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
             resp = await client.post(inbox_url, content=body, headers=headers)
-            if 200 <= resp.status_code < 300 or resp.status_code == 202:
+            if 200 <= resp.status_code < 300:
                 logger.info("Delivered to %s → %d", inbox_url, resp.status_code)
                 return True
             else:
