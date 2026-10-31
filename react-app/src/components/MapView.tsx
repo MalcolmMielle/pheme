@@ -45,9 +45,13 @@ const iconCache = new Map<string, DivIcon>();
  */
 function markerIcon(avgRating: number): DivIcon {
   const label = formatRating(avgRating);
-  let icon = iconCache.get(label);
+  const color = ratingColor(avgRating);
+  // Key by color AND label: the label keeps one decimal ("4.5") while the
+  // color uses the nearest whole star, so 4.49 and 4.51 share a label but
+  // get different colors.
+  const key = `${color}:${label}`;
+  let icon = iconCache.get(key);
   if (!icon) {
-    const color = ratingColor(avgRating);
     icon = L.divIcon({
       className: "custom-marker",
       html:
@@ -61,7 +65,7 @@ function markerIcon(avgRating: number): DivIcon {
       iconAnchor: [16, 32],
       popupAnchor: [0, -32],
     });
-    iconCache.set(label, icon);
+    iconCache.set(key, icon);
   }
   return icon;
 }
