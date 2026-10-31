@@ -303,6 +303,22 @@ class TestReviewsAPI(AsyncTestCase):
         assert resp.status_code == 200
         assert len(resp.json()) == 1
 
+    async def test_pagination_rejects_invalid_limit_and_offset(self):
+        """limit/offset are validated: SQLite treats a negative LIMIT as
+        "unlimited", so ?limit=-1 must not be accepted."""
+        await self.register_user()
+        for params in ({"limit": -1}, {"limit": 0}, {"limit": 1001}, {"offset": -1}):
+            resp = await self.client.get("/api/reviews", params=params)
+            assert resp.status_code == 422, params
+        resp = await self.client.get("/api/reviews", params={"limit": 2, "offset": 0})
+        assert resp.status_code == 200
+
+    async def test_geocode_rejects_invalid_limit(self):
+        resp = await self.client.get("/api/geocode", params={"q": "x", "limit": 0})
+        assert resp.status_code == 422
+        resp = await self.client.get("/api/geocode", params={"q": "x", "limit": 51})
+        assert resp.status_code == 422
+
     async def test_follow_invalid_target(self):
         """Following an unresolvable target should return 400."""
         await self.register_user()

@@ -10,7 +10,7 @@ import uuid
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError
 
@@ -152,7 +152,9 @@ async def api_me_following(actor: dict = Depends(get_current_user)) -> JSONRespo
 
 
 @router.get("/api/geocode")
-async def api_geocode(q: str, limit: int = 5) -> JSONResponse:
+async def api_geocode(
+    q: str, limit: int = Query(default=5, ge=1, le=50)
+) -> JSONResponse:
     """Proxy a place search to Nominatim (avoids exposing user IPs)."""
     return await _nominatim_get(
         "/search",
@@ -174,8 +176,10 @@ async def api_reviews(
     min_lng: float | None = None,
     max_lng: float | None = None,
     scope: str = "all",
-    limit: int = 200,
-    offset: int = 0,
+    # ge=1: SQLite treats a negative LIMIT as "unlimited", which would dump
+    # the whole table on ?limit=-1.
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
 ) -> JSONResponse:
     """Return reviews, optionally filtered by map bounds. Supports pagination.
 
