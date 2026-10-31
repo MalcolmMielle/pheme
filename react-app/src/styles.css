@@ -8,6 +8,7 @@
   --surface-elevated: #f8fafc;
   --text-primary: #1e293b;
   --text-secondary: #64748b;
+  --text-strong: #475569;
   --border: #e2e8f0;
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
@@ -417,35 +418,41 @@ button.user-chip:hover .user-name { color: var(--accent); }
 }
 
 /* ── admin panel ────────────────────────────────────────────────────── */
-.admin-panel {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.admin-error { margin: 10px 20px 0; }
+.admin-panel { display: flex; flex-direction: column; }
+.admin-error { margin: 0 0 12px; }
 .admin-loading {
-  padding: 16px 20px;
+  padding: 12px 14px;
   color: var(--text-secondary);
   font-size: 0.875rem;
   margin: 0;
 }
 .admin-user-list {
-  flex: 1;
-  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   overflow-y: auto;
+  max-height: 320px;
 }
 .admin-user {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   font-size: 0.875rem;
+  transition: background .12s;
 }
-.admin-user-name { flex: 1; font-weight: 500; }
+.admin-user:last-child { border-bottom: none; }
+.admin-user:hover { background: var(--surface-elevated); }
+.admin-user-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .admin-user-username {
-  color: var(--text-secondary);
+  color: var(--text-strong);
   font-weight: 400;
   margin-left: 6px;
   font-size: 0.8125rem;
@@ -463,13 +470,12 @@ button.user-chip:hover .user-name { color: var(--accent); }
 }
 .admin-you { color: var(--text-secondary); font-size: 0.8125rem; }
 .admin-form {
-  flex: none;
-  padding: 16px 20px;
+  margin-top: 16px;
+  padding-top: 16px;
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: var(--surface-elevated);
 }
 .admin-form label {
   font-size: 0.8125rem;
@@ -504,15 +510,9 @@ button.user-chip:hover .user-name { color: var(--accent); }
   font-size: 0.875rem !important;
 }
 
-/* ── follow panel (federation) ──────────────────────────────────────── */
-.follow-panel {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
+/* ── follow panel (federation) — embedded in the profile card ────────── */
+.follow-panel { display: flex; flex-direction: column; gap: 12px; }
 .follow-hint {
-  padding: 16px 20px 0;
   margin: 0;
   color: var(--text-secondary);
   font-size: 0.875rem;
@@ -525,17 +525,8 @@ button.user-chip:hover .user-name { color: var(--accent); }
   font-size: 0.8125rem;
 }
 .follow-error,
-.follow-success { margin: 12px 20px 0; }
-.follow-form {
-  flex: none;
-  margin-top: auto;
-  padding: 16px 20px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: var(--surface-elevated);
-}
+.follow-success { margin: 0; }
+.follow-form { display: flex; flex-direction: column; gap: 10px; }
 .follow-form input {
   width: 100%;
   padding: 10px 12px;
@@ -565,51 +556,109 @@ button.user-chip:hover .user-name { color: var(--accent); }
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 10px 16px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
   position: sticky;
   top: 0;
   z-index: 2;
 }
 .profile-header h1 {
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   flex: 1;
 }
+.profile-logout { display: contents; }
+
+/* Centered single column — cards don't stretch across wide screens. */
+.profile-content {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Identity card: gradient banner with the avatar overlapping its edge. */
 .profile-card {
-  margin: 16px;
-  padding: 16px 20px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
-.profile-id { display: flex; align-items: center; gap: 12px; }
-.profile-avatar { width: 48px; height: 48px; font-size: 1.25rem; }
-.profile-id-text { flex: 1; min-width: 0; }
-.profile-name { font-weight: 600; font-size: 1.05rem; }
-.profile-handle { color: var(--text-secondary); font-size: 0.875rem; }
-.profile-section {
-  margin: 0 16px 16px;
-  padding: 16px 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+.profile-banner {
+  height: 72px;
+  background: linear-gradient(120deg, var(--accent) 0%, #7c3aed 55%, #db2777 100%);
 }
-.profile-section h2 {
-  margin: 0 0 12px;
+.profile-id {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 0 20px 16px;
+}
+.profile-avatar {
+  width: 56px;
+  height: 56px;
+  font-size: 1.5rem;
+  border: 3px solid var(--surface);
+  /* Solid fill — the default translucent avatar tint would let the banner
+     gradient show through and wash out the letter. */
+  background: var(--accent);
+  color: #fff;
+  /* Only the avatar overlaps the banner — the name/handle stay on the white
+     card so they keep full contrast against the gradient. */
+  margin-top: -28px;
+}
+.profile-id-text { flex: 1; min-width: 0; padding-bottom: 2px; }
+.profile-name {
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-handle {
+  color: var(--text-strong);
   font-size: 0.9375rem;
-  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.profile-loading {
+.profile-id .admin-badge { margin-left: 0; margin-bottom: 4px; }
+
+/* Card section (following list, follow form, admin panel). */
+.profile-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+}
+.profile-section h2,
+.profile-section-title {
+  margin: 0 0 14px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.profile-empty {
   margin: 0;
   color: var(--text-secondary);
   font-size: 0.875rem;
-  line-height: 1.5;
+  line-height: 1.55;
 }
+.profile-section .form-error { margin: 0 0 12px; }
+
+/* Following list */
 .following-list {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -618,33 +667,36 @@ button.user-chip:hover .user-name { color: var(--accent); }
 .following-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   font-size: 0.875rem;
+  transition: background .12s;
 }
 .following-item:last-child { border-bottom: none; }
+.following-item:hover { background: var(--surface-elevated); }
+.following-item .avatar { width: 32px; height: 32px; font-size: 0.875rem; }
 .following-name {
-  font-weight: 500;
+  font-weight: 600;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow: hidden;
 }
 .following-username {
-  color: var(--text-secondary);
+  color: var(--text-strong);
   font-weight: 400;
   font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.following-server { color: var(--text-secondary); }
+.following-server { color: inherit; }
 .following-unfollow { margin-left: auto; flex: none; }
-
-/* Panels embedded in the profile page: neutralize the sidebar paddings. */
-.profile-section .follow-hint { padding: 0; margin: 0 0 12px; }
-.profile-section .follow-error,
-.profile-section .follow-success { margin: 12px 0 0; }
-.profile-section .follow-form { margin-top: 12px; }
-.profile-section .admin-error { margin: 10px 0 0; }
-.profile-section .admin-form { margin-top: 12px; }
+.following-unfollow:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--danger);
+}
 
 /* ── search dropdown ────────────────────────────────────────────────── */
 .search-dropdown {
@@ -864,4 +916,12 @@ button.user-chip:hover .user-name { color: var(--accent); }
   /* the sheet peek row is short — keep avatar + buttons, drop the name */
   .user-name { display: none; }
   .avatar { width: 36px; height: 36px; }
+
+  /* profile page: tighter column, smaller banner + avatar */
+  .profile-header { padding: 8px 12px; }
+  .profile-content { padding: 16px 12px 48px; gap: 12px; }
+  .profile-banner { height: 56px; }
+  .profile-id { padding: 0 16px 14px; gap: 10px; }
+  .profile-avatar { width: 44px; height: 44px; font-size: 1.125rem; margin-top: -22px; }
+  .profile-section { padding: 16px; }
 }

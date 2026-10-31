@@ -64,88 +64,113 @@ export default function ProfilePage({ user, onBack }: ProfilePageProps) {
 
   const server = actorServer(user.actor_uri);
   const handle = server ? `${user.username}@${server}` : user.username;
+  const displayName = user.display_name || user.username;
 
   return (
     <div className="profile-page">
-      <div className="profile-header">
+      <header className="profile-header">
         <button type="button" className="btn btn-sm btn-ghost" onClick={onBack}>
           ← Map
         </button>
         <h1>Profile</h1>
-      </div>
+        <form method="post" action="/logout" className="profile-logout">
+          <input type="hidden" name="csrf_token" value={user.csrf_token} />
+          <button type="submit" className="btn btn-sm btn-ghost">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Log out
+          </button>
+        </form>
+      </header>
 
-      <div className="profile-card">
-        <div className="profile-id">
-          <span className="avatar profile-avatar" aria-hidden="true">
-            {(user.display_name || user.username).charAt(0)}
-          </span>
-          <div className="profile-id-text">
-            <div className="profile-name">{user.display_name || user.username}</div>
-            <div className="profile-handle">@{handle}</div>
+      <div className="profile-content">
+        <section className="profile-card">
+          <div className="profile-banner" aria-hidden="true" />
+          <div className="profile-id">
+            <span className="avatar profile-avatar" aria-hidden="true">
+              {displayName.charAt(0)}
+            </span>
+            <div className="profile-id-text">
+              <div className="profile-name">{displayName}</div>
+              <div className="profile-handle">@{handle}</div>
+            </div>
+            {user.is_admin && <span className="admin-badge">admin</span>}
           </div>
-          {user.is_admin && <span className="admin-badge">admin</span>}
-        </div>
-      </div>
+        </section>
 
-      <div className="profile-section">
-        <h2>
-          Following{" "}
-          <span className="review-count">
-            {following === null ? "…" : following.length}
-          </span>
-        </h2>
+        <section className="profile-section">
+          <h2 className="profile-section-title">
+            Following{" "}
+            <span className="review-count">
+              {following === null ? "…" : following.length}
+            </span>
+          </h2>
 
-        {error && <div className="form-error">{error}</div>}
+          {error && <div className="form-error">{error}</div>}
 
-        {following === null && !error ? (
-          <p className="profile-loading">Loading…</p>
-        ) : following && following.length === 0 ? (
-          <p className="profile-loading">
-            You&apos;re not following anyone yet. Use the Follow button on the
-            map to subscribe to a user on another server — their new reviews
-            will appear here on your map.
-          </p>
-        ) : (
-          <div className="following-list">
-            {following?.map((f) => {
-              const fserver = actorServer(f.actor_uri);
-              return (
-                <div className="following-item" key={f.actor_uri}>
-                  <span className="avatar" aria-hidden="true">
-                    {(f.display_name || f.username).charAt(0)}
-                  </span>
-                  <span className="following-name">
-                    {f.display_name || f.username}
-                    <span className="following-username">
-                      @{f.username}
-                      {fserver && <span className="following-server"> @{fserver}</span>}
+          {following === null && !error ? (
+            <p className="profile-empty">Loading…</p>
+          ) : following && following.length === 0 ? (
+            <p className="profile-empty">
+              You&apos;re not following anyone yet. Use the follow form below to
+              subscribe to a user on another server — their new reviews will
+              appear on your map.
+            </p>
+          ) : (
+            <div className="following-list">
+              {following?.map((f) => {
+                const fserver = actorServer(f.actor_uri);
+                return (
+                  <div className="following-item" key={f.actor_uri}>
+                    <span className="avatar" aria-hidden="true">
+                      {(f.display_name || f.username).charAt(0)}
                     </span>
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-ghost following-unfollow"
-                    disabled={busyUri === f.actor_uri}
-                    onClick={() => handleUnfollow(f)}
-                  >
-                    {busyUri === f.actor_uri ? "…" : "Unfollow"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+                    <span className="following-name">
+                      {f.display_name || f.username}
+                      <span className="following-username">
+                        @{f.username}
+                        {fserver && <span className="following-server"> @{fserver}</span>}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost following-unfollow"
+                      disabled={busyUri === f.actor_uri}
+                      onClick={() => handleUnfollow(f)}
+                    >
+                      {busyUri === f.actor_uri ? "…" : "Unfollow"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="profile-section">
+          <h2 className="profile-section-title">Follow a user</h2>
+          <FollowPanel currentUser={user} />
+        </section>
+
+        {user.is_admin && (
+          <section className="profile-section">
+            <AdminPanel currentUser={user} />
+          </section>
         )}
       </div>
-
-      <div className="profile-section">
-        <h2>Follow a user</h2>
-        <FollowPanel currentUser={user} />
-      </div>
-
-      {user.is_admin && (
-        <div className="profile-section">
-          <AdminPanel currentUser={user} />
-        </div>
-      )}
     </div>
   );
 }
