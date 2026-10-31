@@ -80,6 +80,23 @@ class Config:
         )
     )
 
+    # Trust X-Forwarded-* headers from a reverse proxy (Caddy/nginx running
+    # on the same machine) so the per-IP rate limiter sees real client IPs
+    # instead of 127.0.0.1. Off by default — enable in production behind a
+    # local proxy that terminates TLS.
+    proxy_headers: bool = field(
+        default_factory=lambda: (
+            os.getenv("PROXY_HEADERS", "false").lower() in ("1", "true", "yes")
+        )
+    )
+
+    # Comma-separated proxy IPs allowed to set X-Forwarded-For (uvicorn's
+    # forwarded_allow_ips). Defaults to loopback — correct when the proxy
+    # runs on the same host as the app.
+    forwarded_allow_ips: str = field(
+        default_factory=lambda: os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1")
+    )
+
     # Domain extracted from base_url — used for WebFinger.
     # Includes the port for non-standard ports (e.g. "localhost:8000").
     @property

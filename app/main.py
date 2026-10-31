@@ -158,6 +158,8 @@ def main() -> None:
         host=config.host,
         port=config.port,
         reload=config.reload,
+        proxy_headers=config.proxy_headers,
+        forwarded_allow_ips=config.forwarded_allow_ips,
     )
 
 
