@@ -59,12 +59,12 @@ app.add_middleware(
 # every unsafe request that carries the session cookie must present an
 # x-csrftoken header matching the signed csrftoken cookie. Exempt:
 # ActivityPub inboxes (HTTP-Signature auth), the one-time bootstrap endpoint,
-# and the anonymous /login + /register forms — plain HTML forms cannot send
-# headers, and browsers may carry a stale session cookie from before this
-# middleware existed, which must not lock users out of logging in. Those two
-# endpoints create a session but change nothing else, and the session cookie
-# is SameSite=Lax. The cookie is not HttpOnly so the SPA can read it and send
-# the header.
+# and the plain-HTML-form endpoints /login, /register, /logout — forms cannot
+# send headers, and browsers may carry a stale session cookie from before
+# this middleware existed, which must not lock users out. These endpoints
+# only create/destroy a session (no data changes), and the session cookie is
+# SameSite=Lax, so cross-site posts carry no session cookie anyway. The
+# csrftoken cookie is not HttpOnly so the SPA can read it and send the header.
 app.add_middleware(
     CSRFMiddleware,
     secret=config.secret_key,
@@ -75,6 +75,7 @@ app.add_middleware(
         re.compile(r"^/api/bootstrap$"),
         re.compile(r"^/login$"),
         re.compile(r"^/register$"),
+        re.compile(r"^/logout$"),
     ],
     cookie_secure=config.base_url.startswith("https://"),
     cookie_samesite="lax",

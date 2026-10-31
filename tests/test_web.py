@@ -66,17 +66,20 @@ class TestAuth(AsyncTestCase):
         assert resp.status_code == 409
         assert "already taken" in resp.text
 
-    async def test_logout_rejects_bad_csrf_header(self):
-        """starlette-csrf rejects unsafe requests whose x-csrftoken header
-        does not match the csrftoken cookie once a session cookie exists."""
+    async def test_logout_works_without_csrf_header(self):
+        """POST /logout is CSRF-exempt (plain HTML forms can't send the
+        header): it must succeed with just the session cookie and actually
+        clear the session. Regression for 'logout button does nothing'."""
         await self.register_user()
         resp = await self.client.post(
             "/logout",
             data={},
-            headers={"X-CSRFToken": "bogus"},
+            headers={"X-CSRFToken": "bogus"},  # ignored — /logout is exempt
             follow_redirects=False,
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 303
+        resp = await self.client.get("/api/me")
+        assert resp.status_code == 401
 
     async def test_login_success(self):
         csrf = await get_csrf_token(self.client, "/register")
