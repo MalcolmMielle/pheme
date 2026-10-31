@@ -133,6 +133,20 @@ export async function reverseGeocode(
   return typeof data.display_name === "string" ? data.display_name : null;
 }
 
+/** Public server metadata, from `GET /api/meta`. */
+export interface ServerMeta {
+  registration_mode: string;
+}
+
+/** Server metadata (registration mode) — used to hide the Register button. */
+export async function fetchMeta(): Promise<ServerMeta> {
+  const resp = await fetch("/api/meta", {
+    headers: { Accept: "application/json" },
+  });
+  if (!resp.ok) throw new Error(`GET /api/meta failed: ${resp.status}`);
+  return resp.json();
+}
+
 /** ── admin endpoints (admin session required) ───────────────────────── */
 
 export interface AdminUserList {
@@ -210,6 +224,49 @@ export function setUserAdmin(
     `/api/admin/users/${userId}/${makeAdmin ? "promote" : "demote"}`,
     {},
   );
+}
+
+/** One invite code, from `GET /api/admin/invites` (admin only). */
+export interface Invite {
+  id: number;
+  code: string;
+  created_by: string | null;
+  used_by: string | null;
+  used_at: string | null;
+  created_at: string;
+  expires_at: string | null;
+  /** Shareable registration URL with the code pre-filled. */
+  register_url: string;
+}
+
+export interface AdminInviteList {
+  invites: Invite[];
+  registration_mode: string;
+}
+
+/** List invite codes (admin only). */
+export async function fetchAdminInvites(): Promise<AdminInviteList> {
+  const resp = await fetch("/api/admin/invites", {
+    headers: { Accept: "application/json" },
+  });
+  if (!resp.ok) throw new Error(`GET /api/admin/invites failed: ${resp.status}`);
+  return resp.json();
+}
+
+/** Create a one-time invite code (admin only); expiresInDays null = never. */
+export function createInvite(expiresInDays: number | null): Promise<Response> {
+  return formPost(
+    "/api/admin/invites",
+    expiresInDays === null ? {} : { expires_in_days: String(expiresInDays) },
+  );
+}
+
+/** Revoke an unused invite code (admin only). */
+export function deleteInvite(inviteId: number): Promise<Response> {
+  return fetch(`/api/admin/invites/${inviteId}`, {
+    method: "DELETE",
+    headers: { ...csrfHeaders(), Accept: "application/json" },
+  });
 }
 
 /** "★★★☆☆" for a 1–5 rating. */

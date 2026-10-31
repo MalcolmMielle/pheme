@@ -35,17 +35,25 @@
 <div class="auth-page">
   <div class="auth-card">
     <h1>Create an account</h1>
+    {% if registration_mode == "closed" %}
+    <p>Registration is closed on this server. Ask an admin for an account.</p>
+    {% else %}
     <p>Join your community's review server</p>
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
     <form method="post">
+      {% if registration_mode == "invite" %}
+      <label for="code">Invite code</label>
+      <input type="text" id="code" name="code" value="{{ invite_code or '' }}" required autofocus>
+      {% endif %}
       <label for="username">Username</label>
-      <input type="text" id="username" name="username" required autofocus>
+      <input type="text" id="username" name="username" required{% if registration_mode != "invite" %} autofocus{% endif %}>
       <label for="display_name">Display name</label>
       <input type="text" id="display_name" name="display_name" required>
       <label for="password">Password</label>
       <input type="password" id="password" name="password" required>
       <button type="submit">Create account</button>
     </form>
+    {% endif %}
     <div class="footer">
       Already have an account? <a href="/login">Sign in</a>
     </div>

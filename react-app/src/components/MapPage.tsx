@@ -1,7 +1,14 @@
 import type { LatLngBounds } from "leaflet";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ApiError, createReview, fetchReviews, logout, reverseGeocode } from "../api";
+import {
+  ApiError,
+  createReview,
+  fetchMeta,
+  fetchReviews,
+  logout,
+  reverseGeocode,
+} from "../api";
 import { useBottomSheet } from "../hooks/useBottomSheet";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { reviewsAtPlace } from "../places";
@@ -45,6 +52,15 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
    */
   const [selectedPlace, setSelectedPlace] = useState<PlaceSelection | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
+  /** Registration mode from /api/meta — hides the Register button when "closed". */
+  const [registrationMode, setRegistrationMode] = useState("open");
+
+  useEffect(() => {
+    if (user) return;
+    fetchMeta()
+      .then((m) => setRegistrationMode(m.registration_mode))
+      .catch(() => {});
+  }, [user]);
 
   const isMobile = useMediaQuery("(max-width: 768px)");
   const {
@@ -425,9 +441,11 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
                   </>
                 ) : (
                   <div className="user-actions">
-                    <a href="/register" className="btn btn-sm btn-secondary">
-                      Register
-                    </a>
+                    {registrationMode !== "closed" && (
+                      <a href="/register" className="btn btn-sm btn-secondary">
+                        Register
+                      </a>
+                    )}
                     <a href="/login" className="btn btn-sm btn-primary">
                       Sign in
                     </a>

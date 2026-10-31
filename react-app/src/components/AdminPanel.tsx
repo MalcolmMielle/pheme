@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { createUser, fetchAdminUsers, setUserAdmin } from "../api";
+import {
+  createInvite,
+  createUser,
+  deleteInvite,
+  fetchAdminInvites,
+  fetchAdminUsers,
+  setUserAdmin,
+} from "../api";
+import type { Invite } from "../api";
 import type { AdminUser, Me } from "../types";
 
 interface AdminPanelProps {
@@ -22,6 +30,8 @@ async function errorDetail(resp: Response): Promise<string> {
 export default function AdminPanel({ currentUser }: AdminPanelProps) {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [adminCount, setAdminCount] = useState(0);
+  const [invites, setInvites] = useState<Invite[] | null>(null);
+  const [registrationMode, setRegistrationMode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -31,11 +41,19 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
   const [password, setPassword] = useState("");
   const [makeAdmin, setMakeAdmin] = useState(false);
 
+  // New-invite form state
+  const [expiresDays, setExpiresDays] = useState("");
+
   const load = useCallback(async () => {
     try {
-      const data = await fetchAdminUsers();
+      const [data, inviteData] = await Promise.all([
+        fetchAdminUsers(),
+        fetchAdminInvites(),
+      ]);
       setUsers(data.users);
       setAdminCount(data.admin_count);
+      setInvites(inviteData.invites);
+      setRegistrationMode(inviteData.registration_mode);
       setError(null);
     } catch (err) {
       setError((err as Error).message);
@@ -97,6 +115,21 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
 
   const toggleAdmin = (user: AdminUser) =>
     runAction(() => setUserAdmin(user.id, !user.is_admin));
+
+  const handleCreateInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = expiresDays.trim();
+    const days = trimmed === "" ? null : Number(trimmed);
+    if (days !== null && (!Number.isInteger(days) || days < 1)) {
+      setError("Expiry must be a positive whole number of days (or empty).");
+      return;
+    }
+    const ok = await runAction(() => createInvite(days));
+    if (ok) setExpiresDays("");
+  };
+
+  const revokeInvite = (invite: Invite) =>
+    runAction(() => deleteInvite(invite.id));
 
   return (
     <div className="admin-panel">
@@ -170,6 +203,57 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
           {busy ? "Working…" : "Create Account"}
         </button>
       </form>
+
+      <div className="admin-invites">
+        <h3>
+          Invite codes{" "}
+          <span className="review-count">registration: {registrationMode || "?"}</span>
+        </h3>
+        {invites === null ? (
+          <p className="admin-loading">Loading invites…</p>
+        ) : invites.length === 0 ? (
+          <p className="admin-loading">No invite codes yet.</p>
+        ) : (
+          invites.map((inv) => (
+            <div className="admin-user" key={inv.id}>
+              <span className="admin-user-name">
+                <code>{inv.register_url}</code>
+                {inv.used_by ? (
+                  <span className="admin-badge">used by @{inv.used_by}</span>
+                ) : inv.expires_at ? (
+                  <span className="admin-user-username">expires {inv.expires_at}</span>
+                ) : (
+                  <span className="admin-user-username">no expiry</span>
+                )}
+              </span>
+              {!inv.used_by && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-danger-soft"
+                  disabled={busy}
+                  onClick={() => revokeInvite(inv)}
+                >
+                  Revoke
+                </button>
+              )}
+            </div>
+          ))
+        )}
+        <form className="admin-form" onSubmit={handleCreateInvite}>
+          <label htmlFor="admin-invite-expiry">New invite code</label>
+          <input
+            id="admin-invite-expiry"
+            placeholder="Expires in days (optional)"
+            value={expiresDays}
+            onChange={(e) => setExpiresDays(e.target.value)}
+            autoComplete="off"
+            inputMode="numeric"
+          />
+          <button type="submit" className="btn btn-secondary" disabled={busy}>
+            {busy ? "Working…" : "Create Invite"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
