@@ -4,6 +4,7 @@ and remote actor fetching.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -32,6 +33,35 @@ def inbox_uri(username: str) -> str:
 
 def outbox_uri(username: str) -> str:
     return f"{actor_uri(username)}/outbox"
+
+
+# ── timestamps ──────────────────────────────────────────────────────────
+#
+# Reviews store their date as SQLite UTC text ("2026-08-02 21:45:00"),
+# while ActivityPub `published` is ISO-8601 ("2026-08-02T21:45:00Z").
+# These converters translate at the federation boundary.
+
+
+def iso8601_from_sqlite(value: str) -> str:
+    """SQLite UTC text -> ISO-8601 UTC ("2026-08-02 21:45:00" -> "...T21:45:00Z")."""
+    dt = datetime.strptime(value.strip(), "%Y-%m-%d %H:%M:%S").replace(
+        tzinfo=timezone.utc
+    )
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def sqlite_from_iso8601(value: str) -> str | None:
+    """ISO-8601 timestamp -> SQLite UTC text, or None if unparseable.
+
+    Naive timestamps are assumed UTC; anything else is converted to UTC.
+    """
+    try:
+        dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 async def create_local_actor(

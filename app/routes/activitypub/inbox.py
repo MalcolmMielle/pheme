@@ -25,7 +25,11 @@ from app.db import (
     review_exists,
     unfollow_actor,
 )
-from app.routes.activitypub.helpers import fetch_remote_actor, require_local_actor
+from app.routes.activitypub.helpers import (
+    fetch_remote_actor,
+    require_local_actor,
+    sqlite_from_iso8601,
+)
 
 logger = logging.getLogger("federated-reviews")
 
@@ -104,6 +108,10 @@ async def _handle_create(
 
     # Attribute the review to the signature-verified sender — the object's
     # attributedTo is not trusted unless it is the sender itself.
+    # Keep the object's published date (the original review date); fall
+    # back to the local receipt time when it is missing or unparseable.
+    published = obj.get("published", "")
+    created_at = sqlite_from_iso8601(published) if isinstance(published, str) else None
     await create_review(
         actor_id=sender_actor["id"],
         ap_id=ap_id,
@@ -113,6 +121,7 @@ async def _handle_create(
         longitude=obj.get("longitude", 0.0),
         place_name=obj.get("placeName", ""),
         place_address=obj.get("placeAddress", ""),
+        created_at=created_at,
     )
 
     logger.info("Stored federated review %s", ap_id)

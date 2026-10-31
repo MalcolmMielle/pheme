@@ -6,6 +6,7 @@ and served by app/main.py); these routes cover the standalone review page
 and the login/register/logout forms.
 """
 
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -28,6 +29,22 @@ templates = Jinja2Templates(directory="app/templates")
 # ── review detail page ──────────────────────────────────────────────────
 
 
+def _format_review_date(value: str) -> str:
+    """Render the stored UTC timestamp ("2026-08-02 21:45:00") readably.
+
+    Federated rows always use this format (the inbox converts the remote
+    ISO-8601 ``published`` to it), but fall back to the raw value if the
+    string ever differs.
+    """
+    try:
+        dt = datetime.strptime(value.strip(), "%Y-%m-%d %H:%M:%S").replace(
+            tzinfo=timezone.utc
+        )
+    except ValueError:
+        return value
+    return dt.strftime("%d %b %Y, %H:%M UTC")
+
+
 @router.get("/review/{review_id}", response_class=HTMLResponse)
 async def review_page(request: Request, review_id: int) -> HTMLResponse:
     """Single review detail page."""
@@ -41,6 +58,7 @@ async def review_page(request: Request, review_id: int) -> HTMLResponse:
         name="review.html",
         context={
             "review": review,
+            "review_date": _format_review_date(review["created_at"]),
             "base_url": config.base_url,
             "actor_domain": actor_domain,
         },

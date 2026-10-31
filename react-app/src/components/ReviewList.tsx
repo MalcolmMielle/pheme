@@ -1,4 +1,4 @@
-import { actorServer, stars } from "../api";
+import { actorServer, formatDate, stars } from "../api";
 import type { Review } from "../types";
 
 interface ReviewListProps {
@@ -27,6 +27,7 @@ export default function ReviewList({ reviews, onSelect, emptyMessage }: ReviewLi
                 {r.display_name || r.username}
                 {server && <span className="server"> @{server}</span>}
               </span>
+              <span className="date">{formatDate(r.created_at)}</span>
               <span>
                 📍 {r.latitude.toFixed(3)}, {r.longitude.toFixed(3)}
               </span>

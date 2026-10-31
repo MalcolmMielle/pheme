@@ -13,7 +13,11 @@ from app.db import (
     get_reviews_by_actor,
     list_local_actors,
 )
-from app.routes.activitypub.helpers import outbox_uri, require_local_actor
+from app.routes.activitypub.helpers import (
+    iso8601_from_sqlite,
+    outbox_uri,
+    require_local_actor,
+)
 from app.routes.activitypub.inbox import post_inbox
 
 router = APIRouter()
@@ -35,12 +39,13 @@ async def get_outbox(username: str) -> JSONResponse:
     reviews = await get_reviews_by_actor(actor["id"], limit=50)
     items: list[dict[str, Any]] = []
     for r in reviews:
+        published = iso8601_from_sqlite(r["created_at"])
         items.append(
             {
                 "id": r["ap_id"],
                 "type": "Create",
                 "actor": actor["actor_uri"],
-                "published": r["created_at"],
+                "published": published,
                 "object": {
                     "id": r["ap_id"],
                     "type": "Note",
@@ -51,6 +56,7 @@ async def get_outbox(username: str) -> JSONResponse:
                     "rating": r["rating"],
                     "placeName": r["place_name"],
                     "placeAddress": r["place_address"],
+                    "published": published,
                 },
             }
         )

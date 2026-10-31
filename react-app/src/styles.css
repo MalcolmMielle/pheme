@@ -236,11 +236,16 @@ button.user-chip:hover .user-name { color: var(--accent); }
   color: var(--text-secondary);
   margin-top: 4px;
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   align-items: center;
 }
 .review-card .meta-line .server {
   opacity: 0.75;
+}
+.review-card .meta-line .date {
+  white-space: nowrap;
+  opacity: 0.85;
 }
 .review-card .snippet {
   font-size: 0.8125rem;

@@ -16,24 +16,46 @@ async def create_review(
     longitude: float,
     place_name: str = "",
     place_address: str = "",
+    created_at: str | None = None,
 ) -> dict[str, Any]:
+    """Insert a review. ``created_at`` (SQLite UTC 'YYYY-MM-DD HH:MM:SS')
+    overrides the DB default — used to preserve the original ``published``
+    date of a federated review instead of the local receipt time."""
     db = await get_db()
     try:
-        cursor = await db.execute(
-            """INSERT INTO reviews (actor_id, ap_id, content, rating,
-               latitude, longitude, place_name, place_address)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                actor_id,
-                ap_id,
-                content,
-                rating,
-                latitude,
-                longitude,
-                place_name,
-                place_address,
-            ),
-        )
+        if created_at is not None:
+            cursor = await db.execute(
+                """INSERT INTO reviews (actor_id, ap_id, content, rating,
+                   latitude, longitude, place_name, place_address, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    actor_id,
+                    ap_id,
+                    content,
+                    rating,
+                    latitude,
+                    longitude,
+                    place_name,
+                    place_address,
+                    created_at,
+                ),
+            )
+        else:
+            cursor = await db.execute(
+                """INSERT INTO reviews (actor_id, ap_id, content, rating,
+                   latitude, longitude, place_name, place_address)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    actor_id,
+                    ap_id,
+                    content,
+                    rating,
+                    latitude,
+                    longitude,
+                    place_name,
+                    place_address,
+                ),
+            )
         await db.commit()
     except aiosqlite.IntegrityError:
         # Duplicate — already federated to us

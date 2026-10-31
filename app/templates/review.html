@@ -10,7 +10,7 @@
     <p class="content">{{ review.content }}</p>
     <p class="meta">
       by <strong>{{ review.display_name or review.username }}</strong>{% if actor_domain %} <span class="actor-server">@{{ actor_domain }}</span>{% endif %}
-      &middot; {{ review.created_at }}
+      &middot; {{ review_date }}
     </p>
     <p class="coords">📍 {{ "%.4f"|format(review.latitude) }}, {{ "%.4f"|format(review.longitude) }}</p>
   </div>

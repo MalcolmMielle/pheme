@@ -40,6 +40,7 @@ from app.db import (
 )
 from app.config import config
 from app.routes.activitypub import create_local_actor, fetch_remote_actor
+from app.routes.activitypub.helpers import iso8601_from_sqlite
 
 logger = logging.getLogger("federated-reviews")
 
@@ -270,11 +271,13 @@ async def api_create_review(
         place_address=payload.place_address,
     )
 
+    # The review's date, in ActivityPub's ISO-8601 format for federation.
+    published = iso8601_from_sqlite(review["created_at"])
     activity = {
         "id": f"{ap_id}/activity",
         "type": "Create",
         "actor": actor["actor_uri"],
-        "published": review["created_at"],
+        "published": published,
         "to": ["https://www.w3.org/ns/activitystreams#Public"],
         "cc": [actor["followers_uri"]],
         "object": {
@@ -287,7 +290,7 @@ async def api_create_review(
             "rating": payload.rating,
             "placeName": payload.place_name,
             "placeAddress": payload.place_address,
-            "published": review["created_at"],
+            "published": published,
         },
     }
 

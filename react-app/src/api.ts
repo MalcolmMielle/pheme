@@ -229,3 +229,24 @@ export function formatRating(rating: number): string {
   const rounded = Math.round(rating * 10) / 10;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
+
+/**
+ * Format a review's created_at for display. The API returns SQLite UTC
+ * text ("2026-08-02 21:45:00") — no timezone marker — so it is parsed as
+ * UTC. Falls back to the raw string if it can't be parsed.
+ */
+export function formatDate(value: string): string {
+  const normalized = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return value;
+  const date = d.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const time = d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${date}, ${time}`;
+}

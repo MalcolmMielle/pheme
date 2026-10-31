@@ -1,4 +1,4 @@
-import { actorServer, formatRating, stars } from "../api";
+import { actorServer, formatDate, formatRating, stars } from "../api";
 import type { PlaceSelection, Review } from "../types";
 
 interface PlacePanelProps {
@@ -63,6 +63,7 @@ export default function PlacePanel({
                         {r.display_name || r.username}
                         {server && <span className="server"> @{server}</span>}
                       </span>
+                      <span className="date">{formatDate(r.created_at)}</span>
                       <span>
                         📍 {r.latitude.toFixed(3)}, {r.longitude.toFixed(3)}
                       </span>
