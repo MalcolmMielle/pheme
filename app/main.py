@@ -12,14 +12,15 @@ import logging
 import os
 import re
 from contextlib import asynccontextmanager
+from typing import cast
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.sessions import SessionMiddleware
-from starlette_csrf import CSRFMiddleware
+from starlette_csrf.middleware import CSRFMiddleware
 
 from app.auth import _LoginRequired, login_required_handler
 from app.config import config
@@ -76,7 +77,14 @@ app.add_middleware(
 
 # Rate limiter (slowapi) — auth routes opt in with @limiter.limit(...)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def _rate_limit_exceeded(request: Request, exc: Exception) -> Response:
+    """429 handler — delegates to slowapi's handler (typed for Exception)."""
+    return _rate_limit_exceeded_handler(request, cast(RateLimitExceeded, exc))
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded)
 
 # ── exception handlers ─────────────────────────────────────────────────
 

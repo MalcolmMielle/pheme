@@ -125,28 +125,28 @@ Log in first (as `alice`, with the password printed by `uv run bootstrap`),
 then post — the API accepts both form-encoded and JSON bodies:
 
 ```bash
-# Get a CSRF token from the login page and keep the session cookie
-CSRF=$(curl -s -c /tmp/fedreviews-cookies http://localhost:8000/login \
-  | grep -o 'name="csrf_token" value="[^"]*"' | cut -d'"' -f4)
-
-# Log in (form posts require the CSRF token)
-curl -b /tmp/fedreviews-cookies -c /tmp/fedreviews-cookies \
+# Log in (keeps the session cookie; the first response also sets the
+# csrftoken cookie used for CSRF protection)
+curl -s -c /tmp/fedreviews-cookies -b /tmp/fedreviews-cookies \
   -X POST http://localhost:8000/login \
-  -d "username=alice&password=<password-from-bootstrap>" \
-  -d "csrf_token=$CSRF"
+  -d "username=alice&password=<password-from-bootstrap>"
 
-# Form-encoded (include the CSRF token)
+# CSRF (starlette-csrf double-submit): while logged in, every unsafe
+# request must send the csrftoken cookie's value back as a header.
+CSRF=$(awk '$6=="csrftoken" {print $7}' /tmp/fedreviews-cookies)
+
+# Form-encoded or JSON both work — include the X-CSRFToken header either way
 curl -b /tmp/fedreviews-cookies -X POST http://localhost:8000/api/reviews \
+  -H "X-CSRFToken: $CSRF" \
   -d "content=Great coffee and friendly staff!" \
   -d "rating=5" \
   -d "latitude=37.7749" \
   -d "longitude=-122.4194" \
   -d "place_name=Best Coffee" \
-  -d "place_address=123 Main St" \
-  -d "csrf_token=$CSRF"
+  -d "place_address=123 Main St"
 
-# …or JSON (JSON requests are exempt from CSRF validation)
 curl -b /tmp/fedreviews-cookies -X POST http://localhost:8000/api/reviews \
+  -H "X-CSRFToken: $CSRF" \
   -H "Content-Type: application/json" \
   -d '{"content":"Great coffee and friendly staff!","rating":5,"latitude":37.7749,"longitude":-122.4194,"place_name":"Best Coffee","place_address":"123 Main St"}'
 ```
@@ -174,7 +174,7 @@ curl -X POST http://localhost:8001/api/bootstrap \
 
 ```bash
 uv sync --group dev                           # install dev tools (once)
-uv run python -m unittest discover -s tests   # run all 68 tests
+uv run python -m unittest discover -s tests   # run all 137 tests
 uv run python -m unittest discover -s tests -v  # verbose output
 uv run python -m unittest tests.test_db -v    # run a single test file
 ```
@@ -197,14 +197,16 @@ federated-reviews/
 │   ├── main.py               # FastAPI application — entry point + serves react-app/dist
 │   ├── config.py             # Config from environment / .env / defaults
 │   ├── auth.py               # Session-based auth dependency
-│   ├── middleware.py         # CSRF protection middleware
+│   ├── forms.py              # Pydantic validation for registration forms
+│   ├── ratelimit.py          # slowapi rate limiter (login/register/bootstrap)
 │   ├── bootstrap.py          # Seed script (actor + demo reviews)
 │   ├── models.py             # ActivityPub Pydantic models
 │   ├── db/
 │   │   ├── connection.py     # SQLite connection, schema, pragmas
 │   │   ├── actors.py         # Actor CRUD + password hashing
 │   │   ├── reviews.py        # Review CRUD, bounds queries, pagination
-│   │   └── follows.py        # Follow/follower relationships
+│   │   ├── follows.py        # Follow/follower relationships
+│   │   └── invites.py        # One-time invite codes (invite registration mode)
 │   ├── activitypub/
 │   │   ├── signing.py        # HTTP Signatures (RSA-SHA256)
 │   │   ├── actor.py          # Actor JSON builders, Follow/Accept
@@ -229,7 +231,7 @@ federated-reviews/
 │   ├── src/                  # Components: map, list, detail, review form
 │   ├── package.json          # JS dependencies
 │   └── dist/                 # Production build, served by FastAPI (gitignored)
-├── tests/                    # unittest suite (68 tests)
+├── tests/                    # unittest suite (137 tests)
 │   ├── base.py               # Shared test base: fresh DB + ASGI client per test
 │   ├── test_signing.py       # HTTP Signature unit tests
 │   ├── test_db.py            # Database layer tests
@@ -254,7 +256,7 @@ federated-reviews/
 | **Federation** | ActivityPub (hand-rolled) | HTTP Signatures, WebFinger, Actor model |
 | **HTTP client** | httpx | Async outbound requests for federation + Nominatim proxy |
 | **Crypto** | cryptography | RSA key generation, SHA256 signing |
-| **Testing** | unittest (68 tests) | Endpoint, database, signing and auth-flow coverage |
+| **Testing** | unittest (137 tests) | Endpoint, database, signing and auth-flow coverage |
 | **Linting** | ruff + basedpyright | Fast lint/format + static type checking |
 | **CI** | Forgejo Actions (`node:22`) | unittest suite, ruff, basedpyright and the React build on push + PRs |
 
@@ -271,7 +273,36 @@ app loads it automatically via [python-dotenv](https://pypi.org/project/python-d
 | `PORT` | `8000` | Port for uvicorn |
 | `RELOAD` | `false` | Enable uvicorn auto-reload (development only) |
 | `DATABASE_PATH` | `data/reviews.db` | Path to the SQLite file |
-| `SECRET_KEY` | *(random, with warning)* | Session signing key — set this in production |
+| `SECRET_KEY` | *(random, with warning)* | Session + CSRF signing key — set this in production |
+| `SESSION_MAX_AGE` | `2592000` (30 days) | Session cookie lifetime in seconds |
+| `PASSWORD_MIN_LENGTH` | `8` | Minimum password length for new accounts |
+| `REGISTRATION_MODE` | `open` | `open` = anyone can register, `invite` = valid one-time invite code required, `closed` = admins create accounts only |
+
+## Registration & moderation
+
+Session auth is self-hosted (signed cookie + bcrypt passwords) — no external
+identity provider. CSRF protection is the
+[starlette-csrf](https://pypi.org/project/starlette-csrf/) library
+(double-submit cookie): while logged in, unsafe requests must send the
+`csrftoken` cookie's value as an `X-CSRFToken` header. Login and register are
+rate-limited per IP (`slowapi`): 5/minute and 3/minute respectively.
+
+Set `REGISTRATION_MODE` to control who can create accounts:
+
+- **`open`** (default) — anyone can register at `/register`.
+- **`invite`** — `/register` requires a one-time invite code. Admins create
+  codes in the admin panel (profile page) or via `POST /api/admin/invites`;
+  each code yields a shareable `/register?code=...` link. Codes can be revoked
+  (`DELETE /api/admin/invites/{id}`) and may expire.
+- **`closed`** — the registration form is disabled; admins create accounts via
+  `POST /api/admin/users`. (`POST /api/bootstrap` is one-time setup only and
+  refuses once any account exists.)
+
+Admins (the first account created is the admin) can also suspend or delete
+accounts from the admin panel: `POST /api/admin/users/{id}/suspend` /
+`/unsuspend` block login and invalidate existing sessions;
+`DELETE /api/admin/users/{id}` removes the account and all its local reviews.
+An admin cannot moderate themselves or remove the last admin.
 
 ## API reference
 
@@ -293,17 +324,31 @@ app loads it automatically via [python-dotenv](https://pypi.org/project/python-d
 |--------|------|-------------|
 | `GET` | `/` | Map-based review browser (React SPA) |
 | `GET` | `/review/{id}` | Single review page (server-rendered) |
-| `GET` | `/api/me` | Current session user (`{id, username, display_name, is_admin, actor_uri, csrf_token}`); 401 when logged out |
+| `GET` | `/api/meta` | Public server metadata (`{"registration_mode": ...}`) |
+| `GET` | `/api/me` | Current session user (`{id, username, display_name, is_admin, actor_uri}`); 401 when logged out or suspended |
 | `GET` | `/api/me/following` | The logged-in user's accepted follows (`{"following": [{actor_uri, username, display_name}]}`); 401 when logged out |
 | `GET` | `/api/reviews` | JSON reviews (optional `?min_lat=&max_lat=&min_lng=&max_lng=&limit=&offset=&scope=`; `scope` is `all` (default), `following` (own + followed actors, needs login), or `local` (this server's users only)) |
 | `GET` | `/api/reviews/{id}` | Single review as JSON |
-| `POST` | `/api/reviews` | Create review — form-encoded (needs `csrf_token`) or JSON body (`content`, `rating`, `latitude`, `longitude`, `place_name`, `place_address`); requires login |
+| `POST` | `/api/reviews` | Create review — form-encoded or JSON body (`content`, `rating`, `latitude`, `longitude`, `place_name`, `place_address`); requires login + `X-CSRFToken` header |
 | `DELETE` | `/api/reviews/{id}` | Delete a review (author only) |
 | `POST` | `/api/follow` | Follow a remote actor (form: `target` — URI or `acct:user@domain`) |
 | `POST` | `/api/unfollow` | Unfollow an actor (form: `target` — URI or `acct:user@domain`); sends an `Undo` to the remote inbox |
 | `GET` | `/api/geocode?q=` | Proxy place search to Nominatim |
 | `GET` | `/api/reverse-geocode?lat=&lon=` | Proxy reverse geocode to Nominatim |
-| `POST` | `/api/bootstrap` | Create first actor (form: `username`, `display_name`) |
+| `POST` | `/api/bootstrap` | Create the first actor (one-time; 403 once any account exists) |
+
+### Admin API (session of an admin required; unsafe methods need `X-CSRFToken`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/admin/users` | List local accounts (`is_admin`, `is_suspended`, …) |
+| `POST` | `/api/admin/users` | Create an account (form: `username`, `display_name`, `password`, `is_admin`) |
+| `POST` | `/api/admin/users/{id}/promote` / `/demote` | Grant / revoke admin |
+| `POST` | `/api/admin/users/{id}/suspend` / `/unsuspend` | Block / restore login (invalidates sessions) |
+| `DELETE` | `/api/admin/users/{id}` | Delete the account and its local reviews |
+| `GET` | `/api/admin/invites` | List invite codes (`registration_mode`, shareable `register_url`) |
+| `POST` | `/api/admin/invites` | Create a one-time invite code (optional form field `expires_in_days`) |
+| `DELETE` | `/api/admin/invites/{id}` | Revoke an unused invite code |
 
 ## Licence
 

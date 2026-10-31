@@ -2,6 +2,8 @@
 
 import os
 
+import httpx
+
 from tests.base import AsyncTestCase, get_csrf_token
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -198,7 +200,9 @@ class TestAuth(AsyncTestCase):
 class TestRegistrationValidation(AsyncTestCase):
     """RegisterForm (Pydantic) rejects bad input with a 400 + message."""
 
-    async def _post(self, username: str, password: str = "password123") -> object:
+    async def _post(
+        self, username: str, password: str = "password123"
+    ) -> httpx.Response:
         return await self.client.post(
             "/register",
             data={"username": username, "display_name": "X", "password": password},
