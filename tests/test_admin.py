@@ -161,28 +161,48 @@ class TestAdminAccess(AdminTestCase):
         restart without a fixed key) 403s. Once the client drops it, the
         server issues a fresh cookie and the same action succeeds — this is
         the flow the SPA's fetchWithCsrf retry implements."""
+        import httpx
+        from httpx import ASGITransport
         from itsdangerous.url_safe import URLSafeSerializer
 
-        await self.make_admin()
-        stale = URLSafeSerializer("old-secret", "csrftoken").dumps("x" * 40)
-        self.client.cookies.set("csrftoken", stale, domain="testserver", path="/")
-        resp = await self.client.post(
-            "/api/admin/users",
-            data={"username": "x1", "display_name": "X", "password": "pw123456"},
-            headers={**JSON_HEADERS, "X-CSRFToken": stale},
-        )
-        assert resp.status_code == 403
+        from app.main import app
 
-        self.client.cookies.delete("csrftoken", domain="testserver", path="/")
-        await self.client.get("/api/meta")  # server sets a fresh csrftoken cookie
-        fresh = self.client.cookies.get("csrftoken")
-        assert fresh and fresh != stale
-        resp = await self.client.post(
-            "/api/admin/users",
-            data={"username": "x2", "display_name": "X", "password": "pw123456"},
-            headers={**JSON_HEADERS, "X-CSRFToken": fresh},
+        await self.make_admin()
+        session = self.client.cookies.get("session")
+        assert session
+        raw = httpx.AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://testserver"
         )
-        assert resp.status_code == 200
+        try:
+            # Stale csrftoken cookie, echoed back as the header.
+            stale = URLSafeSerializer("old-secret", "csrftoken").dumps("x" * 40)
+            resp = await raw.post(
+                "/api/admin/users",
+                data={"username": "x1", "display_name": "X", "password": "pw123456"},
+                headers={
+                    "Cookie": f"session={session}; csrftoken={stale}",
+                    "X-CSRFToken": stale,
+                    **JSON_HEADERS,
+                },
+            )
+            assert resp.status_code == 403
+
+            # Drop the stale cookie; any GET makes the server issue a fresh one.
+            await raw.get("/api/meta", headers={"Cookie": f"session={session}"})
+            fresh = raw.cookies.get("csrftoken")
+            assert fresh and fresh != stale
+            resp = await raw.post(
+                "/api/admin/users",
+                data={"username": "x2", "display_name": "X", "password": "pw123456"},
+                headers={
+                    "Cookie": f"session={session}; csrftoken={fresh}",
+                    "X-CSRFToken": fresh,
+                    **JSON_HEADERS,
+                },
+            )
+            assert resp.status_code == 200
+        finally:
+            await raw.aclose()
 
 
 class TestAdminUserManagement(AdminTestCase):
