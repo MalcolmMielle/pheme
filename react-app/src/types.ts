@@ -44,6 +44,8 @@ export interface AdminUser {
   username: string;
   display_name: string;
   is_admin: boolean;
+  /** Suspended accounts can't log in and their sessions are invalidated. */
+  is_suspended: boolean;
   created_at: string;
 }
 

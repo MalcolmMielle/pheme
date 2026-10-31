@@ -226,6 +226,25 @@ export function setUserAdmin(
   );
 }
 
+/** Suspend (suspended=true) or unsuspend a local account (admin only). */
+export function setUserSuspended(
+  userId: number,
+  suspended: boolean,
+): Promise<Response> {
+  return formPost(
+    `/api/admin/users/${userId}/${suspended ? "suspend" : "unsuspend"}`,
+    {},
+  );
+}
+
+/** Delete a local account and its local content (admin only). */
+export function deleteUser(userId: number): Promise<Response> {
+  return fetch(`/api/admin/users/${userId}`, {
+    method: "DELETE",
+    headers: { ...csrfHeaders(), Accept: "application/json" },
+  });
+}
+
 /** One invite code, from `GET /api/admin/invites` (admin only). */
 export interface Invite {
   id: number;

@@ -4,9 +4,11 @@ import {
   createInvite,
   createUser,
   deleteInvite,
+  deleteUser,
   fetchAdminInvites,
   fetchAdminUsers,
   setUserAdmin,
+  setUserSuspended,
 } from "../api";
 import type { Invite } from "../api";
 import type { AdminUser, Me } from "../types";
@@ -116,6 +118,14 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
   const toggleAdmin = (user: AdminUser) =>
     runAction(() => setUserAdmin(user.id, !user.is_admin));
 
+  const toggleSuspended = (user: AdminUser) =>
+    runAction(() => setUserSuspended(user.id, !user.is_suspended));
+
+  const removeUser = (user: AdminUser) => {
+    if (!window.confirm(`Delete @${user.username} and all their reviews?`)) return;
+    return runAction(() => deleteUser(user.id));
+  };
+
   const handleCreateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = expiresDays.trim();
@@ -151,18 +161,37 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
                 {u.display_name || u.username}
                 <span className="admin-user-username">@{u.username}</span>
                 {u.is_admin && <span className="admin-badge">admin</span>}
+                {u.is_suspended && <span className="admin-badge">suspended</span>}
               </span>
               {u.id === currentUser.id ? (
                 <span className="admin-you">you</span>
               ) : (
-                <button
-                  type="button"
-                  className={`btn btn-sm ${u.is_admin ? "btn-danger-soft" : "btn-secondary"}`}
-                  disabled={busy}
-                  onClick={() => toggleAdmin(u)}
-                >
-                  {u.is_admin ? "Remove admin" : "Make admin"}
-                </button>
+                <span className="admin-user-actions">
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${u.is_admin ? "btn-danger-soft" : "btn-secondary"}`}
+                    disabled={busy}
+                    onClick={() => toggleAdmin(u)}
+                  >
+                    {u.is_admin ? "Remove admin" : "Make admin"}
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${u.is_suspended ? "btn-secondary" : "btn-danger-soft"}`}
+                    disabled={busy}
+                    onClick={() => toggleSuspended(u)}
+                  >
+                    {u.is_suspended ? "Unsuspend" : "Suspend"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-danger-soft"
+                    disabled={busy}
+                    onClick={() => void removeUser(u)}
+                  >
+                    Delete
+                  </button>
+                </span>
               )}
             </div>
           ))
