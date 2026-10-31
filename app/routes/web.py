@@ -37,6 +37,15 @@ templates = Jinja2Templates(directory="app/templates")
 _DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 
 
+def _form_error(
+    request: Request, template: str, context: dict, status: int
+) -> HTMLResponse:
+    """Re-render an auth form (login/register) with an error in the context."""
+    return templates.TemplateResponse(
+        request=request, name=template, context=context, status_code=status
+    )
+
+
 # ── review detail page ──────────────────────────────────────────────────
 
 
@@ -113,29 +122,29 @@ async def register(
     """
     mode = config.registration_mode
     if mode == "closed":
-        return templates.TemplateResponse(
-            request=request,
-            name="register.html",
-            context={
+        return _form_error(
+            request,
+            "register.html",
+            {
                 "registration_mode": mode,
                 "error": "Registration is closed on this server. "
                 "Ask an admin for an account.",
             },
-            status_code=403,
+            403,
         )
 
     invite = None
     if mode == "invite":
         invite = await get_valid_invite(code)
         if invite is None:
-            return templates.TemplateResponse(
-                request=request,
-                name="register.html",
-                context={
+            return _form_error(
+                request,
+                "register.html",
+                {
                     "registration_mode": mode,
                     "error": "Invalid, used or expired invite code.",
                 },
-                status_code=403,
+                403,
             )
 
     try:
@@ -143,20 +152,20 @@ async def register(
             username=username, display_name=display_name, password=password
         )
     except ValidationError as exc:
-        return templates.TemplateResponse(
-            request=request,
-            name="register.html",
-            context={"registration_mode": mode, "error": first_validation_error(exc)},
-            status_code=400,
+        return _form_error(
+            request,
+            "register.html",
+            {"registration_mode": mode, "error": first_validation_error(exc)},
+            400,
         )
 
     existing = await get_actor_by_username(form.username)
     if existing:
-        return templates.TemplateResponse(
-            request=request,
-            name="register.html",
-            context={"registration_mode": mode, "error": "Username already taken."},
-            status_code=409,
+        return _form_error(
+            request,
+            "register.html",
+            {"registration_mode": mode, "error": "Username already taken."},
+            409,
         )
 
     actor = await create_local_actor(
@@ -168,14 +177,14 @@ async def register(
     if invite is not None and not await consume_invite(invite["id"], actor["id"]):
         # Lost a race on the one-time code — remove the account we just made.
         await delete_actor(actor["id"])
-        return templates.TemplateResponse(
-            request=request,
-            name="register.html",
-            context={
+        return _form_error(
+            request,
+            "register.html",
+            {
                 "registration_mode": mode,
                 "error": "Invite code was just used by someone else.",
             },
-            status_code=403,
+            403,
         )
 
     request.session["user_id"] = actor["id"]
@@ -203,27 +212,27 @@ async def login(
         # Burn a bcrypt check anyway so the response time doesn't reveal
         # whether the username exists.
         verify_password(password, _DUMMY_PASSWORD_HASH)
-        return templates.TemplateResponse(
-            request=request,
-            name="login.html",
-            context={"error": "Invalid username or password."},
-            status_code=401,
+        return _form_error(
+            request,
+            "login.html",
+            {"error": "Invalid username or password."},
+            401,
         )
 
     if not verify_password(password, actor["password_hash"]):
-        return templates.TemplateResponse(
-            request=request,
-            name="login.html",
-            context={"error": "Invalid username or password."},
-            status_code=401,
+        return _form_error(
+            request,
+            "login.html",
+            {"error": "Invalid username or password."},
+            401,
         )
 
     if actor.get("is_suspended"):
-        return templates.TemplateResponse(
-            request=request,
-            name="login.html",
-            context={"error": "This account has been suspended."},
-            status_code=403,
+        return _form_error(
+            request,
+            "login.html",
+            {"error": "This account has been suspended."},
+            403,
         )
 
     request.session["user_id"] = actor["id"]

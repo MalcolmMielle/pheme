@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, ValidationError
 from app.activitypub.actor import actor_to_ap, build_follow_activity
 from app.activitypub.delivery import deliver_to_inbox, fanout_activity
 from app.activitypub.fetchguard import check_fetch_url
-from app.auth import get_current_user
+from app.auth import get_current_user, get_session_actor
 from app.db import (
     count_reviews,
     count_reviews_by_bounds,
@@ -112,12 +112,8 @@ async def api_me(request: Request) -> JSONResponse:
     cookie (starlette-csrf double-submit) and sends it as the x-csrftoken
     header on unsafe requests.
     """
-    user_id = request.session.get("user_id")
-    if user_id is None:
-        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
-    actor = await get_actor_by_id(user_id)
-    if actor is None or actor.get("is_suspended"):
-        request.session.clear()
+    actor = await get_session_actor(request)
+    if actor is None:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     return JSONResponse(
         {

@@ -27,6 +27,7 @@ async def _bootstrap() -> None:
         get_actor_by_username,
         hash_password,
         init_db,
+        review_exists,
     )
     from app.routes.activitypub.helpers import create_local_actor
 
@@ -139,8 +140,6 @@ async def _bootstrap() -> None:
     for i, r in enumerate(demo_reviews):
         ap_id = f"{base_uri}/review/demo-{i}"
         # Check if we've already seeded
-        from app.db import review_exists
-
         if await review_exists(ap_id):
             continue
         await create_review(

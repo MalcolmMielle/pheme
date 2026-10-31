@@ -5,24 +5,34 @@ Uses Starlette's SessionMiddleware so each request carries a signed
 cookie with the logged-in user's actor id.
 """
 
+from typing import Any
+
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.db import get_actor_by_id
 
 
-async def get_current_user(request: Request):
-    """FastAPI dependency — return the current actor row, or raise _LoginRequired.
+async def get_session_actor(request: Request) -> dict[str, Any] | None:
+    """The current session's actor row, or None when logged out.
 
-    Suspended accounts are treated like logged-out: their session is
-    cleared and every protected endpoint rejects them.
+    Suspended or deleted accounts are treated like logged-out: their
+    session is cleared.
     """
     user_id = request.session.get("user_id")
     if user_id is None:
-        raise _LoginRequired()
+        return None
     actor = await get_actor_by_id(user_id)
     if actor is None or actor.get("is_suspended"):
         request.session.clear()
+        return None
+    return actor
+
+
+async def get_current_user(request: Request):
+    """FastAPI dependency — return the current actor row, or raise _LoginRequired."""
+    actor = await get_session_actor(request)
+    if actor is None:
         raise _LoginRequired()
     return actor
 
