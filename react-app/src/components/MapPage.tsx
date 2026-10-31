@@ -56,6 +56,16 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
    */
   const [selectedPlace, setSelectedPlace] = useState<PlaceSelection | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
+  /**
+   * A freshly picked point awaiting reverse geocoding — the effect below
+   * fills in the name/address of the draft or selected place that still
+   * matches these coordinates.
+   */
+  const [pendingGeocode, setPendingGeocode] = useState<{
+    lat: number;
+    lng: number;
+    target: "draft" | "place";
+  } | null>(null);
   /** Registration mode from /api/meta — hides the Register button when "closed". */
   const [registrationMode, setRegistrationMode] = useState("open");
 
@@ -212,47 +222,53 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
   }, []);
 
   /**
-   * Reverse-geocode a point and hand the display name to `apply`, which is
-   * responsible for updating whichever state still matches the coordinates.
+   * Reverse-geocode the pending point and fill in the name/address of
+   * whichever state (draft or selected place) still matches the coordinates.
+   * One effect owns the async lookup; the coordinate guard covers the case
+   * where the user picked a different spot before it resolved.
    */
-  const applyReverseGeocode = useCallback(
-    (lat: number, lng: number, apply: (displayName: string) => void) => {
-      reverseGeocode(lat, lng)
-        .then((displayName) => {
-          if (displayName) apply(displayName);
-        })
-        .catch((err) => console.error("Reverse geocode failed", err));
-    },
-    [],
-  );
+  useEffect(() => {
+    if (!pendingGeocode) return;
+    const { lat, lng, target } = pendingGeocode;
+    let cancelled = false;
+    reverseGeocode(lat, lng)
+      .then((displayName) => {
+        if (cancelled || !displayName) return;
+        const name = displayName.split(",")[0];
+        if (target === "draft") {
+          setDraft((d) =>
+            d && !d.locked && d.lat === lat && d.lng === lng
+              ? { ...d, placeName: name, placeAddress: displayName }
+              : d,
+          );
+        } else {
+          setSelectedPlace((p) =>
+            p && p.lat === lat && p.lng === lng
+              ? { ...p, name, address: displayName }
+              : p,
+          );
+        }
+      })
+      .catch((err) => console.error("Reverse geocode failed", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingGeocode]);
 
   /**
    * Map click while the form is open: drop the draggable placement marker
    * and reverse-geocode to fill the place name / address fields. Ignored
    * when the draft is locked to a specific place.
    */
-  const onMapClick = useCallback(
-    (lat: number, lng: number) => {
-      const label = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-      setDraft((d) =>
-        d?.locked
-          ? d
-          : { lat, lng, placeName: "", placeAddress: "", label, locked: false },
-      );
-      applyReverseGeocode(lat, lng, (displayName) =>
-        setDraft((d) =>
-          d && !d.locked && d.lat === lat && d.lng === lng
-            ? {
-              ...d,
-              placeName: displayName.split(",")[0],
-              placeAddress: displayName,
-            }
-            : d,
-        ),
-      );
-    },
-    [applyReverseGeocode],
-  );
+  const onMapClick = useCallback((lat: number, lng: number) => {
+    const label = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    setDraft((d) =>
+      d?.locked
+        ? d
+        : { lat, lng, placeName: "", placeAddress: "", label, locked: false },
+    );
+    setPendingGeocode({ lat, lng, target: "draft" });
+  }, []);
 
   /**
    * Place picked in the global map search: drop the map marker, open the
@@ -290,20 +306,11 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
    * reverse geocode resolves. The spot is already in view, so the map
    * doesn't need to move.
    */
-  const onMapSelect = useCallback(
-    (lat: number, lng: number) => {
-      const coords = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-      setSelectedPlace({ lat, lng, name: coords, address: coords });
-      applyReverseGeocode(lat, lng, (displayName) =>
-        setSelectedPlace((p) =>
-          p && p.lat === lat && p.lng === lng
-            ? { ...p, name: displayName.split(",")[0], address: displayName }
-            : p,
-        ),
-      );
-    },
-    [applyReverseGeocode],
-  );
+  const onMapSelect = useCallback((lat: number, lng: number) => {
+    const coords = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    setSelectedPlace({ lat, lng, name: coords, address: coords });
+    setPendingGeocode({ lat, lng, target: "place" });
+  }, []);
 
   /** Submit the review form. Returns success or an error message. */
   const submitReview = useCallback(

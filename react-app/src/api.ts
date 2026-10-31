@@ -111,7 +111,7 @@ export async function fetchReviews(
   return resp.json();
 }
 
-export interface CreateReviewPayload {
+interface CreateReviewPayload {
   content: string;
   rating: number;
   latitude: number;
@@ -158,7 +158,7 @@ export async function reverseGeocode(
 }
 
 /** Public server metadata, from `GET /api/meta`. */
-export interface ServerMeta {
+interface ServerMeta {
   registration_mode: string;
 }
 
@@ -173,7 +173,7 @@ export async function fetchMeta(): Promise<ServerMeta> {
 
 /** ── admin endpoints (admin session required) ───────────────────────── */
 
-export interface AdminUserList {
+interface AdminUserList {
   users: AdminUser[];
   admin_count: number;
 }
@@ -221,7 +221,7 @@ export function unfollowActor(target: string): Promise<Response> {
   return formPost("/api/unfollow", { target });
 }
 
-export interface NewUserPayload {
+interface NewUserPayload {
   username: string;
   displayName: string;
   password: string;
@@ -282,7 +282,7 @@ export interface Invite {
   register_url: string;
 }
 
-export interface AdminInviteList {
+interface AdminInviteList {
   invites: Invite[];
   registration_mode: string;
 }
