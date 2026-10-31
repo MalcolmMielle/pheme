@@ -49,13 +49,13 @@ from app.ratelimit import limiter
 from app.routes.activitypub import create_local_actor, fetch_remote_actor
 from app.routes.activitypub.helpers import iso8601_from_sqlite
 
-logger = logging.getLogger("federated-reviews")
+logger = logging.getLogger("pheme")
 
 router = APIRouter()
 
 _NOMINATIM_BASE = "https://nominatim.openstreetmap.org"
 _NOMINATIM_HEADERS = {
-    "User-Agent": f"FederatedReviews/0.1 ({config.base_url})",
+    "User-Agent": f"Pheme/0.1 ({config.base_url})",
     "Accept-Language": "en",
 }
 

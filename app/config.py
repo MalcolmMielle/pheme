@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 # Load .env file before reading any environment variables
 load_dotenv()
 
-logger = logging.getLogger("federated-reviews.config")
+logger = logging.getLogger("pheme.config")
 
 
 def _get_secret_key() -> str:

@@ -20,7 +20,7 @@ from app.db import (
     get_db,
 )
 
-logger = logging.getLogger("federated-reviews")
+logger = logging.getLogger("pheme")
 
 
 def actor_uri(username: str) -> str:

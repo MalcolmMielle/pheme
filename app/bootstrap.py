@@ -156,7 +156,7 @@ async def _bootstrap() -> None:
         count += 1
 
     logger.info(
-        "Seeded %d demo review(s). Server is ready — run `uv run fedreviews`!",
+        "Seeded %d demo review(s). Server is ready — run `uv run pheme`!",
         count,
     )
 

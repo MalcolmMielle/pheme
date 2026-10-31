@@ -41,7 +41,7 @@ async def lifespan(_app: FastAPI):
     await close_db()
 
 
-app = FastAPI(title="Federated Reviews", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Pheme", version="0.1.0", lifespan=lifespan)
 
 # ── middleware ──────────────────────────────────────────────────────────
 
@@ -146,7 +146,7 @@ async def spa_catchall(full_path: str):
 
 
 def main() -> None:
-    """Entry point for `fedreviews` CLI command."""
+    """Entry point for `pheme` CLI command."""
     import uvicorn
 
     uvicorn.run(

@@ -22,7 +22,7 @@ import httpx
 
 from app.activitypub.signing import sign_request
 
-logger = logging.getLogger("federated-reviews.delivery")
+logger = logging.getLogger("pheme.delivery")
 
 
 async def deliver_to_inbox(

@@ -31,7 +31,7 @@ from app.routes.activitypub.helpers import (
     sqlite_from_iso8601,
 )
 
-logger = logging.getLogger("federated-reviews")
+logger = logging.getLogger("pheme")
 
 router = APIRouter()
 
