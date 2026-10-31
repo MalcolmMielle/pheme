@@ -97,6 +97,35 @@ async def post_inbox(username: str, request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
 
+def _invalid_note_reason(obj: dict[str, Any]) -> str | None:
+    """Validate the Note fields of a federated Create activity.
+
+    Returns a reason string when the object must be rejected. Without this,
+    e.g. rating=99 trips the DB CHECK constraint and the insert silently
+    fails while the inbox still reports "created".
+    """
+    for name in ("content", "placeName", "placeAddress"):
+        if not isinstance(obj.get(name, ""), str):
+            return f"{name} must be a string"
+    rating = obj.get("rating", 3)
+    if (
+        isinstance(rating, bool)
+        or not isinstance(rating, (int, float))
+        or not float(rating).is_integer()
+        or not 1 <= rating <= 5
+    ):
+        return "rating must be a whole number 1-5"
+    for name, lo, hi in (("latitude", -90.0, 90.0), ("longitude", -180.0, 180.0)):
+        value = obj.get(name, 0.0)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not lo <= value <= hi
+        ):
+            return f"{name} must be a number between {lo} and {hi}"
+    return None
+
+
 async def _handle_create(
     activity: dict[str, Any], sender_actor: dict[str, Any]
 ) -> JSONResponse:
@@ -105,6 +134,11 @@ async def _handle_create(
 
     if not ap_id or await review_exists(ap_id):
         return JSONResponse({"status": "duplicate"})
+
+    reason = _invalid_note_reason(obj)
+    if reason is not None:
+        logger.warning("Rejecting Create %s: %s", ap_id, reason)
+        return JSONResponse({"status": "ignored", "reason": reason}, status_code=400)
 
     # Attribute the review to the signature-verified sender — the object's
     # attributedTo is not trusted unless it is the sender itself.
@@ -116,9 +150,9 @@ async def _handle_create(
         actor_id=sender_actor["id"],
         ap_id=ap_id,
         content=obj.get("content", ""),
-        rating=obj.get("rating", 3),
-        latitude=obj.get("latitude", 0.0),
-        longitude=obj.get("longitude", 0.0),
+        rating=int(obj.get("rating", 3)),
+        latitude=float(obj.get("latitude", 0.0)),
+        longitude=float(obj.get("longitude", 0.0)),
         place_name=obj.get("placeName", ""),
         place_address=obj.get("placeAddress", ""),
         created_at=created_at,

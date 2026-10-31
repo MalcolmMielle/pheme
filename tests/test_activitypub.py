@@ -260,3 +260,88 @@ class TestInbox(AsyncTestCase):
         )
         assert resp.status_code == 200
         assert await get_followers(alice["id"]) == []
+
+    async def _make_remote_bob(self):
+        """A remote actor with a real keypair, so the inbox can verify him."""
+        priv, pub = generate_keypair()
+        bob = await create_actor(
+            username="bob",
+            display_name="Bob",
+            summary="",
+            private_key_pem=priv,
+            public_key_pem=pub,
+            actor_uri="https://remote.example/actor/bob",
+            inbox_uri="https://remote.example/actor/bob/inbox",
+            outbox_uri="https://remote.example/actor/bob/outbox",
+            followers_uri="https://remote.example/actor/bob/followers",
+            following_uri="https://remote.example/actor/bob/following",
+            is_local=False,
+        )
+        return bob, priv
+
+    async def _post_signed_create(self, priv: str, note: dict):
+        await self.client.post(
+            "/api/bootstrap",
+            data={"username": "alice", "display_name": "Alice", "password": "pw123456"},
+        )
+        activity = {
+            "id": "https://remote.example/actor/bob/create/1",
+            "type": "Create",
+            "actor": "https://remote.example/actor/bob",
+            "object": note,
+        }
+        body = json.dumps(activity).encode()
+        signed = sign_request(
+            method="POST",
+            url="http://testserver/actor/alice/inbox",
+            body=body,
+            key_id="https://remote.example/actor/bob#main-key",
+            private_key_pem=priv,
+        )
+        return await self.client.post(
+            "/actor/alice/inbox",
+            content=body,
+            headers={
+                "Content-Type": "application/activity+json",
+                "Host": "testserver",
+                "Date": signed["Date"],
+                "Digest": signed["Digest"],
+                "Signature": signed["Signature"],
+            },
+        )
+
+    async def test_create_stores_federated_review(self):
+        from app.db import review_exists
+
+        _, priv = await self._make_remote_bob()
+        note = {
+            "id": "https://remote.example/actor/bob/review/1",
+            "type": "Note",
+            "content": "Loved it",
+            "rating": 5,
+            "latitude": 37.7,
+            "longitude": -122.4,
+            "published": "2026-10-01T12:00:00Z",
+        }
+        resp = await self._post_signed_create(priv, note)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "created"
+        assert await review_exists(note["id"])
+
+    async def test_create_rejects_invalid_rating(self):
+        """A federated rating outside 1-5 must be rejected with 400, not
+        silently dropped by the DB CHECK while reporting "created"."""
+        from app.db import review_exists
+
+        _, priv = await self._make_remote_bob()
+        note = {
+            "id": "https://remote.example/actor/bob/review/bad",
+            "type": "Note",
+            "content": "x",
+            "rating": 99,
+            "latitude": 37.7,
+            "longitude": -122.4,
+        }
+        resp = await self._post_signed_create(priv, note)
+        assert resp.status_code == 400
+        assert not await review_exists(note["id"])
