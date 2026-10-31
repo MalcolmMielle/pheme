@@ -141,6 +141,25 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
   const revokeInvite = (invite: Invite) =>
     runAction(() => deleteInvite(invite.id));
 
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  /** Copy the invite's registration URL to the clipboard, with feedback. */
+  const copyInvite = async (invite: Invite) => {
+    try {
+      await navigator.clipboard.writeText(invite.register_url);
+    } catch {
+      // Clipboard API unavailable (non-secure context) — legacy fallback.
+      const ta = document.createElement("textarea");
+      ta.value = invite.register_url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    setCopiedId(invite.id);
+    setTimeout(() => setCopiedId((cur) => (cur === invite.id ? null : cur)), 1500);
+  };
+
   return (
     <div className="admin-panel">
       <h2>
@@ -255,16 +274,26 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
                   <span className="admin-user-username">no expiry</span>
                 )}
               </span>
-              {!inv.used_by && (
+              <span className="admin-user-actions">
                 <button
                   type="button"
-                  className="btn btn-sm btn-danger-soft"
+                  className="btn btn-sm btn-secondary"
                   disabled={busy}
-                  onClick={() => revokeInvite(inv)}
+                  onClick={() => void copyInvite(inv)}
                 >
-                  Revoke
+                  {copiedId === inv.id ? "Copied!" : "Copy link"}
                 </button>
-              )}
+                {!inv.used_by && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-danger-soft"
+                    disabled={busy}
+                    onClick={() => revokeInvite(inv)}
+                  >
+                    Revoke
+                  </button>
+                )}
+              </span>
             </div>
           ))
         )}
