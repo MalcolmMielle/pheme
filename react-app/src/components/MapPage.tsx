@@ -1,7 +1,7 @@
 import type { LatLngBounds } from "leaflet";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { createReview, fetchReviews, reverseGeocode } from "../api";
+import { ApiError, createReview, fetchReviews, reverseGeocode } from "../api";
 import { useBottomSheet } from "../hooks/useBottomSheet";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { reviewsAtPlace } from "../places";
@@ -17,6 +17,7 @@ import type {
   NominatimResult,
   PlaceSelection,
   Review,
+  ReviewScope,
 } from "../types";
 
 const SIDEBAR_W = 380;
@@ -33,6 +34,8 @@ interface MapPageProps {
  */
 export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
+  /** "all" = everything in bounds; "following" = own + followed; "local" = this server. */
+  const [scope, setScope] = useState<ReviewScope>("all");
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   /**
@@ -94,21 +97,33 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         }
       : undefined;
 
-  const loadReviews = useCallback(async (bounds: LatLngBounds) => {
-    lastBounds.current = bounds;
-    // Cancel any in-flight load — only the response for the latest
-    // bounds may update the map.
-    reviewsAbort.current?.abort();
-    const ctrl = new AbortController();
-    reviewsAbort.current = ctrl;
-    try {
-      setReviews(await fetchReviews(bounds, ctrl.signal));
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") {
+  const loadReviews = useCallback(
+    async (bounds: LatLngBounds) => {
+      lastBounds.current = bounds;
+      // Cancel any in-flight load — only the response for the latest
+      // bounds/scope may update the map.
+      reviewsAbort.current?.abort();
+      const ctrl = new AbortController();
+      reviewsAbort.current = ctrl;
+      try {
+        setReviews(await fetchReviews(bounds, ctrl.signal, scope));
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        if (err instanceof ApiError && err.status === 401) {
+          // Session expired while filtering by "following" — re-login.
+          window.location.href = "/login";
+          return;
+        }
         console.error("Failed to load reviews", err);
       }
-    }
-  }, []);
+    },
+    [scope],
+  );
+
+  /** Refetch at the current bounds when the scope changes. */
+  useEffect(() => {
+    if (lastBounds.current) void loadReviews(lastBounds.current);
+  }, [loadReviews]);
 
   /** Select a place (map marker, map click, search): open the place panel. */
   const selectPlace = useCallback(
@@ -426,7 +441,46 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
 
             <SearchBox onSelect={onSearchPlaceSelected} onClear={closePlacePanel} />
 
-            <ReviewList reviews={reviews} onSelect={selectReview} />
+            <div className="scope-toggle" role="group" aria-label="Review scope">
+              <button
+                type="button"
+                className={scope === "all" ? "active" : ""}
+                onClick={() => setScope("all")}
+                title="All reviews in this area"
+              >
+                All
+              </button>
+              {user && (
+                <button
+                  type="button"
+                  className={scope === "following" ? "active" : ""}
+                  onClick={() => setScope("following")}
+                  title="Only your reviews and reviews from people you follow"
+                >
+                  Following
+                </button>
+              )}
+              <button
+                type="button"
+                className={scope === "local" ? "active" : ""}
+                onClick={() => setScope("local")}
+                title="Only reviews from users on this server"
+              >
+                Local
+              </button>
+            </div>
+
+            <ReviewList
+              reviews={reviews}
+              onSelect={selectReview}
+              emptyMessage={
+                scope === "following"
+                  ? "No reviews from you or people you follow in this area."
+                  : scope === "local"
+                    ? "No local reviews in this area."
+                    : undefined
+              }
+            />
           </>
         )}
 

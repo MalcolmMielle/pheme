@@ -20,14 +20,15 @@ async def create_actor(
     following_uri: str,
     password_hash: str | None = None,
     is_admin: bool = False,
+    is_local: bool = True,
 ) -> dict[str, Any]:
     db = await get_db()
     cursor = await db.execute(
         """INSERT INTO actors (username, display_name, summary,
            private_key_pem, public_key_pem, actor_uri,
            inbox_uri, outbox_uri, followers_uri, following_uri,
-           password_hash, is_admin)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           password_hash, is_admin, is_local)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             username,
             display_name,
@@ -41,6 +42,7 @@ async def create_actor(
             following_uri,
             password_hash,
             1 if is_admin else 0,
+            1 if is_local else 0,
         ),
     )
     await db.commit()

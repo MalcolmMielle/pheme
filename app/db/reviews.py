@@ -50,16 +50,33 @@ async def review_exists(ap_id: str) -> bool:
     return await row.fetchone() is not None
 
 
+def _actor_uri_where(actor_uris: list[str] | None) -> tuple[str, list[str]]:
+    """SQL WHERE fragment restricting reviews to the given actor URIs.
+
+    Returns (clause, params) — ``None`` means no filter ("1=1"), an empty
+    list means "match nothing" ("1=0").
+    """
+    if actor_uris is None:
+        return "1=1", []
+    if not actor_uris:
+        return "1=0", []
+    placeholders = ",".join("?" for _ in actor_uris)
+    return f"a.actor_uri IN ({placeholders})", list(actor_uris)
+
+
 async def get_reviews(
     limit: int = 100,
     offset: int = 0,
+    actor_uris: list[str] | None = None,
 ) -> list[dict[str, Any]]:
+    where, params = _actor_uri_where(actor_uris)
     db = await get_db()
     rows = await db.execute(
-        """SELECT r.*, a.username, a.display_name, a.actor_uri
+        f"""SELECT r.*, a.username, a.display_name, a.actor_uri
            FROM reviews r JOIN actors a ON r.actor_id = a.id
+           WHERE {where}
            ORDER BY r.created_at DESC LIMIT ? OFFSET ?""",
-        (limit, offset),
+        (*params, limit, offset),
     )
     return [dict(r) for r in await rows.fetchall()]
 
@@ -87,15 +104,18 @@ async def get_reviews_by_bounds(
     max_lng: float,
     limit: int = 200,
     offset: int = 0,
+    actor_uris: list[str] | None = None,
 ) -> list[dict[str, Any]]:
+    where, params = _actor_uri_where(actor_uris)
     db = await get_db()
     rows = await db.execute(
-        """SELECT r.*, a.username, a.display_name, a.actor_uri
+        f"""SELECT r.*, a.username, a.display_name, a.actor_uri
            FROM reviews r JOIN actors a ON r.actor_id = a.id
            WHERE r.latitude BETWEEN ? AND ?
              AND r.longitude BETWEEN ? AND ?
+             AND {where}
            ORDER BY r.created_at DESC LIMIT ? OFFSET ?""",
-        (min_lat, max_lat, min_lng, max_lng, limit, offset),
+        (min_lat, max_lat, min_lng, max_lng, *params, limit, offset),
     )
     return [dict(r) for r in await rows.fetchall()]
 
@@ -121,10 +141,15 @@ async def delete_review(review_id: int) -> bool:
     return cursor.rowcount > 0
 
 
-async def count_reviews() -> int:
-    """Return the total number of reviews."""
+async def count_reviews(actor_uris: list[str] | None = None) -> int:
+    """Return the total number of reviews (optionally for given actor URIs)."""
+    where, params = _actor_uri_where(actor_uris)
     db = await get_db()
-    row = await db.execute("SELECT COUNT(*) AS cnt FROM reviews")
+    row = await db.execute(
+        f"""SELECT COUNT(*) AS cnt FROM reviews r
+           JOIN actors a ON r.actor_id = a.id WHERE {where}""",
+        params,
+    )
     result = await row.fetchone()
     return result["cnt"] if result else 0
 
@@ -134,13 +159,18 @@ async def count_reviews_by_bounds(
     max_lat: float,
     min_lng: float,
     max_lng: float,
+    actor_uris: list[str] | None = None,
 ) -> int:
     """Return the number of reviews within the given map bounds."""
+    where, params = _actor_uri_where(actor_uris)
     db = await get_db()
     row = await db.execute(
-        """SELECT COUNT(*) AS cnt FROM reviews
-           WHERE latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?""",
-        (min_lat, max_lat, min_lng, max_lng),
+        f"""SELECT COUNT(*) AS cnt FROM reviews r
+           JOIN actors a ON r.actor_id = a.id
+           WHERE r.latitude BETWEEN ? AND ?
+             AND r.longitude BETWEEN ? AND ?
+             AND {where}""",
+        (min_lat, max_lat, min_lng, max_lng, *params),
     )
     result = await row.fetchone()
     return result["cnt"] if result else 0

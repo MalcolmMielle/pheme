@@ -28,6 +28,7 @@ from app.db import (
     get_actor_by_uri,
     get_actor_by_username,
     get_follower_inboxes,
+    get_following,
     get_following_actors,
     get_review_by_id,
     get_reviews,
@@ -153,14 +154,35 @@ async def api_reverse_geocode(lat: float, lon: float) -> JSONResponse:
 
 @router.get("/api/reviews")
 async def api_reviews(
+    request: Request,
     min_lat: float | None = None,
     max_lat: float | None = None,
     min_lng: float | None = None,
     max_lng: float | None = None,
+    scope: str = "all",
     limit: int = 200,
     offset: int = 0,
 ) -> JSONResponse:
-    """Return reviews, optionally filtered by map bounds. Supports pagination."""
+    """Return reviews, optionally filtered by map bounds. Supports pagination.
+
+    ``scope=following`` restricts the result to the logged-in user's own
+    reviews plus reviews by actors they follow (401 when logged out);
+    ``scope=local`` returns only reviews by local actors (no login needed);
+    ``scope=all`` (default) returns everything.
+    """
+    if scope not in ("all", "following", "local"):
+        raise HTTPException(400, "scope must be 'all', 'following' or 'local'")
+
+    actor_uris: list[str] | None = None
+    if scope == "following":
+        user_id = request.session.get("user_id")
+        actor = await get_actor_by_id(user_id) if user_id is not None else None
+        if actor is None:
+            return JSONResponse({"detail": "Authentication required"}, status_code=401)
+        actor_uris = [actor["actor_uri"], *(await get_following(actor["id"]))]
+    elif scope == "local":
+        actor_uris = [a["actor_uri"] for a in await list_local_actors()]
+
     if (
         min_lat is not None
         and max_lat is not None
@@ -168,12 +190,20 @@ async def api_reviews(
         and max_lng is not None
     ):
         reviews = await get_reviews_by_bounds(
-            min_lat, max_lat, min_lng, max_lng, limit=limit, offset=offset
+            min_lat,
+            max_lat,
+            min_lng,
+            max_lng,
+            limit=limit,
+            offset=offset,
+            actor_uris=actor_uris,
         )
-        total = await count_reviews_by_bounds(min_lat, max_lat, min_lng, max_lng)
+        total = await count_reviews_by_bounds(
+            min_lat, max_lat, min_lng, max_lng, actor_uris=actor_uris
+        )
     else:
-        reviews = await get_reviews(limit=limit, offset=offset)
-        total = await count_reviews()
+        reviews = await get_reviews(limit=limit, offset=offset, actor_uris=actor_uris)
+        total = await count_reviews(actor_uris=actor_uris)
     return JSONResponse(
         reviews,
         headers={"X-Total-Count": str(total)},

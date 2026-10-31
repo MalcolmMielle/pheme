@@ -295,7 +295,7 @@ app loads it automatically via [python-dotenv](https://pypi.org/project/python-d
 | `GET` | `/review/{id}` | Single review page (server-rendered) |
 | `GET` | `/api/me` | Current session user (`{id, username, display_name, is_admin, actor_uri, csrf_token}`); 401 when logged out |
 | `GET` | `/api/me/following` | The logged-in user's accepted follows (`{"following": [{actor_uri, username, display_name}]}`); 401 when logged out |
-| `GET` | `/api/reviews` | JSON reviews (optional `?min_lat=&max_lat=&min_lng=&max_lng=&limit=&offset=`) |
+| `GET` | `/api/reviews` | JSON reviews (optional `?min_lat=&max_lat=&min_lng=&max_lng=&limit=&offset=&scope=`; `scope` is `all` (default), `following` (own + followed actors, needs login), or `local` (this server's users only)) |
 | `GET` | `/api/reviews/{id}` | Single review as JSON |
 | `POST` | `/api/reviews` | Create review — form-encoded (needs `csrf_token`) or JSON body (`content`, `rating`, `latitude`, `longitude`, `place_name`, `place_address`); requires login |
 | `DELETE` | `/api/reviews/{id}` | Delete a review (author only) |

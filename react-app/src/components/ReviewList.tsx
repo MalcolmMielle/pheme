@@ -4,12 +4,17 @@ import type { Review } from "../types";
 interface ReviewListProps {
   reviews: Review[];
   onSelect: (review: Review) => void;
+  /** Shown when the list is empty (e.g. the "following" scope has no matches). */
+  emptyMessage?: string;
 }
 
 /** Sidebar review cards, synced to the visible map bounds. */
-export default function ReviewList({ reviews, onSelect }: ReviewListProps) {
+export default function ReviewList({ reviews, onSelect, emptyMessage }: ReviewListProps) {
   return (
     <div className="review-list">
+      {reviews.length === 0 && emptyMessage && (
+        <p className="review-list-empty">{emptyMessage}</p>
+      )}
       {reviews.map((r) => {
         const server = actorServer(r.actor_uri);
         return (

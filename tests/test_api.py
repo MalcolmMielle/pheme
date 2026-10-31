@@ -3,7 +3,13 @@
 import unittest
 from unittest.mock import patch
 
-from app.db import accept_follow, create_actor, follow_actor, get_actor_by_username
+from app.db import (
+    accept_follow,
+    create_actor,
+    create_review,
+    follow_actor,
+    get_actor_by_username,
+)
 from app.routes.api import _resolve_actor_uri, _webfinger_schemes
 from tests.base import AsyncTestCase, get_csrf_token
 
@@ -565,3 +571,127 @@ class TestUnfollow(AsyncTestCase):
         )
         assert resp.status_code == 200
         assert resp.json()["was_following"] is False
+
+
+class TestReviewsScope(AsyncTestCase):
+    """GET /api/reviews?scope=following — only own + followed actors' reviews."""
+
+    async def _make_review(
+        self, actor_id: int, ap_id: str, content: str, lat: float = 37.0
+    ):
+        await create_review(
+            actor_id=actor_id,
+            ap_id=ap_id,
+            content=content,
+            rating=4,
+            latitude=lat,
+            longitude=-122.0,
+        )
+
+    async def _setup(self):
+        """testuser (logged in) follows remote bob; carol is not followed.
+
+        Reviews: mine@37.0, bob's@40.0, carol's@37.0.
+        """
+        await self.register_user()
+        me = await get_actor_by_username("testuser")
+        assert me is not None
+        bob = await create_actor(
+            username="remotebob",
+            display_name="Remote Bob",
+            summary="",
+            private_key_pem="",
+            public_key_pem="",
+            actor_uri="https://remote.example/actor/bob",
+            inbox_uri="https://remote.example/actor/bob/inbox",
+            outbox_uri="https://remote.example/actor/bob/outbox",
+            followers_uri="https://remote.example/actor/bob/followers",
+            following_uri="https://remote.example/actor/bob/following",
+            is_local=False,
+        )
+        carol = await create_actor(
+            username="remotecarol",
+            display_name="Remote Carol",
+            summary="",
+            private_key_pem="",
+            public_key_pem="",
+            actor_uri="https://remote2.example/actor/carol",
+            inbox_uri="https://remote2.example/actor/carol/inbox",
+            outbox_uri="https://remote2.example/actor/carol/outbox",
+            followers_uri="https://remote2.example/actor/carol/followers",
+            following_uri="https://remote2.example/actor/carol/following",
+            is_local=False,
+        )
+        assert bob is not None and carol is not None
+        await follow_actor(me["id"], bob["actor_uri"])
+        await accept_follow(me["id"], bob["actor_uri"])
+        await self._make_review(
+            me["id"], "http://testserver/actor/testuser/review/1", "mine"
+        )
+        await self._make_review(
+            bob["id"], "https://remote.example/actor/bob/review/1", "bobs", lat=40.0
+        )
+        await self._make_review(
+            carol["id"], "https://remote2.example/actor/carol/review/1", "carols"
+        )
+
+    async def test_scope_following_requires_auth(self):
+        resp = await self.client.get(
+            "/api/reviews?scope=following", headers=JSON_HEADERS
+        )
+        assert resp.status_code == 401
+
+    async def test_scope_following_filters_to_own_and_followed(self):
+        await self._setup()
+        resp = await self.client.get(
+            "/api/reviews?scope=following", headers=JSON_HEADERS
+        )
+        assert resp.status_code == 200
+        contents = {r["content"] for r in resp.json()}
+        assert contents == {"mine", "bobs"}
+        assert resp.headers["X-Total-Count"] == "2"
+
+    async def test_scope_all_returns_everything(self):
+        await self._setup()
+        resp = await self.client.get("/api/reviews", headers=JSON_HEADERS)
+        assert resp.status_code == 200
+        assert len(resp.json()) == 3
+        assert resp.headers["X-Total-Count"] == "3"
+
+    async def test_scope_following_combined_with_bounds(self):
+        await self._setup()
+        # Bounds around lat 37 exclude bob's review (lat 40) and include
+        # carol's — but carol is not followed, so only "mine" remains.
+        resp = await self.client.get(
+            "/api/reviews?scope=following&min_lat=36&max_lat=38&min_lng=-123&max_lng=-121",
+            headers=JSON_HEADERS,
+        )
+        assert resp.status_code == 200
+        assert {r["content"] for r in resp.json()} == {"mine"}
+
+    async def test_invalid_scope(self):
+        await self.register_user()
+        resp = await self.client.get("/api/reviews?scope=bogus", headers=JSON_HEADERS)
+        assert resp.status_code == 400
+
+    async def test_scope_local_returns_only_local_actors(self):
+        """scope=local needs no login and excludes remote (federated) actors."""
+        await self._setup()
+        # Fresh client state: drop the session by using a new client.
+        from httpx import ASGITransport, AsyncClient
+
+        from app.main import app
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://testserver"
+        ) as anon:
+            resp = await anon.get("/api/reviews?scope=local", headers=JSON_HEADERS)
+        assert resp.status_code == 200
+        # Only testuser is local in this setup (bob/carol are is_local=0).
+        assert [r["content"] for r in resp.json()] == ["mine"]
+
+    async def test_scope_local_with_no_local_actors(self):
+        """An empty local actor set must match nothing, not everything."""
+        resp = await self.client.get("/api/reviews?scope=local", headers=JSON_HEADERS)
+        assert resp.status_code == 200
+        assert resp.json() == []

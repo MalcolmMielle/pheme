@@ -72,6 +72,39 @@ body {
   font-weight: 500;
 }
 
+/* ── scope toggle (All / Following) ─────────────────────────────────── */
+.scope-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.scope-toggle button {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.scope-toggle button:hover { background: var(--surface-elevated); }
+.scope-toggle button.active {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--accent);
+  border-color: transparent;
+}
+.review-list-empty {
+  margin: 0;
+  padding: 16px 20px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
 /* ── user strip (account area) ──────────────────────────────────────── */
 .sidebar-user {
   padding: 10px 12px;

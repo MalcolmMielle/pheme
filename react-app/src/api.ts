@@ -7,7 +7,18 @@ import type {
   Me,
   NominatimResult,
   Review,
+  ReviewScope,
 } from "./types";
+
+/** Error from an API call, carrying the HTTP status (e.g. 401 → re-login). */
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 /** Current session user, or null when logged out (401). */
 export async function fetchMe(): Promise<Me | null> {
@@ -30,10 +41,13 @@ export async function fetchMyFollowing(): Promise<FollowingEntry[] | null> {
   return data.following;
 }
 
-/** Reviews within the given map bounds. Pass a signal to cancel the request. */
+/** Reviews within the given map bounds. Pass a signal to cancel the request.
+ *  scope "following" asks the server for own + followed actors' reviews
+ *  (401 when logged out). */
 export async function fetchReviews(
   bounds: MapBounds,
   signal?: AbortSignal,
+  scope: ReviewScope = "all",
 ): Promise<Review[]> {
   const params = new URLSearchParams({
     min_lat: String(bounds.getSouth()),
@@ -41,11 +55,12 @@ export async function fetchReviews(
     min_lng: String(bounds.getWest()),
     max_lng: String(bounds.getEast()),
   });
+  if (scope !== "all") params.set("scope", scope);
   const resp = await fetch(`/api/reviews?${params}`, {
     headers: { Accept: "application/json" },
     signal,
   });
-  if (!resp.ok) throw new Error(`GET /api/reviews failed: ${resp.status}`);
+  if (!resp.ok) throw new ApiError(resp.status, `GET /api/reviews failed: ${resp.status}`);
   return resp.json();
 }
 

@@ -1,5 +1,8 @@
 /** Shared TypeScript types for the Federated Reviews SPA. */
 
+/** Review list scope: everything, own + followed actors, or local server only. */
+export type ReviewScope = "all" | "following" | "local";
+
 /** A review as returned by `GET /api/reviews`. */
 export interface Review {
   id: number;
