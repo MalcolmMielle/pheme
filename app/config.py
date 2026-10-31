@@ -54,6 +54,11 @@ class Config:
         default_factory=lambda: int(os.getenv("PASSWORD_MIN_LENGTH", "8"))
     )
 
+    # Session cookie lifetime in seconds (default: 30 days).
+    session_max_age: int = field(
+        default_factory=lambda: int(os.getenv("SESSION_MAX_AGE", str(30 * 24 * 3600)))
+    )
+
     # Enable uvicorn auto-reload (development only — off unless asked for).
     reload: bool = field(
         default_factory=lambda: (

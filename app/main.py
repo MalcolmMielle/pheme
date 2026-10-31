@@ -46,7 +46,15 @@ app = FastAPI(title="Federated Reviews", version="0.1.0", lifespan=lifespan)
 # so that Session runs first (outermost) and populates scope["session"].
 
 app.add_middleware(CSRFMiddleware)
-app.add_middleware(SessionMiddleware, secret_key=config.secret_key)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=config.secret_key,
+    max_age=config.session_max_age,
+    same_site="lax",
+    # Mark the session cookie Secure when the server is served over HTTPS,
+    # so it is never sent over plain HTTP.
+    https_only=config.base_url.startswith("https://"),
+)
 
 # Rate limiter (slowapi) — auth routes opt in with @limiter.limit(...)
 app.state.limiter = limiter
