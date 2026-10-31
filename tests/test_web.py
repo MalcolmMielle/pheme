@@ -109,7 +109,7 @@ class TestAuth(AsyncTestCase):
             data={
                 "username": "loginuser",
                 "display_name": "Login User",
-                "password": "correct",
+                "password": "correct123",
                 "csrf_token": csrf,
             },
             follow_redirects=False,
@@ -119,7 +119,7 @@ class TestAuth(AsyncTestCase):
             "/login",
             data={
                 "username": "loginuser",
-                "password": "wrong",
+                "password": "wrongpass",
                 "csrf_token": csrf,
             },
             follow_redirects=False,
@@ -147,7 +147,7 @@ class TestAuth(AsyncTestCase):
             data={
                 "username": "already",
                 "display_name": "Already",
-                "password": "pw",
+                "password": "pw123456",
                 "csrf_token": csrf,
             },
             follow_redirects=False,
@@ -163,7 +163,7 @@ class TestAuth(AsyncTestCase):
             data={
                 "username": "logoutuser",
                 "display_name": "Logout",
-                "password": "pw",
+                "password": "pw123456",
                 "csrf_token": csrf,
             },
             follow_redirects=False,

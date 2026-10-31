@@ -18,7 +18,7 @@ class TestWebFinger(AsyncTestCase):
         # Bootstrap an actor first
         await self.client.post(
             "/api/bootstrap",
-            data={"username": "alice", "display_name": "Alice", "password": "pw"},
+            data={"username": "alice", "display_name": "Alice", "password": "pw123456"},
         )
         resp = await self.client.get(
             "/.well-known/webfinger",
@@ -48,7 +48,7 @@ class TestActor(AsyncTestCase):
     async def test_get_actor(self):
         await self.client.post(
             "/api/bootstrap",
-            data={"username": "alice", "display_name": "Alice", "password": "pw"},
+            data={"username": "alice", "display_name": "Alice", "password": "pw123456"},
         )
         resp = await self.client.get(
             "/actor/alice",
@@ -72,7 +72,7 @@ class TestOutbox(AsyncTestCase):
     async def test_outbox_empty(self):
         await self.client.post(
             "/api/bootstrap",
-            data={"username": "alice", "display_name": "Alice", "password": "pw"},
+            data={"username": "alice", "display_name": "Alice", "password": "pw123456"},
         )
         resp = await self.client.get("/actor/alice/outbox")
         assert resp.status_code == 200
@@ -89,7 +89,7 @@ class TestOutbox(AsyncTestCase):
             data={
                 "username": "alice",
                 "display_name": "Alice",
-                "password": "pw",
+                "password": "pw123456",
                 "csrf_token": csrf,
             },
             follow_redirects=False,
@@ -125,7 +125,7 @@ class TestFollowersFollowing(AsyncTestCase):
     async def test_empty_followers(self):
         await self.client.post(
             "/api/bootstrap",
-            data={"username": "alice", "display_name": "Alice", "password": "pw"},
+            data={"username": "alice", "display_name": "Alice", "password": "pw123456"},
         )
         resp = await self.client.get("/actor/alice/followers")
         assert resp.status_code == 200
@@ -135,7 +135,7 @@ class TestFollowersFollowing(AsyncTestCase):
     async def test_empty_following(self):
         await self.client.post(
             "/api/bootstrap",
-            data={"username": "alice", "display_name": "Alice", "password": "pw"},
+            data={"username": "alice", "display_name": "Alice", "password": "pw123456"},
         )
         resp = await self.client.get("/actor/alice/following")
         assert resp.status_code == 200
@@ -147,7 +147,7 @@ class TestInbox(AsyncTestCase):
     async def test_inbox_rejects_unsigned(self):
         await self.client.post(
             "/api/bootstrap",
-            data={"username": "alice", "display_name": "Alice", "password": "pw"},
+            data={"username": "alice", "display_name": "Alice", "password": "pw123456"},
         )
         resp = await self.client.post(
             "/actor/alice/inbox",
@@ -169,7 +169,7 @@ class TestInbox(AsyncTestCase):
         """A signed Undo{Follow} must drop the sender from the target's followers."""
         await self.client.post(
             "/api/bootstrap",
-            data={"username": "alice", "display_name": "Alice", "password": "pw"},
+            data={"username": "alice", "display_name": "Alice", "password": "pw123456"},
         )
         alice = await get_actor_by_username("alice")
         assert alice is not None

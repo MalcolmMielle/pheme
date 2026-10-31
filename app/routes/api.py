@@ -39,6 +39,7 @@ from app.db import (
     unfollow_actor,
 )
 from app.config import config
+from app.forms import RegisterForm, first_validation_error
 from app.routes.activitypub import create_local_actor, fetch_remote_actor
 from app.routes.activitypub.helpers import iso8601_from_sqlite
 
@@ -510,14 +511,21 @@ async def api_admin_create_user(
     is_admin: bool = Form(False),
 ) -> JSONResponse:
     """Create a new local account, optionally as an admin (admin only)."""
-    existing = await get_actor_by_username(username)
+    try:
+        form = RegisterForm(
+            username=username, display_name=display_name, password=password
+        )
+    except ValidationError as exc:
+        raise HTTPException(422, first_validation_error(exc)) from exc
+
+    existing = await get_actor_by_username(form.username)
     if existing:
         raise HTTPException(409, "Username already taken")
 
     actor = await create_local_actor(
-        username=username,
-        display_name=display_name,
-        password_hash=hash_password(password),
+        username=form.username,
+        display_name=form.display_name,
+        password_hash=hash_password(form.password),
         is_admin=is_admin,
     )
     logger.info(

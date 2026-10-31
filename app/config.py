@@ -49,6 +49,11 @@ class Config:
     # Secret key for session signing — generated randomly if SECRET_KEY is not set.
     secret_key: str = field(default_factory=_get_secret_key)
 
+    # Minimum password length for new accounts.
+    password_min_length: int = field(
+        default_factory=lambda: int(os.getenv("PASSWORD_MIN_LENGTH", "8"))
+    )
+
     # Enable uvicorn auto-reload (development only — off unless asked for).
     reload: bool = field(
         default_factory=lambda: (

@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
 
 from app.config import config
 from app.db import (
@@ -20,6 +21,7 @@ from app.db import (
     hash_password,
     verify_password,
 )
+from app.forms import RegisterForm, first_validation_error
 from app.routes.activitypub import create_local_actor
 
 router = APIRouter()
@@ -82,7 +84,19 @@ async def register(
     password: str = Form(...),
 ) -> HTMLResponse | RedirectResponse:
     """Create a new local actor with a password and log in."""
-    existing = await get_actor_by_username(username)
+    try:
+        form = RegisterForm(
+            username=username, display_name=display_name, password=password
+        )
+    except ValidationError as exc:
+        return templates.TemplateResponse(
+            request=request,
+            name="register.html",
+            context={"error": first_validation_error(exc)},
+            status_code=400,
+        )
+
+    existing = await get_actor_by_username(form.username)
     if existing:
         return templates.TemplateResponse(
             request=request,
@@ -92,9 +106,9 @@ async def register(
         )
 
     actor = await create_local_actor(
-        username=username,
-        display_name=display_name,
-        password_hash=hash_password(password),
+        username=form.username,
+        display_name=form.display_name,
+        password_hash=hash_password(form.password),
     )
 
     request.session["user_id"] = actor["id"]
