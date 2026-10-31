@@ -15,12 +15,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.auth import _LoginRequired, login_required_handler
 from app.config import config
 from app.db import close_db, init_db
 from app.middleware import CSRFMiddleware
+from app.ratelimit import limiter
 from app.routes.activitypub import router as activitypub_router
 from app.routes.api import router as api_router
 from app.routes.web import router as web_router
@@ -44,6 +47,10 @@ app = FastAPI(title="Federated Reviews", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(CSRFMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=config.secret_key)
+
+# Rate limiter (slowapi) — auth routes opt in with @limiter.limit(...)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── exception handlers ─────────────────────────────────────────────────
 

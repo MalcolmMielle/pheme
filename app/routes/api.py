@@ -40,6 +40,7 @@ from app.db import (
 )
 from app.config import config
 from app.forms import RegisterForm, first_validation_error
+from app.ratelimit import limiter
 from app.routes.activitypub import create_local_actor, fetch_remote_actor
 from app.routes.activitypub.helpers import iso8601_from_sqlite
 
@@ -457,7 +458,9 @@ async def api_unfollow(
 
 
 @router.post("/api/bootstrap")
+@limiter.limit("5/minute")
 async def api_bootstrap(
+    request: Request,
     username: str = Form("admin"),
     display_name: str = Form("Admin"),
     password: str = Form(""),

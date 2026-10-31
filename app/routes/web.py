@@ -6,6 +6,7 @@ and served by app/main.py); these routes cover the standalone review page
 and the login/register/logout forms.
 """
 
+import secrets
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
@@ -22,10 +23,15 @@ from app.db import (
     verify_password,
 )
 from app.forms import RegisterForm, first_validation_error
+from app.ratelimit import limiter
 from app.routes.activitypub import create_local_actor
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+# Hashed once at startup; used to equalize login timing for unknown usernames
+# so the response time doesn't reveal whether an account exists.
+_DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 
 
 # ── review detail page ──────────────────────────────────────────────────
@@ -77,6 +83,7 @@ async def register_form(request: Request) -> HTMLResponse:
 
 
 @router.post("/register", response_model=None)
+@limiter.limit("3/minute")
 async def register(
     request: Request,
     username: str = Form(...),
@@ -124,6 +131,7 @@ async def login_form(request: Request) -> HTMLResponse | RedirectResponse:
 
 
 @router.post("/login", response_model=None)
+@limiter.limit("5/minute")
 async def login(
     request: Request,
     username: str = Form(...),
@@ -132,6 +140,9 @@ async def login(
     """Verify credentials and create a session."""
     actor = await get_actor_by_username(username)
     if not actor or not actor.get("password_hash"):
+        # Burn a bcrypt check anyway so the response time doesn't reveal
+        # whether the username exists.
+        verify_password(password, _DUMMY_PASSWORD_HASH)
         return templates.TemplateResponse(
             request=request,
             name="login.html",

@@ -62,6 +62,10 @@ class AsyncTestCase(unittest.IsolatedAsyncioTestCase):
 
         from app.main import app
 
+        # Rate limiting is off by default in tests (all requests share one
+        # test IP); the rate-limit test re-enables it explicitly.
+        app.state.limiter.enabled = False
+
         transport = ASGITransport(app=app)
         self.client = AsyncClient(transport=transport, base_url="http://testserver")
 
