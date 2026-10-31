@@ -498,6 +498,31 @@ class TestModeration(AdminTestCase):
         assert await get_actor_by_id(uid) is None
         assert len(await get_reviews()) == 0
 
+    async def test_delete_user_referenced_by_invites(self):
+        """invite_codes.created_by/used_by are FKs to actors with no ON DELETE
+        clause — deleting an account that created or used an invite must not
+        fail with a foreign-key violation."""
+        from app.db import (
+            consume_invite,
+            create_invite,
+            get_actor_by_id,
+            get_actor_by_username,
+            list_invites,
+        )
+
+        uid = await self._create_user()
+        admin = await get_actor_by_username("admin")
+        assert admin is not None
+        await create_invite(uid)  # victim created an invite
+        used = await create_invite(admin["id"])
+        assert await consume_invite(used["id"], uid)  # victim used an invite
+        assert len(await list_invites()) == 2
+
+        resp = await self.client.delete(f"/api/admin/users/{uid}", headers=JSON_HEADERS)
+        assert resp.status_code == 200
+        assert await get_actor_by_id(uid) is None
+        assert await list_invites() == []
+
     async def test_cannot_moderate_self_or_last_admin(self):
         await self.make_admin()
         me = (await self.client.get("/api/me", headers=JSON_HEADERS)).json()
