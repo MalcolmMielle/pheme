@@ -70,14 +70,14 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
       isMobile
         ? { lat, lng, zoom, padLeft: 30, padTop: 84, padRight: 30, padBottom: 164 }
         : {
-            lat,
-            lng,
-            zoom,
-            padLeft: SIDEBAR_W + 30,
-            padTop: 30,
-            padRight: 30,
-            padBottom: 30,
-          },
+          lat,
+          lng,
+          zoom,
+          padLeft: SIDEBAR_W + 30,
+          padTop: 30,
+          padRight: 30,
+          padBottom: 30,
+        },
     [isMobile],
   );
 
@@ -92,9 +92,9 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
   const sheetStyle =
     dragDy != null
       ? {
-          height: `max(64px, min(calc(${sheetBase} - ${dragDy}px), 92dvh))`,
-          transition: "none",
-        }
+        height: `max(64px, min(calc(${sheetBase} - ${dragDy}px), 92dvh))`,
+        transition: "none",
+      }
       : undefined;
 
   const loadReviews = useCallback(
@@ -220,10 +220,10 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         setDraft((d) =>
           d && !d.locked && d.lat === lat && d.lng === lng
             ? {
-                ...d,
-                placeName: displayName.split(",")[0],
-                placeAddress: displayName,
-              }
+              ...d,
+              placeName: displayName.split(",")[0],
+              placeAddress: displayName,
+            }
             : d,
         ),
       );
@@ -373,7 +373,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         ) : (
           <>
             <div className="sidebar-header">
-              <h1>🗺️ FedReviews</h1>
+              <h1>🗺️ Federated Reviews</h1>
               <span className="review-count">
                 {reviews.length} review{reviews.length !== 1 ? "s" : ""}
               </span>
