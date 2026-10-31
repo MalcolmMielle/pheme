@@ -25,14 +25,17 @@ from app.db import (
     delete_review,
     follow_actor,
     get_actor_by_id,
+    get_actor_by_uri,
     get_actor_by_username,
     get_follower_inboxes,
+    get_following_actors,
     get_review_by_id,
     get_reviews,
     get_reviews_by_bounds,
     hash_password,
     list_local_actors,
     set_actor_admin,
+    unfollow_actor,
 )
 from app.config import config
 from app.routes.activitypub import create_local_actor, fetch_remote_actor
@@ -117,9 +120,20 @@ async def api_me(request: Request) -> JSONResponse:
             "username": actor["username"],
             "display_name": actor["display_name"],
             "is_admin": bool(actor.get("is_admin")),
+            "actor_uri": actor["actor_uri"],
             "csrf_token": request.session.get("csrf_token", ""),
         }
     )
+
+
+@router.get("/api/me/following")
+async def api_me_following(actor: dict = Depends(get_current_user)) -> JSONResponse:
+    """The logged-in user's accepted follows, with cached actor details.
+
+    Returns ``{"following": [{actor_uri, username, display_name}]}`` —
+    the accounts whose new reviews federate to this server.
+    """
+    return JSONResponse({"following": await get_following_actors(actor["id"])})
 
 
 @router.get("/api/geocode")
@@ -349,6 +363,60 @@ async def api_follow(
         {
             "status": "follow_sent",
             "target": target_uri,
+            "delivered": delivered,
+        }
+    )
+
+
+@router.post("/api/unfollow")
+async def api_unfollow(
+    actor: dict = Depends(get_current_user),
+    target: str = Form(...),
+) -> JSONResponse:
+    """Unfollow an actor by URI or acct (user@domain).
+
+    Removes the local follow relationship and sends a signed Undo activity
+    wrapping the original Follow to the remote actor's inbox, so the remote
+    server drops this actor from its followers too.
+    """
+    target_uri = await _resolve_actor_uri(target)
+    if not target_uri:
+        raise HTTPException(400, f"Could not resolve actor: {target}")
+
+    removed = await unfollow_actor(actor["id"], target_uri)
+
+    # Notify the remote server (best effort — no retry in MVP).
+    delivered = False
+    remote_actor = await get_actor_by_uri(target_uri)
+    if remote_actor and remote_actor.get("inbox_uri"):
+        undo = {
+            "id": f"{actor['actor_uri']}/undo/{uuid.uuid4()}",
+            "type": "Undo",
+            "actor": actor["actor_uri"],
+            "to": [target_uri],
+            "object": build_follow_activity(actor["actor_uri"], target_uri).model_dump(
+                exclude_none=True
+            ),
+        }
+        delivered = await deliver_to_inbox(
+            remote_actor["inbox_uri"],
+            undo,
+            f"{actor['actor_uri']}#main-key",
+            actor["private_key_pem"],
+        )
+
+    logger.info(
+        "Unfollow %s → %s (removed=%s, delivered=%s)",
+        actor["username"],
+        target_uri,
+        removed,
+        delivered,
+    )
+    return JSONResponse(
+        {
+            "status": "unfollowed",
+            "target": target_uri,
+            "was_following": removed,
             "delivered": delivered,
         }
     )

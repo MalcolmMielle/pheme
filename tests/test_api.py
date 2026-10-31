@@ -3,8 +3,11 @@
 import unittest
 from unittest.mock import patch
 
+from app.db import accept_follow, create_actor, follow_actor, get_actor_by_username
 from app.routes.api import _resolve_actor_uri, _webfinger_schemes
 from tests.base import AsyncTestCase, get_csrf_token
+
+JSON_HEADERS = {"Accept": "application/json"}
 
 
 class TestBootstrap(AsyncTestCase):
@@ -417,3 +420,148 @@ class TestResolveActorUri(AsyncTestCase):
 
         assert uri is None
         assert requested == ["https://example.com/.well-known/webfinger"]
+
+
+class TestMeFollowing(AsyncTestCase):
+    """GET /api/me/following — the profile page's following list."""
+
+    async def test_requires_auth(self):
+        resp = await self.client.get("/api/me/following", headers=JSON_HEADERS)
+        assert resp.status_code == 401
+
+    async def test_empty_when_nothing_followed(self):
+        await self.register_user()
+        resp = await self.client.get("/api/me/following", headers=JSON_HEADERS)
+        assert resp.status_code == 200
+        assert resp.json() == {"following": []}
+
+    async def test_lists_accepted_follows_with_actor_details(self):
+        await self.register_user()
+        actor = await get_actor_by_username("testuser")
+        assert actor is not None
+        remote = await create_actor(
+            username="remotebob",
+            display_name="Remote Bob",
+            summary="",
+            private_key_pem="",
+            public_key_pem="",
+            actor_uri="https://remote.example/actor/bob",
+            inbox_uri="https://remote.example/actor/bob/inbox",
+            outbox_uri="https://remote.example/actor/bob/outbox",
+            followers_uri="https://remote.example/actor/bob/followers",
+            following_uri="https://remote.example/actor/bob/following",
+        )
+        assert remote is not None
+        await follow_actor(actor["id"], remote["actor_uri"])
+        await accept_follow(actor["id"], remote["actor_uri"])
+
+        resp = await self.client.get("/api/me/following", headers=JSON_HEADERS)
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "following": [
+                {
+                    "actor_uri": "https://remote.example/actor/bob",
+                    "username": "remotebob",
+                    "display_name": "Remote Bob",
+                }
+            ]
+        }
+
+    async def test_pending_follow_not_listed(self):
+        await self.register_user()
+        actor = await get_actor_by_username("testuser")
+        assert actor is not None
+        await follow_actor(actor["id"], "https://remote.example/actor/bob")
+
+        resp = await self.client.get("/api/me/following", headers=JSON_HEADERS)
+        assert resp.status_code == 200
+        assert resp.json() == {"following": []}
+
+    async def test_falls_back_to_uri_segment_when_actor_not_cached(self):
+        await self.register_user()
+        actor = await get_actor_by_username("testuser")
+        assert actor is not None
+        await follow_actor(actor["id"], "https://uncached.example/users/carol")
+        await accept_follow(actor["id"], "https://uncached.example/users/carol")
+
+        resp = await self.client.get("/api/me/following", headers=JSON_HEADERS)
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "following": [
+                {
+                    "actor_uri": "https://uncached.example/users/carol",
+                    "username": "carol",
+                    "display_name": "",
+                }
+            ]
+        }
+
+
+class TestUnfollow(AsyncTestCase):
+    """POST /api/unfollow — remove a follow locally (Undo goes to the remote)."""
+
+    async def _setup_follow(self):
+        """Register a user and set up an accepted follow of a remote actor."""
+        await self.register_user()
+        actor = await get_actor_by_username("testuser")
+        assert actor is not None
+        remote = await create_actor(
+            username="remotebob",
+            display_name="Remote Bob",
+            summary="",
+            private_key_pem="",
+            public_key_pem="",
+            actor_uri="https://remote.example/actor/bob",
+            inbox_uri="https://remote.example/actor/bob/inbox",
+            outbox_uri="https://remote.example/actor/bob/outbox",
+            followers_uri="https://remote.example/actor/bob/followers",
+            following_uri="https://remote.example/actor/bob/following",
+        )
+        assert remote is not None
+        await follow_actor(actor["id"], remote["actor_uri"])
+        await accept_follow(actor["id"], remote["actor_uri"])
+        return remote
+
+    async def test_requires_auth(self):
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
+            "/api/unfollow",
+            data={"target": "https://remote.example/actor/bob", "csrf_token": csrf},
+            headers=JSON_HEADERS,
+        )
+        assert resp.status_code == 401
+
+    async def test_invalid_target(self):
+        """An unresolvable target should return 400."""
+        await self.register_user()
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
+            "/api/unfollow",
+            data={"target": "nobody@nonexistent.invalid", "csrf_token": csrf},
+        )
+        assert resp.status_code == 400
+
+    async def test_unfollow_removes_from_following(self):
+        remote = await self._setup_follow()
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
+            "/api/unfollow",
+            data={"target": remote["actor_uri"], "csrf_token": csrf},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "unfollowed"
+        assert data["was_following"] is True
+
+        me_following = await self.client.get("/api/me/following", headers=JSON_HEADERS)
+        assert me_following.json() == {"following": []}
+
+    async def test_unfollow_not_followed_is_idempotent(self):
+        await self.register_user()
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
+            "/api/unfollow",
+            data={"target": "http://localhost:9999/actor/nobody", "csrf_token": csrf},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["was_following"] is False

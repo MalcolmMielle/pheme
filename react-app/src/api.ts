@@ -1,6 +1,13 @@
 /** API helpers — all endpoints are same-origin (Vite proxies them in dev). */
 
-import type { AdminUser, MapBounds, Me, NominatimResult, Review } from "./types";
+import type {
+  AdminUser,
+  FollowingEntry,
+  MapBounds,
+  Me,
+  NominatimResult,
+  Review,
+} from "./types";
 
 /** Current session user, or null when logged out (401). */
 export async function fetchMe(): Promise<Me | null> {
@@ -10,6 +17,17 @@ export async function fetchMe(): Promise<Me | null> {
   if (resp.status === 401) return null;
   if (!resp.ok) throw new Error(`GET /api/me failed: ${resp.status}`);
   return resp.json();
+}
+
+/** The logged-in user's accepted follows, or null when logged out (401). */
+export async function fetchMyFollowing(): Promise<FollowingEntry[] | null> {
+  const resp = await fetch("/api/me/following", {
+    headers: { Accept: "application/json" },
+  });
+  if (resp.status === 401) return null;
+  if (!resp.ok) throw new Error(`GET /api/me/following failed: ${resp.status}`);
+  const data = await resp.json();
+  return data.following;
 }
 
 /** Reviews within the given map bounds. Pass a signal to cancel the request. */
@@ -122,6 +140,17 @@ export function followActor(
   csrfToken: string,
 ): Promise<Response> {
   return formPost("/api/follow", { target }, csrfToken);
+}
+
+/**
+ * Unfollow an actor by URI or handle. Removes the local follow and sends
+ * a signed Undo activity to the remote inbox (best effort).
+ */
+export function unfollowActor(
+  target: string,
+  csrfToken: string,
+): Promise<Response> {
+  return formPost("/api/unfollow", { target }, csrfToken);
 }
 
 export interface NewUserPayload {

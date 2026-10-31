@@ -29,6 +29,8 @@ from app.db.follows import (
     get_follower_inboxes,
     get_followers,
     get_following,
+    get_following_actors,
+    unfollow_actor,
 )
 from app.db.reviews import (
     count_reviews,
@@ -74,4 +76,6 @@ __all__ = [
     "get_followers",
     "get_follower_inboxes",
     "get_following",
+    "get_following_actors",
+    "unfollow_actor",
 ]

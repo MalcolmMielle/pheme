@@ -5,8 +5,6 @@ import { createReview, fetchReviews, reverseGeocode } from "../api";
 import { useBottomSheet } from "../hooks/useBottomSheet";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { reviewsAtPlace } from "../places";
-import AdminPanel from "./AdminPanel";
-import FollowPanel from "./FollowPanel";
 import MapView from "./MapView";
 import PlacePanel from "./PlacePanel";
 import ReviewForm from "./ReviewForm";
@@ -26,13 +24,14 @@ const SIDEBAR_W = 380;
 interface MapPageProps {
   user: Me | null;
   userLoaded: boolean;
+  onOpenProfile: () => void;
 }
 
 /**
  * The map page — layout, state and data flow for the whole app.
  * Ported from app/static/app.js.
  */
-export default function MapPage({ user, userLoaded }: MapPageProps) {
+export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -43,10 +42,6 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
    */
   const [selectedPlace, setSelectedPlace] = useState<PlaceSelection | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
-  /** Admin panel shown in the sidebar instead of the review list (admins only). */
-  const [adminOpen, setAdminOpen] = useState(false);
-  /** Follow panel shown in the sidebar instead of the review list. */
-  const [followOpen, setFollowOpen] = useState(false);
 
   const isMobile = useMediaQuery("(max-width: 768px)");
   const {
@@ -250,20 +245,6 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
     closeForm();
   }, [closeForm]);
 
-  /** Open the admin panel: leave any place panel / review form behind. */
-  const openAdmin = useCallback(() => {
-    closePlacePanel();
-    setFollowOpen(false);
-    setAdminOpen(true);
-  }, [closePlacePanel]);
-
-  /** Open the follow panel: leave any place panel / admin panel behind. */
-  const openFollow = useCallback(() => {
-    closePlacePanel();
-    setAdminOpen(false);
-    setFollowOpen(true);
-  }, [closePlacePanel]);
-
   /**
    * Map click while no form is open: select the clicked spot as a place and
    * open the place panel, like a search pick. The panel opens immediately
@@ -362,11 +343,7 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
         >
           <span className="sheet-handle-bar" />
         </button>
-        {adminOpen && user ? (
-          <AdminPanel currentUser={user} onClose={() => setAdminOpen(false)} />
-        ) : followOpen && user ? (
-          <FollowPanel currentUser={user} onClose={() => setFollowOpen(false)} />
-        ) : selectedPlace ? (
+        {selectedPlace ? (
           <PlacePanel
             place={selectedPlace}
             reviews={reviewsAtPlace(
@@ -393,9 +370,11 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
               >
                 {user ? (
                   <>
-                    <span
+                    <button
+                      type="button"
                       className="user-chip"
-                      title={`Logged in as ${user.display_name || user.username}`}
+                      title={`Profile — logged in as ${user.display_name || user.username}`}
+                      onClick={onOpenProfile}
                     >
                       <span className="avatar" aria-hidden="true">
                         {(user.display_name || user.username).charAt(0)}
@@ -403,53 +382,8 @@ export default function MapPage({ user, userLoaded }: MapPageProps) {
                       <span className="user-name">
                         {user.display_name || user.username}
                       </span>
-                    </span>
+                    </button>
                     <div className="user-actions">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-soft"
-                        onClick={openFollow}
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                          <circle cx="8.5" cy="7" r="4" />
-                          <line x1="20" y1="8" x2="20" y2="14" />
-                          <line x1="23" y1="11" x2="17" y2="11" />
-                        </svg>
-                        Follow
-                      </button>
-                      {user.is_admin && (
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-soft"
-                          onClick={openAdmin}
-                        >
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                          </svg>
-                          Admin
-                        </button>
-                      )}
                       <form method="post" action="/logout">
                         <input
                           type="hidden"

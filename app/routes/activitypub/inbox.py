@@ -23,6 +23,7 @@ from app.db import (
     get_actor_by_uri,
     get_db,
     review_exists,
+    unfollow_actor,
 )
 from app.routes.activitypub.helpers import fetch_remote_actor, require_local_actor
 
@@ -86,6 +87,8 @@ async def post_inbox(username: str, request: Request) -> JSONResponse:
         return await _handle_accept(activity, sender_actor)
     elif activity_type == "Delete":
         return await _handle_delete(activity, sender_actor)
+    elif activity_type == "Undo":
+        return await _handle_undo(activity, sender_actor)
 
     return JSONResponse({"status": "ok"})
 
@@ -148,6 +151,30 @@ async def _handle_accept(
     follower = await get_actor_by_uri(follower_uri) if follower_uri else None
     if follower:
         await accept_follow(follower["id"], sender_actor["actor_uri"])
+    return JSONResponse({"status": "ok"})
+
+
+async def _handle_undo(
+    activity: dict[str, Any], sender_actor: dict[str, Any]
+) -> JSONResponse:
+    """Handle an Undo activity — only Undo{Follow} is supported: the
+    signature-verified sender stops following the Follow's target."""
+    obj = activity.get("object", {})
+    if isinstance(obj, dict) and obj.get("type") == "Follow":
+        target_uri = obj.get("object")
+        target_uri = (
+            target_uri.get("id", "")
+            if isinstance(target_uri, dict)
+            else str(target_uri or "")
+        )
+        if target_uri:
+            removed = await unfollow_actor(sender_actor["id"], target_uri)
+            logger.info(
+                "Undo Follow: %s unfollowed %s (removed=%s)",
+                sender_actor["actor_uri"],
+                target_uri,
+                removed,
+            )
     return JSONResponse({"status": "ok"})
 
 

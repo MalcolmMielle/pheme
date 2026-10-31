@@ -5,7 +5,6 @@ import type { Me } from "../types";
 
 interface FollowPanelProps {
   currentUser: Me;
-  onClose: () => void;
 }
 
 interface FollowResult {
@@ -14,13 +13,14 @@ interface FollowResult {
 }
 
 /**
- * Follow panel — let the logged-in user follow an actor on another server
+ * Follow section — let the logged-in user follow an actor on another server
  * by handle (user@domain) or full actor URI. POSTs to /api/follow, which
  * resolves the target via WebFinger, then sends a signed Follow activity
  * to the remote inbox; the remote server auto-accepts and starts
  * federating that actor's new reviews to this server.
+ * Embedded in the profile page.
  */
-export default function FollowPanel({ currentUser, onClose }: FollowPanelProps) {
+export default function FollowPanel({ currentUser }: FollowPanelProps) {
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,18 +66,6 @@ export default function FollowPanel({ currentUser, onClose }: FollowPanelProps) 
 
   return (
     <div className="follow-panel">
-      <div className="panel-header">
-        <h2>Follow a user</h2>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={onClose}
-          aria-label="Back to map"
-        >
-          ✕
-        </button>
-      </div>
-
       <p className="follow-hint">
         Enter a handle like <code>alice@example.com</code> or a full actor URL
         like <code>https://example.com/actor/alice</code>. Once you follow

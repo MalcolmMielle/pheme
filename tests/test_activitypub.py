@@ -2,6 +2,14 @@
 
 import json
 
+from app.activitypub.signing import generate_keypair, sign_request
+from app.db import (
+    accept_follow,
+    create_actor,
+    follow_actor,
+    get_actor_by_username,
+    get_followers,
+)
 from tests.base import AsyncTestCase, get_csrf_token
 
 
@@ -156,3 +164,64 @@ class TestInbox(AsyncTestCase):
             headers={"Content-Type": "application/activity+json"},
         )
         assert resp.status_code == 404
+
+    async def test_undo_follow_removes_follower(self):
+        """A signed Undo{Follow} must drop the sender from the target's followers."""
+        await self.client.post(
+            "/api/bootstrap",
+            data={"username": "alice", "display_name": "Alice", "password": "pw"},
+        )
+        alice = await get_actor_by_username("alice")
+        assert alice is not None
+
+        # Remote actor bob with a real keypair, so the inbox can verify him.
+        priv, pub = generate_keypair()
+        bob = await create_actor(
+            username="bob",
+            display_name="Bob",
+            summary="",
+            private_key_pem=priv,
+            public_key_pem=pub,
+            actor_uri="https://remote.example/actor/bob",
+            inbox_uri="https://remote.example/actor/bob/inbox",
+            outbox_uri="https://remote.example/actor/bob/outbox",
+            followers_uri="https://remote.example/actor/bob/followers",
+            following_uri="https://remote.example/actor/bob/following",
+        )
+        assert bob is not None
+        await follow_actor(bob["id"], alice["actor_uri"])
+        await accept_follow(bob["id"], alice["actor_uri"])
+        assert await get_followers(alice["id"]) == ["https://remote.example/actor/bob"]
+
+        undo = {
+            "id": "https://remote.example/actor/bob/undo/1",
+            "type": "Undo",
+            "actor": "https://remote.example/actor/bob",
+            "object": {
+                "id": "https://remote.example/actor/bob/follow/alice",
+                "type": "Follow",
+                "actor": "https://remote.example/actor/bob",
+                "object": {"id": alice["actor_uri"], "type": "Person"},
+            },
+        }
+        body = json.dumps(undo).encode()
+        signed = sign_request(
+            method="POST",
+            url="http://testserver/actor/alice/inbox",
+            body=body,
+            key_id="https://remote.example/actor/bob#main-key",
+            private_key_pem=priv,
+        )
+        resp = await self.client.post(
+            "/actor/alice/inbox",
+            content=body,
+            headers={
+                "Content-Type": "application/activity+json",
+                "Host": "testserver",
+                "Date": signed["Date"],
+                "Digest": signed["Digest"],
+                "Signature": signed["Signature"],
+            },
+        )
+        assert resp.status_code == 200
+        assert await get_followers(alice["id"]) == []

@@ -293,12 +293,14 @@ app loads it automatically via [python-dotenv](https://pypi.org/project/python-d
 |--------|------|-------------|
 | `GET` | `/` | Map-based review browser (React SPA) |
 | `GET` | `/review/{id}` | Single review page (server-rendered) |
-| `GET` | `/api/me` | Current session user (`{id, username, display_name, csrf_token}`); 401 when logged out |
+| `GET` | `/api/me` | Current session user (`{id, username, display_name, is_admin, actor_uri, csrf_token}`); 401 when logged out |
+| `GET` | `/api/me/following` | The logged-in user's accepted follows (`{"following": [{actor_uri, username, display_name}]}`); 401 when logged out |
 | `GET` | `/api/reviews` | JSON reviews (optional `?min_lat=&max_lat=&min_lng=&max_lng=&limit=&offset=`) |
 | `GET` | `/api/reviews/{id}` | Single review as JSON |
 | `POST` | `/api/reviews` | Create review — form-encoded (needs `csrf_token`) or JSON body (`content`, `rating`, `latitude`, `longitude`, `place_name`, `place_address`); requires login |
 | `DELETE` | `/api/reviews/{id}` | Delete a review (author only) |
 | `POST` | `/api/follow` | Follow a remote actor (form: `target` — URI or `acct:user@domain`) |
+| `POST` | `/api/unfollow` | Unfollow an actor (form: `target` — URI or `acct:user@domain`); sends an `Undo` to the remote inbox |
 | `GET` | `/api/geocode?q=` | Proxy place search to Nominatim |
 | `GET` | `/api/reverse-geocode?lat=&lon=` | Proxy reverse geocode to Nominatim |
 | `POST` | `/api/bootstrap` | Create first actor (form: `username`, `display_name`) |

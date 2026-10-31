@@ -24,8 +24,17 @@ export interface Me {
   display_name: string;
   /** True for admin accounts — the SPA shows the admin panel to them. */
   is_admin: boolean;
+  /** This server's actor URI for the user, e.g. "http://localhost:8000/actor/alice". */
+  actor_uri: string;
   /** Session CSRF token — include it in form-encoded posts (e.g. logout). */
   csrf_token: string;
+}
+
+/** One entry of the logged-in user's following list, from `GET /api/me/following`. */
+export interface FollowingEntry {
+  actor_uri: string;
+  username: string;
+  display_name: string;
 }
 
 /** A local account as listed by `GET /api/admin/users` (admin only). */

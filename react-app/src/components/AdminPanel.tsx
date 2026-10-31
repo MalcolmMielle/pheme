@@ -5,7 +5,6 @@ import type { AdminUser, Me } from "../types";
 
 interface AdminPanelProps {
   currentUser: Me;
-  onClose: () => void;
 }
 
 /** Pull a human-readable message out of a failed admin API response. */
@@ -16,11 +15,11 @@ async function errorDetail(resp: Response): Promise<string> {
 }
 
 /**
- * Admin panel — lists local accounts and lets an admin create new accounts
- * (optionally as admins) and promote/demote existing ones. Replaces the
- * sidebar content while open; only rendered for admin users.
+ * Admin section — lists local accounts and lets an admin create new accounts
+ * (optionally as admins) and promote/demote existing ones.
+ * Embedded in the profile page; only rendered for admin users.
  */
-export default function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
+export default function AdminPanel({ currentUser }: AdminPanelProps) {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [adminCount, setAdminCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -106,19 +105,9 @@ export default function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
 
   return (
     <div className="admin-panel">
-      <div className="panel-header">
-        <h2>
-          Admin <span className="review-count">{adminCount} admin{adminCount !== 1 ? "s" : ""}</span>
-        </h2>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={onClose}
-          aria-label="Back to map"
-        >
-          ✕
-        </button>
-      </div>
+      <h2>
+        Admin <span className="review-count">{adminCount} admin{adminCount !== 1 ? "s" : ""}</span>
+      </h2>
 
       {error && <div className="form-error admin-error">{error}</div>}
 
