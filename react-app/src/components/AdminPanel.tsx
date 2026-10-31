@@ -5,6 +5,7 @@ import {
   createUser,
   deleteInvite,
   deleteUser,
+  errorFromResponse,
   fetchAdminInvites,
   fetchAdminUsers,
   setUserAdmin,
@@ -15,13 +16,6 @@ import type { AdminUser, Me } from "../types";
 
 interface AdminPanelProps {
   currentUser: Me;
-}
-
-/** Pull a human-readable message out of a failed admin API response. */
-async function errorDetail(resp: Response): Promise<string> {
-  const data = await resp.json().catch(() => null);
-  if (data && typeof data.detail === "string") return data.detail;
-  return `Server error: ${resp.status}`;
 }
 
 /**
@@ -78,7 +72,7 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
           return false;
         }
         if (!resp.ok) {
-          setError(await errorDetail(resp));
+          setError(await errorFromResponse(resp));
           return false;
         }
         await load();

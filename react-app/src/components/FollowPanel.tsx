@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { followActor } from "../api";
+import { errorFromResponse, followActor } from "../api";
 
 interface FollowResult {
   target: string;
@@ -38,15 +38,11 @@ export default function FollowPanel() {
         window.location.href = "/login";
         return;
       }
-      const data = await resp.json().catch(() => null);
       if (!resp.ok) {
-        setError(
-          data && typeof data.detail === "string"
-            ? data.detail
-            : `Server error: ${resp.status}`,
-        );
+        setError(await errorFromResponse(resp));
         return;
       }
+      const data = await resp.json().catch(() => null);
       setResult({
         target: typeof data?.target === "string" ? data.target : value,
         delivered: Boolean(data?.delivered),

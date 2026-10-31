@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import {
   actorServer,
   avatarColor,
+  errorFromResponse,
   fetchMyFollowing,
-  logout,
   unfollowActor,
 } from "../api";
 import AdminPanel from "./AdminPanel";
 import FollowPanel from "./FollowPanel";
+import LogoutButton from "./LogoutButton";
 import ThemeToggle from "./ThemeToggle";
 import type { FollowingEntry, Me } from "../types";
 
@@ -53,12 +54,7 @@ export default function ProfilePage({ user, onBack }: ProfilePageProps) {
         return;
       }
       if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        setError(
-          data && typeof data.detail === "string"
-            ? data.detail
-            : `Server error: ${resp.status}`,
-        );
+        setError(await errorFromResponse(resp));
         return;
       }
       setFollowing((prev) => prev?.filter((f) => f.actor_uri !== entry.actor_uri) ?? prev);
@@ -81,28 +77,7 @@ export default function ProfilePage({ user, onBack }: ProfilePageProps) {
         </button>
         <h1>Profile</h1>
         <ThemeToggle />
-        <button
-          type="button"
-          className="btn btn-sm btn-ghost"
-          onClick={() => void logout()}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-          Log out
-        </button>
+        <LogoutButton label="Log out" />
       </header>
 
       <div className="profile-content">

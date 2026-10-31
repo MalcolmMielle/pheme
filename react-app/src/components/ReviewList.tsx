@@ -1,11 +1,4 @@
-import {
-  actorServer,
-  avatarColor,
-  formatDate,
-  formatRating,
-  formatRelative,
-} from "../api";
-import Stars from "./Stars";
+import ReviewCard from "./ReviewCard";
 import type { Review } from "../types";
 
 interface ReviewListProps {
@@ -64,38 +57,9 @@ export default function ReviewList({
           </p>
         </div>
       )}
-      {reviews.map((r) => {
-        const server = actorServer(r.actor_uri);
-        const who = r.display_name || r.username;
-        return (
-          <div key={r.id} className="review-card" onClick={() => onSelect(r)}>
-            <span
-              className="avatar review-avatar"
-              style={{ background: avatarColor(who) }}
-              aria-hidden="true"
-            >
-              {who.charAt(0)}
-            </span>
-            <div className="review-card-main">
-              <span className="place">{r.place_name || "Unnamed place"}</span>
-              <div className="rating-row">
-                <Stars value={r.rating} size={12} />
-                <span className="rating-num">{formatRating(r.rating)}</span>
-              </div>
-              <div className="snippet">{r.content}</div>
-              <div className="meta-line">
-                <span className="who">
-                  {who}
-                  {server && <span className="server"> @{server}</span>}
-                </span>
-                <span className="date" title={formatDate(r.created_at)}>
-                  {formatRelative(r.created_at)}
-                </span>
-              </div>
-            </div>
-          </div>
-        );
-      })}
+      {reviews.map((r) => (
+        <ReviewCard key={r.id} review={r} onSelect={onSelect} />
+      ))}
     </div>
   );
 }

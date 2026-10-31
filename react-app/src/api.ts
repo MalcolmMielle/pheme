@@ -356,13 +356,27 @@ export function formatRating(rating: number): string {
 }
 
 /**
- * Format a review's created_at for display. The API returns SQLite UTC
- * text ("2026-08-02 21:45:00") — no timezone marker — so it is parsed as
- * UTC. Falls back to the raw string if it can't be parsed.
+ * Parse the API's created_at for display. The API returns SQLite UTC text
+ * ("2026-08-02 21:45:00") — no timezone marker — so it is parsed as UTC.
+ */
+function parseServerDate(value: string): Date {
+  const normalized = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
+  return new Date(normalized);
+}
+
+/** Human-readable error message from a failed API response. */
+export async function errorFromResponse(resp: Response): Promise<string> {
+  const data = await resp.json().catch(() => null);
+  if (data && typeof data.detail === "string") return data.detail;
+  return `Server error: ${resp.status}`;
+}
+
+/**
+ * Format a review's created_at for display. Falls back to the raw string if
+ * it can't be parsed.
  */
 export function formatDate(value: string): string {
-  const normalized = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
-  const d = new Date(normalized);
+  const d = parseServerDate(value);
   if (Number.isNaN(d.getTime())) return value;
   const date = d.toLocaleDateString(undefined, {
     day: "numeric",
@@ -382,8 +396,7 @@ export function formatDate(value: string): string {
  * Same UTC parsing as formatDate.
  */
 export function formatRelative(value: string): string {
-  const normalized = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
-  const d = new Date(normalized);
+  const d = parseServerDate(value);
   if (Number.isNaN(d.getTime())) return value;
   const seconds = Math.max(0, (Date.now() - d.getTime()) / 1000);
   if (seconds < 60) return "just now";

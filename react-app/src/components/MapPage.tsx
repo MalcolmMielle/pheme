@@ -4,14 +4,15 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import {
   ApiError,
   createReview,
+  errorFromResponse,
   fetchMeta,
   fetchReviews,
-  logout,
   reverseGeocode,
 } from "../api";
 import { useBottomSheet } from "../hooks/useBottomSheet";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { reviewsAtPlace } from "../places";
+import LogoutButton from "./LogoutButton";
 import MapView from "./MapView";
 import PlacePanel from "./PlacePanel";
 import ReviewForm from "./ReviewForm";
@@ -335,12 +336,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         return { ok: false };
       }
       if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        const detail =
-          data && typeof data.detail === "string"
-            ? data.detail
-            : `Server error: ${resp.status}`;
-        return { ok: false, error: detail };
+        return { ok: false, error: await errorFromResponse(resp) };
       }
       // Success — close the form and refresh the list at the current bounds.
       setFormOpen(false);
@@ -446,28 +442,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
                       </span>
                     </button>
                     <div className="user-actions">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-ghost"
-                        onClick={() => void logout()}
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                          <polyline points="16 17 21 12 16 7" />
-                          <line x1="21" y1="12" x2="9" y2="12" />
-                        </svg>
-                        Logout
-                      </button>
+                      <LogoutButton />
                     </div>
                   </>
                 ) : (

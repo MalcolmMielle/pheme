@@ -1,10 +1,5 @@
-import {
-  actorServer,
-  avatarColor,
-  formatDate,
-  formatRating,
-  formatRelative,
-} from "../api";
+import { formatRating } from "../api";
+import ReviewCard from "./ReviewCard";
 import Stars from "./Stars";
 import type { PlaceSelection, Review } from "../types";
 
@@ -59,37 +54,15 @@ export default function PlacePanel({
               </small>
             </div>
             <div className="review-list">
-              {reviews.map((r) => {
-                const server = actorServer(r.actor_uri);
-                const who = r.display_name || r.username;
-                return (
-                  <div key={r.id} className="review-card review-card-static">
-                    <span
-                      className="avatar review-avatar"
-                      style={{ background: avatarColor(who) }}
-                      aria-hidden="true"
-                    >
-                      {who.charAt(0)}
-                    </span>
-                    <div className="review-card-main">
-                      <Stars value={r.rating} size={12} />
-                      <div className="snippet">{r.content}</div>
-                      <div className="meta-line">
-                        <span className="who">
-                          {who}
-                          {server && <span className="server"> @{server}</span>}
-                        </span>
-                        <span className="date" title={formatDate(r.created_at)}>
-                          {formatRelative(r.created_at)}
-                        </span>
-                        <span className="coords">
-                          📍 {r.latitude.toFixed(3)}, {r.longitude.toFixed(3)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {reviews.map((r) => (
+                <ReviewCard
+                  key={r.id}
+                  review={r}
+                  showPlace={false}
+                  showRatingNum={false}
+                  showCoords
+                />
+              ))}
             </div>
           </>
         ) : (

@@ -5,7 +5,8 @@ interface StarsProps {
   size?: number;
 }
 
-const STAR_PATH =
+/** Shared star SVG path — used by Stars (display) and StarRating (input). */
+export const STAR_PATH =
   "M12 2.6l2.83 5.9 6.47.84-4.75 4.5 1.2 6.4L12 17.1l-5.75 3.14 1.2-6.4-4.75-4.5 6.47-.84z";
 
 /** Five SVG stars, filled up to the (rounded) rating. */
