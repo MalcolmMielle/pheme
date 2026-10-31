@@ -23,6 +23,7 @@ from app.db import (
     count_reviews_by_bounds,
     create_invite,
     create_review,
+    delete_actor,
     delete_invite,
     delete_review,
     follow_actor,
@@ -39,6 +40,7 @@ from app.db import (
     list_invites,
     list_local_actors,
     set_actor_admin,
+    set_actor_suspended,
     unfollow_actor,
 )
 from app.config import config
@@ -506,6 +508,7 @@ def _public_user(actor: dict[str, Any]) -> dict[str, Any]:
         "username": actor["username"],
         "display_name": actor["display_name"],
         "is_admin": bool(actor.get("is_admin")),
+        "is_suspended": bool(actor.get("is_suspended")),
         "created_at": actor["created_at"],
     }
 
@@ -590,6 +593,59 @@ async def api_admin_demote(
     logger.info("Admin '%s' demoted '%s'", admin["username"], target["username"])
     demoted = target | {"is_admin": 0}
     return JSONResponse({"status": "demoted", "user": _public_user(demoted)})
+
+
+async def _moderation_target(user_id: int, admin: dict) -> dict:
+    """Fetch the target local actor for a moderation action, with guards."""
+    if user_id == admin["id"]:
+        raise HTTPException(403, "You cannot moderate your own account")
+    target = await get_actor_by_id(user_id)
+    if not target or not target.get("is_local"):
+        raise HTTPException(404, "User not found")
+    if target.get("is_admin") and await count_admins() <= 1:
+        raise HTTPException(403, "Cannot remove the last admin")
+    return target
+
+
+@router.post("/api/admin/users/{user_id}/suspend")
+async def api_admin_suspend(
+    user_id: int,
+    admin: dict = Depends(get_current_admin),
+) -> JSONResponse:
+    """Suspend a local account (admin only) — sessions are invalidated and
+    login is blocked until unsuspended."""
+    target = await _moderation_target(user_id, admin)
+    await set_actor_suspended(user_id, True)
+    logger.info("Admin '%s' suspended '%s'", admin["username"], target["username"])
+    suspended = target | {"is_suspended": 1}
+    return JSONResponse({"status": "suspended", "user": _public_user(suspended)})
+
+
+@router.post("/api/admin/users/{user_id}/unsuspend")
+async def api_admin_unsuspend(
+    user_id: int,
+    admin: dict = Depends(get_current_admin),
+) -> JSONResponse:
+    """Lift a suspension (admin only)."""
+    target = await get_actor_by_id(user_id)
+    if not target or not target.get("is_local"):
+        raise HTTPException(404, "User not found")
+    await set_actor_suspended(user_id, False)
+    logger.info("Admin '%s' unsuspended '%s'", admin["username"], target["username"])
+    unsuspended = target | {"is_suspended": 0}
+    return JSONResponse({"status": "unsuspended", "user": _public_user(unsuspended)})
+
+
+@router.delete("/api/admin/users/{user_id}")
+async def api_admin_delete_user(
+    user_id: int,
+    admin: dict = Depends(get_current_admin),
+) -> JSONResponse:
+    """Delete a local account and all its local content (admin only)."""
+    target = await _moderation_target(user_id, admin)
+    await delete_actor(user_id)
+    logger.info("Admin '%s' deleted '%s'", admin["username"], target["username"])
+    return JSONResponse({"status": "deleted", "user_id": user_id})
 
 
 # ── invite codes (registration mode "invite") ───────────────────────────

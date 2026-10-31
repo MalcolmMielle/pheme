@@ -46,6 +46,7 @@ async def init_db() -> aiosqlite.Connection:
     for column_def in (
         "ALTER TABLE actors ADD COLUMN password_hash TEXT",
         "ALTER TABLE actors ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE actors ADD COLUMN is_suspended INTEGER NOT NULL DEFAULT 0",
     ):
         try:
             await _db.execute(column_def)

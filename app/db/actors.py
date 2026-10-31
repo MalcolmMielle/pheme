@@ -89,17 +89,31 @@ async def set_actor_admin(actor_id: int, is_admin: bool) -> bool:
     return cursor.rowcount > 0
 
 
-async def delete_actor(actor_id: int) -> bool:
-    """Delete an actor row. Returns False if the actor doesn't exist.
-
-    Only safe for actors with no content (e.g. a just-registered account
-    whose invite claim lost a race) — admin deletion of a user with
-    reviews uses the cascade delete in ``app.db.reviews``/moderation.
-    """
+async def set_actor_suspended(actor_id: int, is_suspended: bool) -> bool:
+    """Set an actor's suspended flag. Returns False if the actor doesn't exist."""
     db = await get_db()
-    cursor = await db.execute("DELETE FROM actors WHERE id = ?", (actor_id,))
+    cursor = await db.execute(
+        "UPDATE actors SET is_suspended = ? WHERE id = ?",
+        (1 if is_suspended else 0, actor_id),
+    )
     await db.commit()
     return cursor.rowcount > 0
+
+
+async def delete_actor(actor_id: int) -> bool:
+    """Delete an actor and all their local content (reviews, follows).
+
+    Returns False if the actor doesn't exist.
+    """
+    db = await get_db()
+    row = await db.execute("SELECT id FROM actors WHERE id = ?", (actor_id,))
+    if not await row.fetchone():
+        return False
+    await db.execute("DELETE FROM reviews WHERE actor_id = ?", (actor_id,))
+    await db.execute("DELETE FROM follows WHERE actor_id = ?", (actor_id,))
+    await db.execute("DELETE FROM actors WHERE id = ?", (actor_id,))
+    await db.commit()
+    return True
 
 
 async def count_admins() -> int:

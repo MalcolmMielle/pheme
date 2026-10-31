@@ -12,12 +12,16 @@ from app.db import get_actor_by_id
 
 
 async def get_current_user(request: Request):
-    """FastAPI dependency — return the current actor row, or raise _LoginRequired."""
+    """FastAPI dependency — return the current actor row, or raise _LoginRequired.
+
+    Suspended accounts are treated like logged-out: their session is
+    cleared and every protected endpoint rejects them.
+    """
     user_id = request.session.get("user_id")
     if user_id is None:
         raise _LoginRequired()
     actor = await get_actor_by_id(user_id)
-    if actor is None:
+    if actor is None or actor.get("is_suspended"):
         request.session.clear()
         raise _LoginRequired()
     return actor

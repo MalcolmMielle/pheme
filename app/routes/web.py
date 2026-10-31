@@ -220,6 +220,14 @@ async def login(
             status_code=401,
         )
 
+    if actor.get("is_suspended"):
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={"error": "This account has been suspended."},
+            status_code=403,
+        )
+
     request.session["user_id"] = actor["id"]
     return RedirectResponse(url="/", status_code=303)
 

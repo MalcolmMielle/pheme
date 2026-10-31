@@ -22,6 +22,7 @@ from app.db.actors import (
     hash_password,
     list_local_actors,
     set_actor_admin,
+    set_actor_suspended,
     verify_password,
 )
 from app.db.connection import SCHEMA, close_db, get_db, init_db
@@ -66,6 +67,7 @@ __all__ = [
     "get_actor_by_username",
     "list_local_actors",
     "set_actor_admin",
+    "set_actor_suspended",
     "count_admins",
     "delete_actor",
     "hash_password",
