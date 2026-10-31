@@ -34,9 +34,33 @@ function csrfHeaders(): Record<string, string> {
   return { "X-CSRFToken": csrfToken() };
 }
 
+/**
+ * fetch wrapper for unsafe requests: on a 403 CSRF failure (e.g. the
+ * csrftoken cookie was signed with an old SECRET_KEY after a server
+ * restart), drop the stale cookie, fetch a fresh one, and retry once.
+ * Non-CSRF 403s (e.g. not an admin) are returned unchanged.
+ */
+async function fetchWithCsrf(input: string, init: RequestInit): Promise<Response> {
+  const resp = await fetch(input, init);
+  if (resp.status !== 403) return resp;
+  const body = await resp.text();
+  if (!body.includes("CSRF")) {
+    return new Response(body, {
+      status: resp.status,
+      statusText: resp.statusText,
+      headers: resp.headers,
+    });
+  }
+  document.cookie = "csrftoken=; max-age=0; path=/";
+  await fetch("/api/meta", { headers: { Accept: "application/json" } });
+  const headers = new Headers(init.headers);
+  headers.set("X-CSRFToken", csrfToken());
+  return fetch(input, { ...init, headers });
+}
+
 /** Log out (POST /logout with the CSRF header), then go back to the map. */
 export async function logout(): Promise<void> {
-  await fetch("/logout", {
+  await fetchWithCsrf("/logout", {
     method: "POST",
     headers: { ...csrfHeaders(), Accept: "application/json" },
   });
@@ -103,7 +127,7 @@ export interface CreateReviewPayload {
 export async function createReview(
   payload: CreateReviewPayload,
 ): Promise<Response> {
-  return fetch("/api/reviews", {
+  return fetchWithCsrf("/api/reviews", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -169,7 +193,7 @@ export async function fetchAdminUsers(): Promise<AdminUserList> {
  * Resolves with the raw Response so callers can read the status.
  */
 function formPost(path: string, fields: Record<string, string>): Promise<Response> {
-  return fetch(path, {
+  return fetchWithCsrf(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -239,7 +263,7 @@ export function setUserSuspended(
 
 /** Delete a local account and its local content (admin only). */
 export function deleteUser(userId: number): Promise<Response> {
-  return fetch(`/api/admin/users/${userId}`, {
+  return fetchWithCsrf(`/api/admin/users/${userId}`, {
     method: "DELETE",
     headers: { ...csrfHeaders(), Accept: "application/json" },
   });
@@ -282,7 +306,7 @@ export function createInvite(expiresInDays: number | null): Promise<Response> {
 
 /** Revoke an unused invite code (admin only). */
 export function deleteInvite(inviteId: number): Promise<Response> {
-  return fetch(`/api/admin/invites/${inviteId}`, {
+  return fetchWithCsrf(`/api/admin/invites/${inviteId}`, {
     method: "DELETE",
     headers: { ...csrfHeaders(), Accept: "application/json" },
   });

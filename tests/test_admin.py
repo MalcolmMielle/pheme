@@ -156,6 +156,34 @@ class TestAdminAccess(AdminTestCase):
         )
         assert resp.status_code == 403  # CSRF middleware rejects before the route
 
+    async def test_stale_csrf_cookie_recovers_after_refresh(self):
+        """A csrftoken cookie signed with an old SECRET_KEY (e.g. after a
+        restart without a fixed key) 403s. Once the client drops it, the
+        server issues a fresh cookie and the same action succeeds — this is
+        the flow the SPA's fetchWithCsrf retry implements."""
+        from itsdangerous.url_safe import URLSafeSerializer
+
+        await self.make_admin()
+        stale = URLSafeSerializer("old-secret", "csrftoken").dumps("x" * 40)
+        self.client.cookies.set("csrftoken", stale, domain="testserver", path="/")
+        resp = await self.client.post(
+            "/api/admin/users",
+            data={"username": "x1", "display_name": "X", "password": "pw123456"},
+            headers={**JSON_HEADERS, "X-CSRFToken": stale},
+        )
+        assert resp.status_code == 403
+
+        self.client.cookies.delete("csrftoken", domain="testserver", path="/")
+        await self.client.get("/api/meta")  # server sets a fresh csrftoken cookie
+        fresh = self.client.cookies.get("csrftoken")
+        assert fresh and fresh != stale
+        resp = await self.client.post(
+            "/api/admin/users",
+            data={"username": "x2", "display_name": "X", "password": "pw123456"},
+            headers={**JSON_HEADERS, "X-CSRFToken": fresh},
+        )
+        assert resp.status_code == 200
+
 
 class TestAdminUserManagement(AdminTestCase):
     async def test_list_users(self):
