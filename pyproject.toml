@@ -1,7 +1,7 @@
 [project]
-name = "federated-reviews"
+name = "pheme"
 version = "0.1.0"
-description = "Federated review website using ActivityPub — like Google Maps but decentralized"
+description = "Pheme — a federated review website using ActivityPub — like Google Maps but decentralized"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-fedreviews = "app.main:main"
+pheme = "app.main:main"
 bootstrap = "app.bootstrap:main"
 
 [tool.uv]

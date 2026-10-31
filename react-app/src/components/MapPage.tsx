@@ -389,7 +389,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         ) : (
           <>
             <div className="sidebar-header">
-              <h1>🗺️ Federated Reviews</h1>
+              <h1>🗺️ Pheme</h1>
               <span className="review-count">
                 {reviews.length} review{reviews.length !== 1 ? "s" : ""}
               </span>

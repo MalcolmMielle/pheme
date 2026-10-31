@@ -1,4 +1,4 @@
-/** Shared TypeScript types for the Federated Reviews SPA. */
+/** Shared TypeScript types for the Pheme SPA. */
 
 /** Review list scope: everything, own + followed actors, or local server only. */
 export type ReviewScope = "all" | "following" | "local";
