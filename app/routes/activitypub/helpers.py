@@ -65,6 +65,35 @@ def sqlite_from_iso8601(value: str) -> str | None:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def build_create_activity(
+    actor: dict[str, Any], review: dict[str, Any]
+) -> dict[str, Any]:
+    """Build the Create activity wrapping a review (Note) — used both when
+    fanning out a new review to followers and when rendering the outbox."""
+    ap_id = review["ap_id"]
+    published = iso8601_from_sqlite(review["created_at"])
+    return {
+        "id": f"{ap_id}/activity",
+        "type": "Create",
+        "actor": actor["actor_uri"],
+        "published": published,
+        "to": ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc": [actor["followers_uri"]],
+        "object": {
+            "id": ap_id,
+            "type": "Note",
+            "attributedTo": actor["actor_uri"],
+            "content": review["content"],
+            "latitude": review["latitude"],
+            "longitude": review["longitude"],
+            "rating": review["rating"],
+            "placeName": review["place_name"],
+            "placeAddress": review["place_address"],
+            "published": published,
+        },
+    }
+
+
 async def create_local_actor(
     username: str,
     display_name: str,

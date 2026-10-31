@@ -27,6 +27,7 @@ from app.config import config
 from app.db import close_db, init_db
 from app.ratelimit import limiter
 from app.routes.activitypub import router as activitypub_router
+from app.routes.admin import router as admin_router
 from app.routes.api import router as api_router
 from app.routes.web import router as web_router
 
@@ -112,6 +113,7 @@ app.mount(
 app.include_router(activitypub_router)
 app.include_router(web_router)
 app.include_router(api_router)
+app.include_router(admin_router)
 
 # ── React SPA (react-app/dist) ──────────────────────────────────────────
 # Registered LAST so the catch-all can never shadow the API, ActivityPub,

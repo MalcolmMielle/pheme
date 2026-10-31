@@ -14,7 +14,7 @@ from app.db import (
     list_local_actors,
 )
 from app.routes.activitypub.helpers import (
-    iso8601_from_sqlite,
+    build_create_activity,
     outbox_uri,
     require_local_actor,
 )
@@ -37,29 +37,7 @@ async def get_outbox(username: str) -> JSONResponse:
     """Return an actor's outbox (published activities)."""
     actor = await require_local_actor(username)
     reviews = await get_reviews_by_actor(actor["id"], limit=50)
-    items: list[dict[str, Any]] = []
-    for r in reviews:
-        published = iso8601_from_sqlite(r["created_at"])
-        items.append(
-            {
-                "id": r["ap_id"],
-                "type": "Create",
-                "actor": actor["actor_uri"],
-                "published": published,
-                "object": {
-                    "id": r["ap_id"],
-                    "type": "Note",
-                    "attributedTo": actor["actor_uri"],
-                    "content": r["content"],
-                    "latitude": r["latitude"],
-                    "longitude": r["longitude"],
-                    "rating": r["rating"],
-                    "placeName": r["place_name"],
-                    "placeAddress": r["place_address"],
-                    "published": published,
-                },
-            }
-        )
+    items: list[dict[str, Any]] = [build_create_activity(actor, r) for r in reviews]
     return JSONResponse(
         {
             "id": outbox_uri(username),
