@@ -1,4 +1,7 @@
 import L from "leaflet";
+import markerIcon2xUrl from "leaflet/dist/images/marker-icon-2x.png?url";
+import markerIconUrl from "leaflet/dist/images/marker-icon.png?url";
+import markerShadowUrl from "leaflet/dist/images/marker-shadow.png?url";
 import type {
   DivIcon,
   LeafletEvent,
@@ -27,6 +30,18 @@ import type {
   Review,
   SearchMarker,
 } from "../types";
+
+// Vite inlines leaflet.css's marker-icon.png as a data URI, so Leaflet's
+// runtime path auto-detection (_detectIconPath) finds neither a
+// "marker-icon.png" suffix nor a leaflet.css <link> and falls back to the
+// relative "marker-icon.png" — which the SPA catch-all answers with
+// index.html, so default-icon markers (map click, draft pin) render as
+// broken images. Point the default icon at the bundled assets explicitly.
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIconUrl,
+  iconRetinaUrl: markerIcon2xUrl,
+  shadowUrl: markerShadowUrl,
+});
 
 const DEFAULT_CENTER: [number, number] = [37.7749, -122.4194];
 const DEFAULT_ZOOM = 13;
