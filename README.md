@@ -1,9 +1,20 @@
-# 🗺️ Pheme
+# Pheme
 
 A decentralised review platform that looks and feels like Google Maps /
 OpenStreetMap — but built on ActivityPub so that independent servers can
-federate reviews with each other.  Think Mastodon, but for location-based
+federate reviews with each other.  Mastodon, but for location-based
 reviews.
+
+> [!Warning]
+>
+> This app is:
+>
+> 1. Coded with Mistral AI (using Mistral Large 4)
+> 2. a proof of concept and does not come with any guarantees atm.
+>
+> This is a disclaimer so you can choose for yourself if you want to use it or not.
+> I mostly did this because I didn't have an alternative for Google map and I couldn't
+> convince anyone else to do this before.
 
 ## How it works
 
@@ -16,7 +27,7 @@ authority, no paid API keys, no vendor lock-in.
 ### ActivityPub in 60 seconds
 
 | Concept | What it is | Route on this server |
-|---------|-----------|---------------------|
+| --------- | ----------- | --------------------- |
 | **Actor** | A user (or server) with a public/private keypair | `GET /actor/{username}` |
 | **WebFinger** | Maps `user@domain` → actor URI so servers can discover each other | `GET /.well-known/webfinger` |
 | **Inbox** | Where remote servers POST activities for *this* actor | `POST /actor/{username}/inbox` |
@@ -141,7 +152,7 @@ sudo apt update && sudo apt install -y caddy
 git clone <repo-url> pheme
 cd pheme
 uv sync                                  # backend dependencies
-cd react-app && npm ci && npm run build && cd ..   # map frontend
+cd react-app && npm ci && npm run build && cd ../..   # map frontend
 ```
 
 ### 4. Create the production `.env`
@@ -164,7 +175,7 @@ SECRET_KEY=<the random key you just generated — do NOT reuse your dev key>
 REGISTRATION_MODE=invite
 ```
 
-In plain terms: `BASE_URL` is the public address other federated servers use
+`BASE_URL` is the public address other federated servers use
 to find you (must be `https://`); the app itself only listens on
 `127.0.0.1:8000`, so only the local Caddy server can reach it;
 `PROXY_HEADERS=true` tells the app to trust Caddy's `X-Forwarded-For` header
@@ -249,7 +260,7 @@ curl -X POST https://reviews.example.com/api/bootstrap \
 ```
 
 The first account automatically becomes the admin. Then log in at
-**https://reviews.example.com/login**. With `REGISTRATION_MODE=invite`,
+**<https://reviews.example.com/login>**. With `REGISTRATION_MODE=invite`,
 create invite links for other people from the admin panel on your profile
 page.
 
@@ -276,7 +287,7 @@ curl https://reviews.example.com/api/meta
 curl "https://reviews.example.com/.well-known/webfinger?resource=acct:admin@reviews.example.com"
 ```
 
-Both should return JSON. Then open **https://reviews.example.com** in a
+Both should return JSON. Then open **<https://reviews.example.com>** in a
 browser — you should see the map.
 
 ### Updating later
@@ -445,7 +456,7 @@ pheme/
 ## Tech stack
 
 | Layer | Choice | Rationale |
-|-------|--------|-----------|
+| ------- | -------- | ----------- |
 | **Web framework** | FastAPI + uvicorn | Async, modern, great OpenAPI docs |
 | **Frontend** | React + Vite + TypeScript (`react-app/`) | SPA for the map page; one codebase, reused by future native shells |
 | **Templates** | Jinja2 (via Starlette) | Server-rendered pages: login/register, review detail |
@@ -465,7 +476,7 @@ shell or create a `.env` file (see `.env.example` for a template) — the
 app loads it automatically via [python-dotenv](https://pypi.org/project/python-dotenv/).
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| ---------- | --------- | ------------- |
 | `BASE_URL` | `http://localhost:8000` | Public URL of this server (used in all ActivityPub IDs) |
 | `HOST` | `127.0.0.1` | Bind address for uvicorn |
 | `PORT` | `8000` | Port for uvicorn |
@@ -509,7 +520,7 @@ An admin cannot moderate themselves or remove the last admin.
 ### ActivityPub endpoints
 
 | Method | Path | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `GET` | `/.well-known/webfinger?resource=acct:{user}@{domain}` | WebFinger discovery |
 | `GET` | `/actor/{username}` | Actor document (JSON-LD) |
 | `POST` | `/actor/{username}/inbox` | Receive activities (signed) |
@@ -521,7 +532,7 @@ An admin cannot moderate themselves or remove the last admin.
 ### Web & JSON API
 
 | Method | Path | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `GET` | `/` | Map-based review browser (React SPA) |
 | `GET` | `/review/{id}` | Single review page (server-rendered) |
 | `GET` | `/api/meta` | Public server metadata (`{"registration_mode": ...}`) |
@@ -540,7 +551,7 @@ An admin cannot moderate themselves or remove the last admin.
 ### Admin API (session of an admin required; unsafe methods need `X-CSRFToken`)
 
 | Method | Path | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `GET` | `/api/admin/users` | List local accounts (`is_admin`, `is_suspended`, …) |
 | `POST` | `/api/admin/users` | Create an account (form: `username`, `display_name`, `password`, `is_admin`) |
 | `POST` | `/api/admin/users/{id}/promote` / `/demote` | Grant / revoke admin |
