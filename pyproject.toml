@@ -1,9 +1,11 @@
 [project]
 name = "pheme-reviews"
-version = "0.1.0"
+version = "0.1.1"
 description = "Pheme — a federated review website using ActivityPub — like Google Maps but decentralized"
 readme = "README.md"
 requires-python = ">=3.13"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
@@ -19,6 +21,11 @@ dependencies = [
     "slowapi>=0.1.10",
     "starlette-csrf>=3.0.0",
 ]
+
+[project.urls]
+Homepage = "https://pheme.miellelabs.ch"
+Repository = "https://forge.mielle.dev/MielleLabs/pheme"
+Issues = "https://forge.mielle.dev/MielleLabs/pheme/issues"
 
 [project.scripts]
 pheme = "app.main:main"

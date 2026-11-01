@@ -46,6 +46,19 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      # Fail fast if the tag and the package version drifted apart: the wheel
+      # is built with the static `version` from pyproject.toml, and PyPI
+      # rejects re-uploading the same version ("File already exists").
+      - name: Check the tag matches the package version
+        run: |
+          TAG="${{ forgejo.ref_name }}"
+          VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml)
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::tag $TAG does not match version $VERSION in pyproject.toml — set version = \"${TAG#v}\", commit, and re-tag"
+            exit 1
+          fi
+          echo "tag $TAG matches pyproject version $VERSION"
+
       - name: Package a source snapshot of the tagged tree
         run: |
           mkdir -p release
