@@ -1,6 +1,6 @@
 [project]
-name = "pheme"
-dynamic = ["version"]
+name = "pheme-reviews"
+version = "0.1.0"
 description = "Pheme — a federated review website using ActivityPub — like Google Maps but decentralized"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -28,22 +28,27 @@ bootstrap = "app.bootstrap:main"
 package = true
 
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-# The version is derived from the git tag (v0.2.0 -> 0.2.0) by hatch-vcs.
-[tool.hatch.version]
-source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
 
+# Bundle the built React SPA into the wheel at react-app/dist, so a
+# pip-installed pheme serves the map interface: app/main.py resolves
+# <site-packages>/react-app/dist via its package parent directory.
+# force-include (not artifacts) because `packages` limits file selection to
+# app/. force-include requires the directory to exist, so react-app/dist
+# contains a committed .gitkeep placeholder (see .gitignore) — the dir then
+# exists in every checkout and the build only fails if it is truly absent.
+[tool.hatch.build.targets.wheel.force-include]
+"react-app/dist" = "react-app/dist"
+
+[tool.hatch.build.targets.sdist.force-include]
+"react-app/dist" = "react-app/dist"
+
 [dependency-groups]
-dev = [
-    "ruff>=0.8.0",
-    "basedpyright>=1.28.0",
-    "httpx>=0.28.0",
-]
+dev = ["ruff>=0.8.0", "basedpyright>=1.28.0", "httpx>=0.28.0"]
 
 # ── RUFF ──────────────────────────────────────────────────────────────
 [tool.ruff]

@@ -1,18 +1,26 @@
 # Forgejo Actions — release pipeline.
 #
 # Pushing a tag (`git tag v0.2.0 && git push origin v0.2.0`) runs this
-# workflow: it packages a source snapshot of the tagged tree (git archive →
-# release/) and uploads it to a Forgejo release for the tag via the
-# forgejo-release action. No build step — a source snapshot is enough for
-# now; a PyPI release can come later.
+# workflow, which does two things:
 #
-# The package version is still derived from the tag by hatch-vcs
-# ([tool.hatch.version] source = "vcs" in pyproject.toml), which is what a
-# future PyPI release will use.
+#   1. Packages a source snapshot of the tagged tree (git archive → release/)
+#      and uploads it to a Forgejo release for the tag via the forgejo-release
+#      action.
+#   2. Builds the React frontend (`npm ci && npm run build`) and the sdist +
+#      wheel with hatchling (`uv build` — the wheel bundles react-app/dist,
+#      see the force-include in pyproject.toml), then publishes to PyPI
+#      (`uv publish`) using the PYPI_API_TOKEN repo secret. The publish step
+#      is skipped until that secret exists.
+#
+# The published version is the static `version` in pyproject.toml — bump it
+# before tagging. The PyPI project name is `[project] name` ("pheme"), which
+# is already taken on PyPI by an unrelated project — rename it before the
+# first real publish. To derive the version from the tag instead, switch
+# pyproject.toml to dynamic = ["version"] + hatch-vcs later.
 #
 # Runs on the runner labelled `node-22` (provides git + node for the action).
-# The action's token defaults to the automatic forgejo token, which has write
-# access on push events.
+# The forgejo-release token defaults to the automatic forgejo token, which has
+# write access on push events.
 
 name: Release
 
@@ -48,3 +56,28 @@ jobs:
           verbose: false
           hide-archive-link: true
           release-notes-assistant: false
+
+      - name: Install uv
+        uses: https://github.com/astral-sh/setup-uv@v7.1.4
+        with:
+          enable-cache: true
+          prune-cache: false
+          cache-dependency-glob: "uv.lock"
+          github-token: ${{ secrets.GITHUBAUTH }}
+
+      - name: Build the React frontend (bundled into the wheel)
+        run: |
+          cd react-app
+          npm ci
+          npm run build
+
+      - name: Build sdist + wheel (hatchling)
+        run: |
+          uv build --out-dir dist
+          ls -la dist
+
+      - name: Publish to PyPI
+        if: ${{ secrets.PYPI_API_TOKEN != '' }}
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: uv publish dist/*

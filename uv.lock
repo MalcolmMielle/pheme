@@ -441,7 +441,8 @@ wheels = [
 ]
 
 [[package]]
-name = "pheme"
+name = "pheme-reviews"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
