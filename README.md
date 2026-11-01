@@ -302,6 +302,26 @@ sudo systemctl restart pheme
 
 Also keep the server itself updated: `sudo apt update && sudo apt upgrade`.
 
+## Releasing
+
+Releases are driven by git tags. Pushing a tag runs the Release workflow
+(`.forgejo/workflows/release.yml`), which packages a source snapshot of the
+tagged tree (`git archive` → `release/pheme-v0.2.0.tar.gz` + `.zip`) and
+uploads it to a Forgejo release for the tag via the
+[`forgejo-release`](https://code.forgejo.org/actions/forgejo-release) action:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The package version is derived from the tag by hatch-vcs
+(`dynamic = ["version"]` + `[tool.hatch.version] source = "vcs"` in
+`pyproject.toml`, with
+`[build-system] requires = ["hatchling", "hatch-vcs"]`) — that is what a
+future PyPI release will use. Building without a tag gives a dev version
+like `0.1.dev3+g<sha>`.
+
 ## How to test
 
 ### 1. Smoke-test the endpoints
@@ -447,6 +467,7 @@ pheme/
 │   ├── test_api.py           # JSON API endpoint tests
 │   ├── test_activitypub.py   # ActivityPub endpoint tests
 │   └── test_web.py           # Web UI / auth flow tests
+├── .forgejo/workflows/       # Forgejo Actions: Python + React pipelines on push, source-snapshot release on v* tags
 ├── data/                     # SQLite databases live here (auto-created)
 ├── .env.example              # Environment variable template
 ├── pyproject.toml            # Dependencies, RUFF config, build system
@@ -467,7 +488,7 @@ pheme/
 | **Crypto** | cryptography | RSA key generation, SHA256 signing |
 | **Testing** | unittest (137 tests) | Endpoint, database, signing and auth-flow coverage |
 | **Linting** | ruff + basedpyright | Fast lint/format + static type checking |
-| **CI** | Forgejo Actions (`node:22`) | unittest suite, ruff, basedpyright and the React build on push + PRs |
+| **CI** | Forgejo Actions (`node:22`) | unittest suite, ruff, basedpyright and the React build on push + PRs; releases (source snapshot via forgejo-release) on `v*` tag pushes |
 
 ## Configuration
 

@@ -1,6 +1,6 @@
 [project]
 name = "pheme"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Pheme — a federated review website using ActivityPub — like Google Maps but decentralized"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -28,8 +28,12 @@ bootstrap = "app.bootstrap:main"
 package = true
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+# The version is derived from the git tag (v0.2.0 -> 0.2.0) by hatch-vcs.
+[tool.hatch.version]
+source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

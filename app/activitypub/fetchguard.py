@@ -7,7 +7,9 @@ to remote inboxes — must pass :func:`check_fetch_url` first. Rules:
 
   • only ``http``/``https`` schemes
   • link-local (169.254.0.0/16 — cloud metadata endpoints), unspecified
-    (0.0.0.0), multicast and reserved addresses are always refused
+    (0.0.0.0), multicast and reserved addresses are always refused — except
+    loopback, which is never refused (IPv6 ``::1`` reports ``is_reserved``,
+    but it is the loopback interface, not a reserved target)
   • public hosts are only contacted over HTTPS; loopback/private hosts may
     use plain HTTP (local dev servers have no TLS certificate)
 
@@ -29,6 +31,9 @@ _IP = ipaddress.IPv4Address | ipaddress.IPv6Address
 
 
 def _forbidden_ip(ip: _IP) -> bool:
+    # IPv6 loopback ::1 also reports is_reserved — loopback is never refused.
+    if ip.is_loopback:
+        return False
     return ip.is_link_local or ip.is_unspecified or ip.is_multicast or ip.is_reserved
 
 

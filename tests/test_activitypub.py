@@ -160,6 +160,7 @@ class TestFetchGuard(unittest.IsolatedAsyncioTestCase):
             await check_fetch_url("http://169.254.169.254/latest/meta-data") is not None
         )
         assert await check_fetch_url("http://0.0.0.0/") is not None
+        assert await check_fetch_url("http://[::]/") is not None
         assert await check_fetch_url("http://[fe80::1]/") is not None
 
     async def test_public_host_requires_https(self):
@@ -174,6 +175,7 @@ class TestFetchGuard(unittest.IsolatedAsyncioTestCase):
         from app.activitypub.fetchguard import check_fetch_url
 
         assert await check_fetch_url("http://127.0.0.1:8001/actor/bob") is None
+        assert await check_fetch_url("http://[::1]:8001/actor/bob") is None
         assert await check_fetch_url("http://localhost:8001/actor/bob") is None
         assert await check_fetch_url("http://192.168.1.10:8001/inbox") is None
 
