@@ -13,10 +13,10 @@
 #      is skipped until that secret exists.
 #
 # The published version is the static `version` in pyproject.toml — bump it
-# before tagging. The PyPI project name is `[project] name` ("pheme"), which
-# is already taken on PyPI by an unrelated project — rename it before the
-# first real publish. To derive the version from the tag instead, switch
-# pyproject.toml to dynamic = ["version"] + hatch-vcs later.
+# before tagging. The PyPI project name is `[project] name` ("pheme-reviews";
+# plain "pheme" is already taken on PyPI by an unrelated project). To derive
+# the version from the tag instead, switch pyproject.toml to
+# dynamic = ["version"] + hatch-vcs later.
 #
 # Runs on the runner labelled `node-22` (provides git + node for the action).
 # The forgejo-release token defaults to the automatic forgejo token, which has
@@ -33,6 +33,17 @@ jobs:
   release:
     runs-on: node-22
     steps:
+      # Install git BEFORE checkout if the runner image lacks it: without git,
+      # actions/checkout falls back to downloading a tarball, which leaves no
+      # .git directory — and then `git archive` below fails. Use apt-get with
+      # update first (a fresh image has empty package lists, which is what made
+      # `apt install git` fail with "Unable to locate package git").
+      - name: Ensure git is installed
+        run: |
+          if ! command -v git >/dev/null 2>&1; then
+            apt-get update && apt-get install -y git
+          fi
+
       - uses: actions/checkout@v4
 
       - name: Package a source snapshot of the tagged tree
