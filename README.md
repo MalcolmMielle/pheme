@@ -74,7 +74,7 @@ cp .env.example .env
 # Edit .env and set SECRET_KEY at minimum
 
 # Install + build the React frontend (react-app/)
-cd react-app && npm install && npm run build && cd ..
+cd react-app && npm ci && npm run build && cd ..
 
 # Seed demo data (creates actor "alice" + 8 sample reviews in San Francisco)
 uv run bootstrap
