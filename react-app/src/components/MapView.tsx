@@ -9,8 +9,10 @@ import type {
   LeafletMouseEvent,
   Marker as LeafletMarker,
 } from "leaflet";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Circle,
+  CircleMarker,
   MapContainer,
   Marker,
   Popup,
@@ -43,14 +45,195 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadowUrl,
 });
 
-const DEFAULT_CENTER: [number, number] = [37.7749, -122.4194];
-const DEFAULT_ZOOM = 13;
+// Default view: all of France, used until the device or network resolves a position.
+const DEFAULT_CENTER: [number, number] = [46.603354, 1.888334];
+const DEFAULT_ZOOM = 6;
+/** Zoom used once the user's position has been detected. */
+const LOCATED_ZOOM = 13;
+/** Give up on device / network geolocation after this long. */
+const LOCATE_TIMEOUT_MS = 8000;
 /** Only re-focus the map if the target is further away than this (degrees). */
 const FOCUS_EPSILON = 0.001;
 /** Always zoom in to at least this level when focusing a target. */
 const FOCUS_MIN_ZOOM = 14;
 
 const iconCache = new Map<string, DivIcon>();
+
+/** The user's own position, once detected — displayed as a blue dot. */
+interface UserPosition {
+  lat: number;
+  lng: number;
+  /** GPS accuracy in meters; absent for a network (IP) position. */
+  accuracy?: number;
+}
+
+/**
+ * Resolve the user position: prefer the device location (GPS / Wi-Fi, tens
+ * of meters), and only fall back to the network (IP geolocation — city-level
+ * at best) when the device unavailable, denied, or timed out. Returns null
+ * when both fail.
+ */
+async function detectStartPosition(): Promise<UserPosition | null> {
+  const gps = await new Promise<UserPosition | null>((resolve) => {
+    if (!("geolocation" in navigator)) {
+      // Typically a non-secure context (plain HTTP, not localhost) —
+      // browsers only expose the Geolocation API over HTTPS/localhost.
+      console.warn(
+        "Geolocation API unavailable (insecure context?); falling back to IP geolocation.",
+      );
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        resolve({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        }),
+      (err) => {
+        // 1 = permission denied (blocked for this site), 2 = position
+        // unavailable, 3 = timeout.
+        console.warn(
+          `Device geolocation failed (code ${err.code}: ${err.message}); falling back to IP geolocation.`,
+        );
+        resolve(null);
+      },
+      { timeout: LOCATE_TIMEOUT_MS, maximumAge: 10 * 60 * 1000 },
+    );
+  });
+  if (gps) return gps;
+  return new Promise<UserPosition | null>((resolve) => {
+    // AbortSignal.timeout would do, but keep the manual controller so the
+    // request is actually cancelled, not just ignored.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LOCATE_TIMEOUT_MS);
+    fetch("https://ipapi.co/json/", { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const lat = Number(data?.latitude);
+        const lng = Number(data?.longitude);
+        resolve(
+          Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null,
+        );
+      })
+      .catch(() => resolve(null))
+      .finally(() => clearTimeout(timer));
+  });
+}
+
+/**
+ * Detect the user's position (device location preferred, network fallback)
+ * and report it so the blue dot can be drawn. The map is panned there as
+ * soon as the position is known — except on the initial automatic detection, which
+ * leaves the map alone if the user already moved it. Bumping `trigger`
+ * re-runs the detection (the locate button).
+ */
+function InitialLocator({
+  trigger,
+  onLocate,
+}: {
+  trigger: number;
+  onLocate: (pos: UserPosition | null) => void;
+}) {
+  const map = useMap();
+
+  // Keep the latest callback in a ref so the effect below doesn't re-run
+  // (and restart the detection) when the callback identity changes.
+  const onLocateRef = useRef(onLocate);
+  useEffect(() => {
+    onLocateRef.current = onLocate;
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    const auto = trigger === 0;
+    detectStartPosition().then((pos) => {
+      if (cancelled) return;
+      onLocateRef.current(pos);
+      if (!pos) return;
+      if (auto) {
+        // Skip if the user already moved (or focused) the map meanwhile.
+        const center = map.getCenter();
+        const stillDefault =
+          Math.abs(center.lat - DEFAULT_CENTER[0]) < FOCUS_EPSILON &&
+          Math.abs(center.lng - DEFAULT_CENTER[1]) < FOCUS_EPSILON;
+        if (!stillDefault) return;
+      }
+      map.setView([pos.lat, pos.lng], LOCATED_ZOOM);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [map, trigger]);
+  return null;
+}
+
+/** Crosshair button that re-detects and centers on the user's position. */
+function LocateButton({
+  locating,
+  onClick,
+}: {
+  locating: boolean;
+  onClick: () => void;
+}) {
+  const ref = useRef<HTMLButtonElement | null>(null);
+  const onClickRef = useRef(onClick);
+  useEffect(() => {
+    onClickRef.current = onClick;
+  });
+
+  // The button lives inside the map container, so its click/drag events
+  // would bubble to Leaflet (starting a map drag, firing a map click, …).
+  // React's synthetic handlers run after the event has already bubbled past
+  // the map container, so handle them natively instead: stop propagation
+  // and invoke the callback ourselves.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const stop = (e: Event) => e.stopPropagation();
+    const click = (e: Event) => {
+      e.stopPropagation();
+      onClickRef.current();
+    };
+    const listeners: Array<[string, EventListener]> = [
+      ["mousedown", stop],
+      ["touchstart", stop],
+      ["dblclick", stop],
+      ["click", click],
+    ];
+    listeners.forEach(([type, handler]) => el.addEventListener(type, handler));
+    return () =>
+      listeners.forEach(([type, handler]) =>
+        el.removeEventListener(type, handler),
+      );
+  }, []);
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={locating ? "locate-btn locating" : "locate-btn"}
+      title="Center on my position"
+      aria-label="Center on my position"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="6.5" />
+        <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+        <path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4" />
+      </svg>
+    </button>
+  );
+}
 
 /**
  * Teardrop marker colored by (possibly fractional) average rating — the
@@ -121,7 +304,10 @@ function MapController({
         const mouse = e as LeafletMouseEvent;
         // Ignore clicks on markers/popups — they have their own handlers.
         const target = mouse.originalEvent?.target as HTMLElement | undefined;
-        if (target?.closest(".leaflet-marker-icon, .leaflet-popup")) return;
+        if (
+          target?.closest(".leaflet-marker-icon, .leaflet-popup, .locate-btn")
+        )
+          return;
         const { formOpen, onMapClick, onMapSelect } = latest.current;
         if (formOpen) {
           onMapClick(mouse.latlng.lat, mouse.latlng.lng);
@@ -300,6 +486,16 @@ export default function MapView({
   // One marker per place, colored by the place's average rating.
   const places = useMemo(() => groupReviewsByPlace(reviews), [reviews]);
 
+  // The user's own position, drawn as a blue dot once detected.
+  const [userPosition, setUserPosition] = useState<UserPosition | null>(null);
+  // Re-run detection when the locate button is pressed; `locating` spins it.
+  const [locateTrigger, setLocateTrigger] = useState(0);
+  const [locating, setLocating] = useState(false);
+  const handleLocate = (pos: UserPosition | null) => {
+    if (pos) setUserPosition(pos);
+    setLocating(false);
+  };
+
   // The selected place's own marker is enough when it coincides with a
   // reviewed place — don't draw a second marker on top.
   const showSearchMarker =
@@ -341,6 +537,46 @@ export default function MapView({
         onMapClick={onMapClick}
         onMapSelect={onMapSelect}
       />
+      <InitialLocator trigger={locateTrigger} onLocate={handleLocate} />
+      <LocateButton
+        locating={locating}
+        onClick={() => {
+          setLocating(true);
+          setLocateTrigger((n) => n + 1);
+        }}
+      />
+
+      {userPosition && (
+        <>
+          {/* GPS positions come with an accuracy radius; draw it as a halo.
+              interactive={false} keeps clicks falling through to the map. */}
+          {userPosition.accuracy != null && (
+            <Circle
+              center={[userPosition.lat, userPosition.lng]}
+              radius={userPosition.accuracy}
+              interactive={false}
+              pathOptions={{
+                color: "#4285f4",
+                weight: 1,
+                opacity: 0.3,
+                fillColor: "#4285f4",
+                fillOpacity: 0.1,
+              }}
+            />
+          )}
+          <CircleMarker
+            center={[userPosition.lat, userPosition.lng]}
+            radius={7}
+            interactive={false}
+            pathOptions={{
+              color: "#ffffff",
+              weight: 2.5,
+              fillColor: "#4285f4",
+              fillOpacity: 1,
+            }}
+          />
+        </>
+      )}
 
       {places.map((p) => (
         <PlaceMarker
