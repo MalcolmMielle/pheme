@@ -93,12 +93,13 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
 
   /**
    * Padding for map focus: desktop keeps the point clear of the sidebar;
-   * mobile keeps it clear of the floating search bar and the bottom sheet.
+   * mobile keeps it clear of the floating search bar, the zoom/locate row
+   * below it (ends at ~129 px) and the bottom sheet.
    */
   const makeFocus = useCallback(
     (lat: number, lng: number, zoom: number): FocusTarget =>
       isMobile
-        ? { lat, lng, zoom, padLeft: 30, padTop: 84, padRight: 30, padBottom: 164 }
+        ? { lat, lng, zoom, padLeft: 30, padTop: 140, padRight: 30, padBottom: 164 }
         : {
           lat,
           lng,
