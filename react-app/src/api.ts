@@ -138,6 +138,27 @@ export async function createReview(
   });
 }
 
+/**
+ * PUT an edit to an existing review (only the author may edit it). Same
+ * payload shape as createReview. Resolves with the raw Response so the
+ * caller can distinguish 401 (logged out → redirect to /login) from other
+ * errors.
+ */
+export async function updateReview(
+  reviewId: number,
+  payload: CreateReviewPayload,
+): Promise<Response> {
+  return fetchWithCsrf(`/api/reviews/${reviewId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...csrfHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 /** Place search via the server's Nominatim proxy (avoids exposing user IPs).
  *  Callers debounce — Nominatim usage policy. */
 export async function searchPlaces(query: string): Promise<NominatimResult[]> {

@@ -357,21 +357,28 @@ function MapController({
  */
 function PlaceMarker({
   place,
+  userId,
   formOpen,
   onSelectPlace,
   onRatePlace,
 }: {
   place: ReviewPlace;
+  /** Logged-in user's actor id, or null when logged out. */
+  userId: number | null;
   /** True while the review form is open — hide the popup's rate button. */
   formOpen: boolean;
   onSelectPlace: (place: PlaceSelection) => void;
-  onRatePlace: (place: PlaceSelection) => void;
+  onRatePlace: (place: PlaceSelection, existingReview?: Review) => void;
 }) {
   const position = useMemo<[number, number]>(
     () => [place.lat, place.lng],
     [place.lat, place.lng],
   );
   const icon = markerIcon(place.avgRating);
+  /** The logged-in user's own review at this place, if they have one. */
+  const myReview = userId
+    ? place.reviews.find((r) => r.actor_id === userId)
+    : undefined;
   // Pass a review's coordinates (same place bucket as the group) so the
   // place panel finds this place's reviews and no extra marker is drawn.
   const handlers = useMemo<LeafletEventHandlerFnMap>(
@@ -405,20 +412,23 @@ function PlaceMarker({
             type="button"
             className="popup-rate-btn"
             onClick={() =>
-              onRatePlace({
-                lat: place.lat,
-                lng: place.lng,
-                name: place.name,
-                address: place.address,
-              })
+              onRatePlace(
+                {
+                  lat: place.lat,
+                  lng: place.lng,
+                  name: place.name,
+                  address: place.address,
+                },
+                myReview,
+              )
             }
           >
-            ＋ Add your review
+            {myReview ? "✎ Edit your review" : "＋ Add your review"}
           </button>
         )}
       </>
     ),
-    [place, formOpen, onRatePlace],
+    [place, myReview, formOpen, onRatePlace],
   );
   return (
     <Marker position={position} icon={icon} eventHandlers={handlers}>
@@ -459,6 +469,8 @@ interface MapViewProps {
   reviews: Review[];
   draft: Draft | null;
   searchMarker: SearchMarker | null;
+  /** Logged-in user's actor id, or null when logged out (popup edit button). */
+  userId: number | null;
   formOpen: boolean;
   focus: FocusTarget | null;
   onBoundsChange: (bounds: L.LatLngBounds) => void;
@@ -466,7 +478,7 @@ interface MapViewProps {
   onMapSelect: (lat: number, lng: number) => void;
   onDraftMove: (lat: number, lng: number) => void;
   onSelectPlace: (place: PlaceSelection) => void;
-  onRatePlace: (place: PlaceSelection) => void;
+  onRatePlace: (place: PlaceSelection, existingReview?: Review) => void;
 }
 
 /** The Leaflet map: OSM tiles, one avg-colored marker per place, placement marker. */
@@ -474,6 +486,7 @@ export default function MapView({
   reviews,
   draft,
   searchMarker,
+  userId,
   formOpen,
   focus,
   onBoundsChange,
@@ -582,6 +595,7 @@ export default function MapView({
         <PlaceMarker
           key={p.key}
           place={p}
+          userId={userId}
           formOpen={formOpen}
           onSelectPlace={onSelectPlace}
           onRatePlace={onRatePlace}

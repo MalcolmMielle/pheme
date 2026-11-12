@@ -32,16 +32,21 @@ from app.db import (
     get_follower_inboxes,
     get_following,
     get_following_actors,
+    get_review_by_actor_at_place,
     get_review_by_id,
     get_reviews,
     get_reviews_by_bounds,
     hash_password,
     list_local_actors,
+    update_review,
 )
 from app.config import config
 from app.ratelimit import limiter
 from app.routes.activitypub import create_local_actor
-from app.routes.activitypub.helpers import build_create_activity
+from app.routes.activitypub.helpers import (
+    build_create_activity,
+    build_update_activity,
+)
 
 logger = logging.getLogger("pheme")
 
@@ -228,7 +233,8 @@ async def api_get_review(review_id: int) -> JSONResponse:
 
 
 class CreateReviewPayload(BaseModel):
-    """Payload for POST /api/reviews — JSON body or form fields."""
+    """Payload for POST /api/reviews and PUT /api/reviews/{id} — JSON body or
+    form fields."""
 
     content: str = Field(min_length=1)
     rating: int = Field(ge=1, le=5)
@@ -236,6 +242,27 @@ class CreateReviewPayload(BaseModel):
     longitude: float
     place_name: str = ""
     place_address: str = ""
+
+
+async def _parse_review_payload(request: Request) -> CreateReviewPayload | JSONResponse:
+    """Read the request body as JSON or form fields and validate it against
+    CreateReviewPayload. Returns the payload, or a 422 JSONResponse."""
+    content_type = request.headers.get("content-type", "")
+    raw: Any
+    if "application/json" in content_type:
+        raw = await request.json()
+    else:
+        form = await request.form()
+        # Keep plain text fields only (multipart uploads are not review data)
+        raw = {k: v for k, v in form.items() if isinstance(v, str)}
+
+    try:
+        return CreateReviewPayload.model_validate(raw)
+    except ValidationError:
+        return JSONResponse(
+            {"detail": "Required: content, rating (1-5), latitude, longitude"},
+            status_code=422,
+        )
 
 
 @router.post("/api/reviews")
@@ -247,23 +274,26 @@ async def api_create_review(
 
     Accepts both form-encoded bodies (browser forms, curl) and JSON bodies
     (the React SPA and future native clients); both are validated against
-    CreateReviewPayload.
+    CreateReviewPayload. One review per actor per place: a second review at
+    the same place returns 409 with the existing review's ID.
     """
-    content_type = request.headers.get("content-type", "")
-    raw: Any
-    if "application/json" in content_type:
-        raw = await request.json()
-    else:
-        form = await request.form()
-        # Keep plain text fields only (multipart uploads are not review data)
-        raw = {k: v for k, v in form.items() if isinstance(v, str)}
+    parsed = await _parse_review_payload(request)
+    if isinstance(parsed, JSONResponse):
+        return parsed
+    payload = parsed
 
-    try:
-        payload = CreateReviewPayload.model_validate(raw)
-    except ValidationError:
+    # One review per actor per place (coordinates bucketed like the map UI):
+    # a second review at the same place is a 409 pointing at the existing one.
+    existing = await get_review_by_actor_at_place(
+        actor["id"], payload.latitude, payload.longitude
+    )
+    if existing is not None:
         return JSONResponse(
-            {"detail": "Required: content, rating (1-5), latitude, longitude"},
-            status_code=422,
+            {
+                "detail": "You already reviewed this place — edit your review instead.",
+                "review_id": existing["id"],
+            },
+            status_code=409,
         )
 
     ap_id = f"{actor['actor_uri']}/review/{uuid.uuid4()}"
@@ -297,6 +327,74 @@ async def api_create_review(
     )
 
     return JSONResponse({"status": "ok", "review": review, "federation": result})
+
+
+@router.put("/api/reviews/{review_id}")
+async def api_update_review(
+    review_id: int,
+    request: Request,
+    actor: dict = Depends(get_current_user),
+) -> JSONResponse:
+    """Update a review and federate an Update activity to followers.
+
+    Only the author can edit their own review. The body is the same shape as
+    POST /api/reviews (validated against CreateReviewPayload).
+    """
+    review = await get_review_by_id(review_id)
+    if not review:
+        raise HTTPException(404, "Review not found")
+    if review["actor_id"] != actor["id"]:
+        raise HTTPException(403, "You can only edit your own reviews")
+
+    parsed = await _parse_review_payload(request)
+    if isinstance(parsed, JSONResponse):
+        return parsed
+    payload = parsed
+
+    # The edit must not move the review onto a place where the author already
+    # has a different review — one review per actor per place still holds.
+    at_place = await get_review_by_actor_at_place(
+        actor["id"], payload.latitude, payload.longitude
+    )
+    if at_place is not None and at_place["id"] != review_id:
+        return JSONResponse(
+            {
+                "detail": "You already have a review at that place.",
+                "review_id": at_place["id"],
+            },
+            status_code=409,
+        )
+
+    updated = await update_review(
+        review_id=review_id,
+        content=payload.content,
+        rating=payload.rating,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        place_name=payload.place_name,
+        place_address=payload.place_address,
+    )
+    if not updated:
+        raise HTTPException(404, "Review not found")
+
+    activity = build_update_activity(actor, updated)
+    follower_inboxes = await get_follower_inboxes(actor["id"])
+    result = await fanout_activity(
+        activity,
+        f"{actor['actor_uri']}#main-key",
+        actor["private_key_pem"],
+        follower_inboxes,
+    )
+
+    logger.info(
+        "Updated review %s — federated to %d followers (%d ok, %d fail)",
+        review["ap_id"],
+        len(follower_inboxes),
+        result["ok"],
+        result["fail"],
+    )
+
+    return JSONResponse({"status": "ok", "review": updated, "federation": result})
 
 
 @router.delete("/api/reviews/{review_id}")

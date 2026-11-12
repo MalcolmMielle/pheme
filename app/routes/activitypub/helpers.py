@@ -98,6 +98,37 @@ def build_create_activity(
     }
 
 
+def build_update_activity(
+    actor: dict[str, Any], review: dict[str, Any]
+) -> dict[str, Any]:
+    """Build the Update activity wrapping a review (Note) — fanned out to
+    followers when the author edits their review. Same object shape as the
+    Create (see build_create_activity), so remote servers can apply it the
+    same way."""
+    ap_id = review["ap_id"]
+    published = iso8601_from_sqlite(review["created_at"])
+    return {
+        "id": f"{ap_id}/update",
+        "type": "Update",
+        "actor": actor["actor_uri"],
+        "published": published,
+        "to": ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc": [actor["followers_uri"]],
+        "object": {
+            "id": ap_id,
+            "type": "Note",
+            "attributedTo": actor["actor_uri"],
+            "content": review["content"],
+            "latitude": review["latitude"],
+            "longitude": review["longitude"],
+            "rating": review["rating"],
+            "placeName": review["place_name"],
+            "placeAddress": review["place_address"],
+            "published": published,
+        },
+    }
+
+
 async def create_local_actor(
     username: str,
     display_name: str,

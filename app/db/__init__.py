@@ -47,11 +47,13 @@ from app.db.reviews import (
     count_reviews_by_bounds,
     create_review,
     delete_review,
+    get_review_by_actor_at_place,
     get_review_by_id,
     get_reviews,
     get_reviews_by_actor,
     get_reviews_by_bounds,
     review_exists,
+    update_review,
 )
 
 __all__ = [
@@ -80,6 +82,8 @@ __all__ = [
     "get_reviews_by_actor",
     "get_reviews_by_bounds",
     "review_exists",
+    "update_review",
+    "get_review_by_actor_at_place",
     "count_reviews",
     "count_reviews_by_bounds",
     # follows

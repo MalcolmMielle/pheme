@@ -1,8 +1,8 @@
 """
 Inbox endpoint and activity handlers.
 
-Receives activities from remote servers: Create (new review), Follow,
-Accept, and Delete.
+Receives activities from remote servers: Create (new review), Update (edited
+review), Follow, Accept, Delete, and Undo.
 """
 
 import json
@@ -22,8 +22,10 @@ from app.db import (
     follow_actor,
     get_actor_by_uri,
     get_db,
+    get_review_by_actor_at_place,
     review_exists,
     unfollow_actor,
+    update_review,
 )
 from app.routes.activitypub.helpers import (
     fetch_remote_actor,
@@ -81,6 +83,8 @@ async def post_inbox(username: str, request: Request) -> JSONResponse:
 
     if activity_type == "Create":
         return await _handle_create(activity, sender_actor)
+    elif activity_type == "Update":
+        return await _handle_update(activity, sender_actor)
     elif activity_type == "Follow":
         return await _handle_follow(activity, actor, sender_actor)
     elif activity_type == "Accept":
@@ -136,6 +140,19 @@ async def _handle_create(
         logger.warning("Rejecting Create %s: %s", ap_id, reason)
         return JSONResponse({"status": "ignored", "reason": reason}, status_code=400)
 
+    # One review per actor per place: ignore a second Create from the same
+    # sender at the same coordinates (different ap_id, same place bucket).
+    at_place = await get_review_by_actor_at_place(
+        sender_actor["id"], float(obj.get("latitude", 0.0)), float(obj.get("longitude", 0.0))
+    )
+    if at_place is not None:
+        logger.info(
+            "Ignoring Create %s — %s already reviewed this place",
+            ap_id,
+            sender_actor["actor_uri"],
+        )
+        return JSONResponse({"status": "duplicate"})
+
     # Attribute the review to the signature-verified sender — the object's
     # attributedTo is not trusted unless it is the sender itself.
     # Keep the object's published date (the original review date); fall
@@ -156,6 +173,51 @@ async def _handle_create(
 
     logger.info("Stored federated review %s", ap_id)
     return JSONResponse({"status": "created"})
+
+
+async def _handle_update(
+    activity: dict[str, Any], sender_actor: dict[str, Any]
+) -> JSONResponse:
+    """Handle an Update activity — apply the author's edits to a review we
+    already stored (matched by the Note's ap_id)."""
+    obj = activity.get("object", {})
+    ap_id = obj.get("id", "") if isinstance(obj, dict) else str(obj)
+    if not ap_id:
+        return JSONResponse({"status": "ignored", "reason": "no object id"})
+
+    db = await get_db()
+    row = await db.execute("SELECT id, actor_id FROM reviews WHERE ap_id = ?", (ap_id,))
+    review = await row.fetchone()
+    if not review:
+        return JSONResponse({"status": "not_found"})
+
+    # Only apply the edit if the sender is the original author
+    if review["actor_id"] != sender_actor["id"]:
+        logger.warning(
+            "Update for %s rejected — sender %s is not the author",
+            ap_id,
+            sender_actor["actor_uri"],
+        )
+        return JSONResponse({"status": "forbidden"}, status_code=403)
+
+    if not isinstance(obj, dict):
+        return JSONResponse({"status": "ignored", "reason": "object is not a Note"})
+    reason = _invalid_note_reason(obj)
+    if reason is not None:
+        logger.warning("Rejecting Update %s: %s", ap_id, reason)
+        return JSONResponse({"status": "ignored", "reason": reason}, status_code=400)
+
+    await update_review(
+        review_id=review["id"],
+        content=obj.get("content", ""),
+        rating=int(obj.get("rating", 3)),
+        latitude=float(obj.get("latitude", 0.0)),
+        longitude=float(obj.get("longitude", 0.0)),
+        place_name=obj.get("placeName", ""),
+        place_address=obj.get("placeAddress", ""),
+    )
+    logger.info("Updated federated review %s (via Update activity)", ap_id)
+    return JSONResponse({"status": "updated"})
 
 
 async def _handle_follow(

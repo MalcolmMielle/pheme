@@ -1,8 +1,16 @@
 import { useState } from "react";
 
+import type { Review } from "../types";
 import StarRating from "./StarRating";
 
 interface ReviewFormProps {
+  /**
+   * The review being edited (opened from a place the user already reviewed),
+   * or null/undefined for a new review. The form pre-fills from it. The
+   * component only mounts while the form is open, so the initial state below
+   * is picked up on every open.
+   */
+  initialReview?: Review | null;
   onSubmit: (
     content: string,
     rating: number,
@@ -11,13 +19,20 @@ interface ReviewFormProps {
 }
 
 /**
- * Review creation panel for a fixed place (opened from the place panel /
- * place marker — the location is chosen there and cannot change here):
- * star rating and content. The parent guards the location in onSubmit.
+ * Review panel for a fixed place (opened from the place panel / place
+ * marker — the location is chosen there and cannot change here): star
+ * rating and content. In edit mode (initialReview set) it pre-fills the
+ * existing review and the parent updates it instead of creating one.
+ * The parent guards the location in onSubmit.
  */
-export default function ReviewForm({ onSubmit, onClose }: ReviewFormProps) {
-  const [content, setContent] = useState("");
-  const [rating, setRating] = useState(5);
+export default function ReviewForm({
+  initialReview,
+  onSubmit,
+  onClose,
+}: ReviewFormProps) {
+  const editing = initialReview != null;
+  const [content, setContent] = useState(initialReview?.content ?? "");
+  const [rating, setRating] = useState(initialReview?.rating ?? 5);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +57,7 @@ export default function ReviewForm({ onSubmit, onClose }: ReviewFormProps) {
   return (
     <div className="review-panel">
       <div className="panel-header">
-        <h2>Write a Review</h2>
+        <h2>{editing ? "Edit your review" : "Write a Review"}</h2>
         <button
           type="button"
           className="icon-btn"
@@ -68,7 +83,13 @@ export default function ReviewForm({ onSubmit, onClose }: ReviewFormProps) {
         {error && <div className="form-error">{error}</div>}
 
         <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? "Posting…" : "Post Review"}
+          {submitting
+            ? editing
+              ? "Saving…"
+              : "Posting…"
+            : editing
+              ? "Save changes"
+              : "Post Review"}
         </button>
       </form>
     </div>

@@ -195,17 +195,17 @@ class TestReviewsAPI(AsyncTestCase):
         assert reviews[0]["content"] == "SF Review"
 
     async def test_review_ap_id_is_unique(self):
-        """Two reviews with the same content should get different ap_ids."""
+        """Two reviews at different places should get different ap_ids."""
         await self.register_user()
         csrf = await get_csrf_token(self.client, "/register")
 
-        for _ in range(2):
+        for lat in ("37.0", "40.0"):
             resp = await self.client.post(
                 "/api/reviews",
                 data={
                     "content": "Same content",
                     "rating": "5",
-                    "latitude": "37.0",
+                    "latitude": lat,
                     "longitude": "-122.0",
                     "csrf_token": csrf,
                 },
@@ -274,14 +274,15 @@ class TestReviewsAPI(AsyncTestCase):
     async def test_pagination(self):
         await self.register_user()
         csrf = await get_csrf_token(self.client, "/register")
-        # Create 5 reviews
+        # Create 5 reviews — each at a different place (one review per
+        # actor per place is enforced, so vary the latitude).
         for i in range(5):
             await self.client.post(
                 "/api/reviews",
                 data={
                     "content": f"Review {i}",
                     "rating": "3",
-                    "latitude": "37.0",
+                    "latitude": str(37.0 + i * 0.01),
                     "longitude": "-122.0",
                     "csrf_token": csrf,
                 },
@@ -354,6 +355,216 @@ class TestReviewsAPI(AsyncTestCase):
                 data={"target": target, "csrf_token": csrf},
             )
             assert resp.status_code == 400, target
+
+
+class TestUpdateReview(AsyncTestCase):
+    """PUT /api/reviews/{id} — edit an existing review (author only)."""
+
+    async def _create_review(self, content: str = "Original", rating: int = 3) -> int:
+        resp = await self.client.post(
+            "/api/reviews",
+            json={
+                "content": content,
+                "rating": rating,
+                "latitude": 37.0,
+                "longitude": -122.0,
+                "place_name": "Cafe",
+                "place_address": "1 Main St",
+            },
+        )
+        assert resp.status_code == 200
+        return resp.json()["review"]["id"]
+
+    async def test_update_requires_auth(self):
+        resp = await self.client.put(
+            "/api/reviews/1",
+            json={"content": "x", "rating": 5, "latitude": 1.0, "longitude": 2.0},
+        )
+        assert resp.status_code in (303, 401, 403)
+
+    async def test_update_not_found(self):
+        await self.register_user()
+        resp = await self.client.put(
+            "/api/reviews/9999",
+            json={"content": "x", "rating": 5, "latitude": 1.0, "longitude": 2.0},
+        )
+        assert resp.status_code == 404
+
+    async def test_update_forbidden_for_other_user(self):
+        """Only the author may edit: a second account gets 403."""
+        await self.register_user()  # testuser
+        review_id = await self._create_review()
+        # Registering a second user switches the session to that user.
+        await self.register_user(username="otheruser", display_name="Other")
+        resp = await self.client.put(
+            f"/api/reviews/{review_id}",
+            json={"content": "hijacked", "rating": 1, "latitude": 1.0, "longitude": 2.0},
+        )
+        assert resp.status_code == 403
+        # The review is unchanged.
+        resp = await self.client.get(f"/api/reviews/{review_id}")
+        assert resp.json()["content"] == "Original"
+
+    async def test_update_review_success(self):
+        await self.register_user()
+        review_id = await self._create_review()
+
+        resp = await self.client.put(
+            f"/api/reviews/{review_id}",
+            json={
+                "content": "Edited — even better",
+                "rating": 5,
+                "latitude": 37.0,
+                "longitude": -122.0,
+                "place_name": "Cafe",
+                "place_address": "1 Main St",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ok"
+        assert data["review"]["id"] == review_id
+        assert data["review"]["content"] == "Edited — even better"
+        assert data["review"]["rating"] == 5
+
+        # The change is persisted and visible via GET.
+        resp = await self.client.get(f"/api/reviews/{review_id}")
+        assert resp.json()["content"] == "Edited — even better"
+        assert resp.json()["rating"] == 5
+
+        # Still exactly one review — the edit must not create a duplicate.
+        resp = await self.client.get("/api/reviews")
+        assert len(resp.json()) == 1
+
+    async def test_update_accepts_form_body(self):
+        """Like POST, the PUT accepts form-encoded bodies (curl/browser)."""
+        await self.register_user()
+        csrf = await get_csrf_token(self.client, "/register")
+        review_id = await self._create_review()
+        resp = await self.client.put(
+            f"/api/reviews/{review_id}",
+            data={
+                "content": "Form edit",
+                "rating": "2",
+                "latitude": "37.0",
+                "longitude": "-122.0",
+                "csrf_token": csrf,
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["review"]["content"] == "Form edit"
+        assert resp.json()["review"]["rating"] == 2
+
+    async def test_update_validates_payload(self):
+        await self.register_user()
+        review_id = await self._create_review()
+        # Rating out of range
+        resp = await self.client.put(
+            f"/api/reviews/{review_id}",
+            json={"content": "x", "rating": 9, "latitude": 1.0, "longitude": 2.0},
+        )
+        assert resp.status_code == 422
+        # Missing longitude
+        resp = await self.client.put(
+            f"/api/reviews/{review_id}",
+            json={"content": "x", "rating": 3, "latitude": 1.0},
+        )
+        assert resp.status_code == 422
+        # Empty content
+        resp = await self.client.put(
+            f"/api/reviews/{review_id}",
+            json={"content": "", "rating": 3, "latitude": 1.0, "longitude": 2.0},
+        )
+        assert resp.status_code == 422
+
+
+class TestOneReviewPerPlace(AsyncTestCase):
+    """One review per actor per place — enforced server-side on POST (and
+    on PUT, so an edit can't be moved onto another own review's place).
+    "Same place" = coordinates bucketed to 4 decimal places, like the map UI."""
+
+    async def _post_review(self, lat: float, lng: float = -122.0, content: str = "Nice"):
+        return await self.client.post(
+            "/api/reviews",
+            json={"content": content, "rating": 4, "latitude": lat, "longitude": lng},
+        )
+
+    async def test_second_review_at_same_place_is_409(self):
+        await self.register_user()
+        resp = await self._post_review(37.0)
+        assert resp.status_code == 200
+        first_id = resp.json()["review"]["id"]
+
+        resp = await self._post_review(37.0, content="Again!")
+        assert resp.status_code == 409
+        data = resp.json()
+        assert data["review_id"] == first_id
+        assert "already reviewed" in data["detail"]
+
+        # Nothing was created — still exactly one review.
+        resp = await self.client.get("/api/reviews")
+        assert len(resp.json()) == 1
+
+    async def test_same_place_bucket_counts_as_same_place(self):
+        """Coordinates within the same 4-decimal bucket (~11 m) are the same
+        place, matching the map UI's place grouping."""
+        await self.register_user()
+        assert (await self._post_review(37.0)).status_code == 200
+        # 37.00001 rounds to the same 4-decimal bucket as 37.0
+        resp = await self._post_review(37.00001)
+        assert resp.status_code == 409
+
+    async def test_different_place_is_allowed(self):
+        await self.register_user()
+        assert (await self._post_review(37.0)).status_code == 200
+        assert (await self._post_review(37.01)).status_code == 200
+        resp = await self.client.get("/api/reviews")
+        assert len(resp.json()) == 2
+
+    async def test_different_actor_same_place_is_allowed(self):
+        """Federated/other actors can legitimately share coordinates — that
+        is not a duplicate; only the same actor twice at one place is."""
+        await self.register_user()  # testuser
+        assert (await self._post_review(37.0)).status_code == 200
+        await self.register_user(username="otheruser", display_name="Other")
+        resp = await self._post_review(37.0)
+        assert resp.status_code == 200
+        resp = await self.client.get("/api/reviews")
+        assert len(resp.json()) == 2
+
+    async def test_update_cannot_move_onto_own_other_review(self):
+        """PUT with coordinates of the author's other review → 409."""
+        await self.register_user()
+        resp = await self._post_review(37.0, content="Place A")
+        id_a = resp.json()["review"]["id"]
+        resp = await self._post_review(40.0, content="Place B")
+        id_b = resp.json()["review"]["id"]
+
+        # Moving review B onto place A is refused.
+        resp = await self.client.put(
+            f"/api/reviews/{id_b}",
+            json={
+                "content": "moved",
+                "rating": 2,
+                "latitude": 37.0,
+                "longitude": -122.0,
+            },
+        )
+        assert resp.status_code == 409
+        assert resp.json()["review_id"] == id_a
+
+        # Editing at its own place still works.
+        resp = await self.client.put(
+            f"/api/reviews/{id_b}",
+            json={
+                "content": "edited",
+                "rating": 2,
+                "latitude": 40.0,
+                "longitude": -122.0,
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["review"]["content"] == "edited"
 
 
 class TestWebFingerSchemes(unittest.TestCase):

@@ -72,6 +72,54 @@ async def review_exists(ap_id: str) -> bool:
     return await row.fetchone() is not None
 
 
+async def get_review_by_actor_at_place(
+    actor_id: int, latitude: float, longitude: float
+) -> dict[str, Any] | None:
+    """Return the actor's review at the given place, or None.
+
+    "Same place" means coordinates bucketed to 4 decimal places (~11 m) —
+    the same definition the map UI uses to group reviews into one place
+    (see placeKey in react-app/src/places.ts). Different actors may review
+    the same place; only a second review by the *same* actor matches.
+    """
+    db = await get_db()
+    row = await db.execute(
+        """SELECT r.*, a.username, a.display_name, a.actor_uri
+           FROM reviews r JOIN actors a ON r.actor_id = a.id
+           WHERE r.actor_id = ?
+             AND ROUND(r.latitude, 4) = ROUND(?, 4)
+             AND ROUND(r.longitude, 4) = ROUND(?, 4)
+           LIMIT 1""",
+        (actor_id, latitude, longitude),
+    )
+    result = await row.fetchone()
+    return dict(result) if result else None
+
+
+async def update_review(
+    review_id: int,
+    content: str,
+    rating: int,
+    latitude: float,
+    longitude: float,
+    place_name: str = "",
+    place_address: str = "",
+) -> dict[str, Any] | None:
+    """Update a review's editable fields. Returns the updated row (with actor
+    info), or None when no review with that ID exists."""
+    db = await get_db()
+    cursor = await db.execute(
+        """UPDATE reviews SET content = ?, rating = ?, latitude = ?,
+           longitude = ?, place_name = ?, place_address = ?
+           WHERE id = ?""",
+        (content, rating, latitude, longitude, place_name, place_address, review_id),
+    )
+    await db.commit()
+    if cursor.rowcount == 0:
+        return None
+    return await get_review_by_id(review_id)
+
+
 def _actor_uri_where(actor_uris: list[str] | None) -> tuple[str, list[str]]:
     """SQL WHERE fragment restricting reviews to the given actor URIs.
 

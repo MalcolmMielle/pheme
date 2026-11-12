@@ -8,6 +8,7 @@ import {
   fetchMeta,
   fetchReviews,
   reverseGeocode,
+  updateReview,
 } from "../api";
 import { useBottomSheet } from "../hooks/useBottomSheet";
 import { useMediaQuery } from "../hooks/useMediaQuery";
@@ -49,6 +50,11 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
   const [scope, setScope] = useState<ReviewScope>("all");
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
+  /**
+   * The review being edited, when the form was opened from a place the
+   * logged-in user already reviewed — null for a brand-new review.
+   */
+  const [editingReview, setEditingReview] = useState<Review | null>(null);
   /**
    * Place picked via the global search: shown as a map marker and as the
    * place panel in the sidebar. Cleared when the search text is removed
@@ -183,11 +189,13 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
 
   /**
    * Open the review form for a specific place (place panel / place marker
-   * "add your review"). The draft is pre-filled with the place and locked,
-   * so map clicks can't move the location.
+   * "add your review" / "edit your review"). When the logged-in user already
+   * reviewed this place, `existingReview` is passed and the form opens in
+   * edit mode for that review. The draft is pre-filled with the place and
+   * locked, so map clicks can't move the location.
    */
   const openForm = useCallback(
-    (place: PlaceSelection) => {
+    (place: PlaceSelection, existingReview?: Review) => {
       if (!user) {
         // Logged out — send to /login.
         window.location.href = "/login";
@@ -201,6 +209,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         label: place.name,
         locked: true,
       });
+      setEditingReview(existingReview ?? null);
       // The form sits inside the sidebar, so only the sidebar width needs
       // padding.
       setFocus(makeFocus(place.lat, place.lng, 16));
@@ -212,6 +221,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
   const closeForm = useCallback(() => {
     setFormOpen(false);
     setDraft(null);
+    setEditingReview(null);
   }, []);
 
   const onDraftMove = useCallback((lat: number, lng: number) => {
@@ -313,7 +323,8 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
     setPendingGeocode({ lat, lng, target: "place" });
   }, []);
 
-  /** Submit the review form. Returns success or an error message. */
+  /** Submit the review form (create, or update when editing). Returns success
+   *  or an error message. */
   const submitReview = useCallback(
     async (
       content: string,
@@ -322,20 +333,35 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
       if (!draft || draft.lat == null || draft.lng == null) {
         return { ok: false, error: "Please search for and select a place first." };
       }
+      // When editing, keep the review at its original place — the form's
+      // location is only the picked place, not editable.
+      const lat = editingReview?.latitude ?? draft.lat;
+      const lng = editingReview?.longitude ?? draft.lng;
+      const placeName = editingReview?.place_name ?? draft.placeName;
+      const placeAddress = editingReview?.place_address ?? draft.placeAddress;
       let resp: Response;
       try {
-        resp = await createReview({
-          content,
-          rating,
-          latitude: draft.lat,
-          longitude: draft.lng,
-          place_name: draft.placeName,
-          place_address: draft.placeAddress,
-        });
+        resp = editingReview
+          ? await updateReview(editingReview.id, {
+              content,
+              rating,
+              latitude: lat,
+              longitude: lng,
+              place_name: placeName,
+              place_address: placeAddress,
+            })
+          : await createReview({
+              content,
+              rating,
+              latitude: lat,
+              longitude: lng,
+              place_name: placeName,
+              place_address: placeAddress,
+            });
       } catch (err) {
         return {
           ok: false,
-          error: `Error creating review: ${(err as Error).message}`,
+          error: `Error ${editingReview ? "updating" : "creating"} review: ${(err as Error).message}`,
         };
       }
       if (resp.status === 401) {
@@ -349,10 +375,11 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
       // Success — close the form and refresh the list at the current bounds.
       setFormOpen(false);
       setDraft(null);
+      setEditingReview(null);
       if (lastBounds.current) await loadReviews(lastBounds.current);
       return { ok: true };
     },
-    [draft, loadReviews],
+    [draft, editingReview, loadReviews],
   );
 
   return (
@@ -361,6 +388,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         reviews={reviews}
         draft={draft}
         searchMarker={selectedPlace}
+        userId={user?.id ?? null}
         formOpen={formOpen}
         focus={focus}
         onBoundsChange={loadReviews}
@@ -392,6 +420,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
               selectedPlace.lat,
               selectedPlace.lng,
             )}
+            user={user}
             formOpen={formOpen}
             onRatePlace={openForm}
             onClose={closePlacePanel}
@@ -490,7 +519,11 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         {/* The review form is the bottom part of the left panel, not a
             separate side panel. */}
         {formOpen && draft && (
-          <ReviewForm onSubmit={submitReview} onClose={closeForm} />
+          <ReviewForm
+            initialReview={editingReview}
+            onSubmit={submitReview}
+            onClose={closeForm}
+          />
         )}
       </aside>
     </div>

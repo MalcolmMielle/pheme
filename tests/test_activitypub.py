@@ -10,6 +10,7 @@ from app.db import (
     follow_actor,
     get_actor_by_username,
     get_followers,
+    get_review_by_id,
 )
 from tests.base import AsyncTestCase, get_csrf_token
 
@@ -281,23 +282,23 @@ class TestInbox(AsyncTestCase):
         )
         return bob, priv
 
-    async def _post_signed_create(self, priv: str, note: dict):
+    async def _post_signed(
+        self,
+        priv: str,
+        activity: dict,
+        key_id: str = "https://remote.example/actor/bob#main-key",
+    ):
+        """Bootstrap alice and POST a signed activity (default: remote bob's key)."""
         await self.client.post(
             "/api/bootstrap",
             data={"username": "alice", "display_name": "Alice", "password": "pw123456"},
         )
-        activity = {
-            "id": "https://remote.example/actor/bob/create/1",
-            "type": "Create",
-            "actor": "https://remote.example/actor/bob",
-            "object": note,
-        }
         body = json.dumps(activity).encode()
         signed = sign_request(
             method="POST",
             url="http://testserver/actor/alice/inbox",
             body=body,
-            key_id="https://remote.example/actor/bob#main-key",
+            key_id=key_id,
             private_key_pem=priv,
         )
         return await self.client.post(
@@ -311,6 +312,15 @@ class TestInbox(AsyncTestCase):
                 "Signature": signed["Signature"],
             },
         )
+
+    async def _post_signed_create(self, priv: str, note: dict):
+        activity = {
+            "id": "https://remote.example/actor/bob/create/1",
+            "type": "Create",
+            "actor": "https://remote.example/actor/bob",
+            "object": note,
+        }
+        return await self._post_signed(priv, activity)
 
     async def test_create_stores_federated_review(self):
         from app.db import review_exists
@@ -347,3 +357,158 @@ class TestInbox(AsyncTestCase):
         resp = await self._post_signed_create(priv, note)
         assert resp.status_code == 400
         assert not await review_exists(note["id"])
+
+    def _make_note(self, ap_id: str, content: str, rating: int) -> dict:
+        return {
+            "id": ap_id,
+            "type": "Note",
+            "content": content,
+            "rating": rating,
+            "latitude": 37.7,
+            "longitude": -122.4,
+            "placeName": "Cafe",
+            "placeAddress": "1 Main St",
+            "published": "2026-10-01T12:00:00Z",
+        }
+
+    async def test_update_applies_author_edit(self):
+        """A signed Update from the original author edits the stored review."""
+        bob, priv = await self._make_remote_bob()
+        ap_id = "https://remote.example/actor/bob/review/1"
+        resp = await self._post_signed_create(priv, self._make_note(ap_id, "Loved it", 5))
+        assert resp.status_code == 200
+
+        update = {
+            "id": "https://remote.example/actor/bob/update/1",
+            "type": "Update",
+            "actor": "https://remote.example/actor/bob",
+            "object": self._make_note(ap_id, "Actually it was fine", 3),
+        }
+        resp = await self._post_signed(priv, update)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "updated"
+
+        # The stored review carries the edit — still a single row.
+        from app.db import review_exists
+
+        assert await review_exists(ap_id)
+        review = await get_review_by_id(await self._review_id_by_ap_id(ap_id))
+        assert review is not None
+        assert review["content"] == "Actually it was fine"
+        assert review["rating"] == 3
+        assert review["actor_id"] == bob["id"]
+
+    async def _review_id_by_ap_id(self, ap_id: str) -> int:
+        from app.db import get_db
+
+        db = await get_db()
+        row = await db.execute("SELECT id FROM reviews WHERE ap_id = ?", (ap_id,))
+        result = await row.fetchone()
+        assert result is not None
+        return result["id"]
+
+    async def test_update_rejected_for_non_author(self):
+        """An Update signed by someone other than the author is refused."""
+        bob, bob_priv = await self._make_remote_bob()
+        ap_id = "https://remote.example/actor/bob/review/1"
+        resp = await self._post_signed_create(bob_priv, self._make_note(ap_id, "Loved it", 5))
+        assert resp.status_code == 200
+
+        # carol has her own keypair — she is not the author.
+        carol_priv, carol_pub = generate_keypair()
+        await create_actor(
+            username="carol",
+            display_name="Carol",
+            summary="",
+            private_key_pem=carol_priv,
+            public_key_pem=carol_pub,
+            actor_uri="https://remote2.example/actor/carol",
+            inbox_uri="https://remote2.example/actor/carol/inbox",
+            outbox_uri="https://remote2.example/actor/carol/outbox",
+            followers_uri="https://remote2.example/actor/carol/followers",
+            following_uri="https://remote2.example/actor/carol/following",
+            is_local=False,
+        )
+        update = {
+            "id": "https://remote2.example/actor/carol/update/1",
+            "type": "Update",
+            "actor": "https://remote2.example/actor/carol",
+            "object": self._make_note(ap_id, "hijacked", 1),
+        }
+        resp = await self._post_signed(
+            carol_priv,
+            update,
+            key_id="https://remote2.example/actor/carol#main-key",
+        )
+        assert resp.status_code == 403
+
+        review = await get_review_by_id(await self._review_id_by_ap_id(ap_id))
+        assert review is not None
+        assert review["content"] == "Loved it"
+        assert review["rating"] == 5
+
+    async def test_update_unknown_review_not_found(self):
+        _, priv = await self._make_remote_bob()
+        update = {
+            "id": "https://remote.example/actor/bob/update/9",
+            "type": "Update",
+            "actor": "https://remote.example/actor/bob",
+            "object": self._make_note(
+                "https://remote.example/actor/bob/review/9", "x", 3
+            ),
+        }
+        resp = await self._post_signed(priv, update)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "not_found"
+
+    async def test_create_second_review_at_same_place_is_duplicate(self):
+        """One review per actor per place also holds for federated Creates:
+        a second Create from the same sender at the same place (different
+        ap_id) is ignored, while a different actor at the same place is fine."""
+        from app.db import get_db, review_exists
+
+        _, priv = await self._make_remote_bob()
+        note1 = self._make_note("https://remote.example/actor/bob/review/1", "First", 5)
+        resp = await self._post_signed_create(priv, note1)
+        assert resp.json()["status"] == "created"
+
+        # Same sender, same coordinates, new ap_id → duplicate, not stored.
+        note2 = self._make_note("https://remote.example/actor/bob/review/2", "Second", 1)
+        resp = await self._post_signed_create(priv, note2)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "duplicate"
+        assert not await review_exists(note2["id"])
+
+        # A different remote actor at the same place is not a duplicate.
+        carol_priv, carol_pub = generate_keypair()
+        await create_actor(
+            username="carol",
+            display_name="Carol",
+            summary="",
+            private_key_pem=carol_priv,
+            public_key_pem=carol_pub,
+            actor_uri="https://remote2.example/actor/carol",
+            inbox_uri="https://remote2.example/actor/carol/inbox",
+            outbox_uri="https://remote2.example/actor/carol/outbox",
+            followers_uri="https://remote2.example/actor/carol/followers",
+            following_uri="https://remote2.example/actor/carol/following",
+            is_local=False,
+        )
+        note3 = self._make_note("https://remote2.example/actor/carol/review/1", "Carol", 4)
+        activity = {
+            "id": "https://remote2.example/actor/carol/create/1",
+            "type": "Create",
+            "actor": "https://remote2.example/actor/carol",
+            "object": note3,
+        }
+        resp = await self._post_signed(
+            carol_priv, activity, key_id="https://remote2.example/actor/carol#main-key"
+        )
+        assert resp.json()["status"] == "created"
+
+        # Still exactly two reviews, both at the same coordinates.
+        db = await get_db()
+        row = await db.execute("SELECT COUNT(*) AS n FROM reviews")
+        result = await row.fetchone()
+        assert result is not None
+        assert result["n"] == 2

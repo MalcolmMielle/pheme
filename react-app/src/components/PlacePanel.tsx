@@ -1,26 +1,34 @@
 import { formatRating } from "../api";
 import ReviewCard from "./ReviewCard";
 import Stars from "./Stars";
-import type { PlaceSelection, Review } from "../types";
+import type { Me, PlaceSelection, Review } from "../types";
 
 interface PlacePanelProps {
   place: PlaceSelection;
   /** Existing reviews at this place (within the current map bounds). */
   reviews: Review[];
+  /** The logged-in user, or null when logged out. */
+  user: Me | null;
   /** True while the review form is open at the bottom of the sidebar. */
   formOpen: boolean;
-  onRatePlace: (place: PlaceSelection) => void;
+  /**
+   * Called with the place, plus the user's existing review there (if any) —
+   * the form then opens in edit mode instead of add mode.
+   */
+  onRatePlace: (place: PlaceSelection, existingReview?: Review) => void;
   onClose: () => void;
 }
 
 /**
  * Sidebar panel for a searched place: its info, the existing ratings at
- * the place, and a button to add your own rating. Closing it returns to
- * the standard review-list sidebar.
+ * the place, and a button to add your own rating — or to edit it when you
+ * already reviewed this place. Closing it returns to the standard
+ * review-list sidebar.
  */
 export default function PlacePanel({
   place,
   reviews,
+  user,
   formOpen,
   onRatePlace,
   onClose,
@@ -29,6 +37,8 @@ export default function PlacePanel({
     reviews.length > 0
       ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
       : null;
+  /** The logged-in user's own review at this place, if they have one. */
+  const myReview = user ? reviews.find((r) => r.actor_id === user.id) : undefined;
   return (
     <div className="place-panel">
       <div className="panel-header">
@@ -88,9 +98,9 @@ export default function PlacePanel({
           <button
             type="button"
             className="btn btn-primary place-rate-btn"
-            onClick={() => onRatePlace(place)}
+            onClick={() => onRatePlace(place, myReview)}
           >
-            ＋ Add a rating
+            {myReview ? "✎ Edit your review" : "＋ Add a rating"}
           </button>
         )}
       </div>
