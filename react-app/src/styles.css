@@ -1195,6 +1195,18 @@ button.user-chip:hover .user-name { color: var(--accent); }
     box-shadow: var(--shadow-md);
   }
 
+  /* zoom in/out (left) and the locate button (right) sit on a row below
+     the floating search bar instead of overlapping it: the bar's bottom
+     edge is ~55 px + safe-area, so the controls start at 68 px. */
+  .leaflet-top.leaflet-left {
+    top: calc(68px + env(safe-area-inset-top));
+  }
+  .leaflet-left .leaflet-control { margin-left: 12px; }
+  .locate-btn {
+    top: calc(68px + env(safe-area-inset-top));
+    right: 12px;
+  }
+
   /* review list scrolls inside the sheet */
   .review-list {
     overscroll-behavior: contain;
