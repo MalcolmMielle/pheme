@@ -77,18 +77,23 @@ async def get_review_by_actor_at_place(
 ) -> dict[str, Any] | None:
     """Return the actor's review at the given place, or None.
 
-    "Same place" means coordinates bucketed to 4 decimal places (~11 m) —
-    the same definition the map UI uses to group reviews into one place
-    (see placeKey in react-app/src/places.ts). Different actors may review
+    "Same place" means coordinates bucketed by the server's place precision
+    (the ``PLACE_DECIMALS`` runtime param, default 4 ≈ 11 m) — the same
+    definition the map UI uses to group reviews into one place (see placeKey
+    in react-app/src/places.ts and app/places). Different actors may review
     the same place; only a second review by the *same* actor matches.
     """
+    # Local import: app.places builds its Place objects on this module's
+    # create_review, so a module-level import would be circular.
+    from app.places import Place, places
+
     db = await get_db()
+    p = Place(places.decimals, latitude, longitude)
     row = await db.execute(
-        """SELECT r.*, a.username, a.display_name, a.actor_uri
+        f"""SELECT r.*, a.username, a.display_name, a.actor_uri
            FROM reviews r JOIN actors a ON r.actor_id = a.id
            WHERE r.actor_id = ?
-             AND ROUND(r.latitude, 4) = ROUND(?, 4)
-             AND ROUND(r.longitude, 4) = ROUND(?, 4)
+             AND {p.same_place_sql("r.latitude", "r.longitude")}
            LIMIT 1""",
         (actor_id, latitude, longitude),
     )

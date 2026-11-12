@@ -66,11 +66,22 @@ class Config:
         default_factory=lambda: os.getenv("REGISTRATION_MODE", "open").lower()
     )
 
+    # Precision of the "same place" coordinate bucket: decimal places of
+    # lat/lng (4 ≈ 11 m per bucket step). Drives app.places — the server-side
+    # place identity and the value the SPA gets via /api/meta.
+    place_decimals: int = field(
+        default_factory=lambda: int(os.getenv("PLACE_DECIMALS", "4"))
+    )
+
     def __post_init__(self) -> None:
         if self.registration_mode not in ("open", "invite", "closed"):
             raise ValueError(
                 f"REGISTRATION_MODE must be open, invite or closed "
                 f"(got {self.registration_mode!r})"
+            )
+        if not 1 <= self.place_decimals <= 8:
+            raise ValueError(
+                f"PLACE_DECIMALS must be between 1 and 8 (got {self.place_decimals!r})"
             )
 
     # Enable uvicorn auto-reload (development only — off unless asked for).

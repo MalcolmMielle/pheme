@@ -507,6 +507,7 @@ app loads it automatically via [python-dotenv](https://pypi.org/project/python-d
 | `SESSION_MAX_AGE` | `2592000` (30 days) | Session cookie lifetime in seconds |
 | `PASSWORD_MIN_LENGTH` | `8` | Minimum password length for new accounts |
 | `REGISTRATION_MODE` | `open` | `open` = anyone can register, `invite` = valid one-time invite code required, `closed` = admins create accounts only |
+| `PLACE_DECIMALS` | `4` | Precision of the "same place" coordinate bucket (decimal places of lat/lng, ~11 m per step at 4) — drives map place grouping and the one-review-per-actor-per-place rule; exposed to the SPA via `/api/meta` |
 
 ## Registration & moderation
 

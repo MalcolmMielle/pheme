@@ -22,11 +22,11 @@ from app.db import (
     follow_actor,
     get_actor_by_uri,
     get_db,
-    get_review_by_actor_at_place,
     review_exists,
     unfollow_actor,
     update_review,
 )
+from app.places import places
 from app.routes.activitypub.helpers import (
     fetch_remote_actor,
     require_local_actor,
@@ -142,10 +142,10 @@ async def _handle_create(
 
     # One review per actor per place: ignore a second Create from the same
     # sender at the same coordinates (different ap_id, same place bucket).
-    at_place = await get_review_by_actor_at_place(
-        sender_actor["id"], float(obj.get("latitude", 0.0)), float(obj.get("longitude", 0.0))
+    p = await places.at(
+        float(obj.get("latitude", 0.0)), float(obj.get("longitude", 0.0))
     )
-    if at_place is not None:
+    if p.review_by(sender_actor["id"]) is not None:
         logger.info(
             "Ignoring Create %s — %s already reviewed this place",
             ap_id,

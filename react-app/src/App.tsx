@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 
-import { fetchMe } from "./api";
+import { fetchMe, fetchMeta } from "./api";
 import MapPage from "./components/MapPage";
 import ProfilePage from "./components/ProfilePage";
+import { configurePlaceDecimals } from "./places";
 import type { Me } from "./types";
 
 type View = "map" | "profile";
@@ -42,6 +43,11 @@ export default function App() {
       .then(setUser)
       .catch((err) => console.error("Failed to load current user", err))
       .finally(() => setUserLoaded(true));
+    // Match the server's place-bucket precision (PLACE_DECIMALS) so the
+    // SPA groups coordinates into places exactly like the server does.
+    fetchMeta()
+      .then((meta) => configurePlaceDecimals(meta.place_decimals))
+      .catch((err) => console.error("Failed to load server meta", err));
   }, []);
 
   // Keep the view in sync with the URL (browser back/forward, direct load).

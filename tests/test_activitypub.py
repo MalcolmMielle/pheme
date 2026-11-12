@@ -375,7 +375,9 @@ class TestInbox(AsyncTestCase):
         """A signed Update from the original author edits the stored review."""
         bob, priv = await self._make_remote_bob()
         ap_id = "https://remote.example/actor/bob/review/1"
-        resp = await self._post_signed_create(priv, self._make_note(ap_id, "Loved it", 5))
+        resp = await self._post_signed_create(
+            priv, self._make_note(ap_id, "Loved it", 5)
+        )
         assert resp.status_code == 200
 
         update = {
@@ -411,7 +413,9 @@ class TestInbox(AsyncTestCase):
         """An Update signed by someone other than the author is refused."""
         bob, bob_priv = await self._make_remote_bob()
         ap_id = "https://remote.example/actor/bob/review/1"
-        resp = await self._post_signed_create(bob_priv, self._make_note(ap_id, "Loved it", 5))
+        resp = await self._post_signed_create(
+            bob_priv, self._make_note(ap_id, "Loved it", 5)
+        )
         assert resp.status_code == 200
 
         # carol has her own keypair — she is not the author.
@@ -473,7 +477,9 @@ class TestInbox(AsyncTestCase):
         assert resp.json()["status"] == "created"
 
         # Same sender, same coordinates, new ap_id → duplicate, not stored.
-        note2 = self._make_note("https://remote.example/actor/bob/review/2", "Second", 1)
+        note2 = self._make_note(
+            "https://remote.example/actor/bob/review/2", "Second", 1
+        )
         resp = await self._post_signed_create(priv, note2)
         assert resp.status_code == 200
         assert resp.json()["status"] == "duplicate"
@@ -494,7 +500,9 @@ class TestInbox(AsyncTestCase):
             following_uri="https://remote2.example/actor/carol/following",
             is_local=False,
         )
-        note3 = self._make_note("https://remote2.example/actor/carol/review/1", "Carol", 4)
+        note3 = self._make_note(
+            "https://remote2.example/actor/carol/review/1", "Carol", 4
+        )
         activity = {
             "id": "https://remote2.example/actor/carol/create/1",
             "type": "Create",

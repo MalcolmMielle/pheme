@@ -398,7 +398,12 @@ class TestUpdateReview(AsyncTestCase):
         await self.register_user(username="otheruser", display_name="Other")
         resp = await self.client.put(
             f"/api/reviews/{review_id}",
-            json={"content": "hijacked", "rating": 1, "latitude": 1.0, "longitude": 2.0},
+            json={
+                "content": "hijacked",
+                "rating": 1,
+                "latitude": 1.0,
+                "longitude": 2.0,
+            },
         )
         assert resp.status_code == 403
         # The review is unchanged.
@@ -483,7 +488,9 @@ class TestOneReviewPerPlace(AsyncTestCase):
     on PUT, so an edit can't be moved onto another own review's place).
     "Same place" = coordinates bucketed to 4 decimal places, like the map UI."""
 
-    async def _post_review(self, lat: float, lng: float = -122.0, content: str = "Nice"):
+    async def _post_review(
+        self, lat: float, lng: float = -122.0, content: str = "Nice"
+    ):
         return await self.client.post(
             "/api/reviews",
             json={"content": content, "rating": 4, "latitude": lat, "longitude": lng},

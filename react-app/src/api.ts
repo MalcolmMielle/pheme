@@ -181,6 +181,8 @@ export async function reverseGeocode(
 /** Public server metadata, from `GET /api/meta`. */
 interface ServerMeta {
   registration_mode: string;
+  /** Place-bucket precision (decimal places) — the server's PLACE_DECIMALS. */
+  place_decimals: number;
 }
 
 /** Server metadata (registration mode) — used to hide the Register button. */

@@ -4,7 +4,12 @@ FastAPI application — entry point.
 Wires together:
   • routes/activitypub  — WebFinger, Actor, Inbox, Outbox, Followers
   • routes/web          — server-rendered pages (auth forms, review detail)
-  • routes/api          — review CRUD, geocode proxy, follow, /api/me
+  • routes/api          — review CRUD, follow, /api/me
+  • places/             — places package, one class per file:
+                          places.py (Places manager: PLACE_DECIMALS config,
+                          Nominatim proxy, Place factory), place.py (Place:
+                          bucket identity + a place's DB data and
+                          add/update), errors.py (AlreadyReviewed)
   • react-app/dist      — the React SPA (map page) + SPA catch-all
 """
 

@@ -1,16 +1,14 @@
 """
-JSON API routes — review CRUD, geocode proxy, /api/me, and bootstrap.
+JSON API routes — review CRUD, /api/me, and bootstrap.
 
-Follow/unfollow live in routes/follow.py; admin endpoints (accounts, invite
-codes) live in routes/admin.py. The WebFinger resolution helpers at the
-bottom are shared with routes/follow.py.
+Place identity and geocoding (the Nominatim proxy) live in the app/places
+package (the ``places`` singleton); follow/unfollow in routes/follow.py;
+admin endpoints (accounts, invite codes) in routes/admin.py. The WebFinger
+resolution helpers at the bottom are shared with routes/follow.py.
 """
 
-import asyncio
 import ipaddress
 import logging
-import time
-import uuid
 from typing import Any
 
 import httpx
@@ -25,22 +23,20 @@ from app.auth import get_current_user, get_session_actor
 from app.db import (
     count_reviews,
     count_reviews_by_bounds,
-    create_review,
     delete_review,
     get_actor_by_id,
     get_actor_by_username,
     get_follower_inboxes,
     get_following,
     get_following_actors,
-    get_review_by_actor_at_place,
     get_review_by_id,
     get_reviews,
     get_reviews_by_bounds,
     hash_password,
     list_local_actors,
-    update_review,
 )
 from app.config import config
+from app.places import AlreadyReviewed, places
 from app.ratelimit import limiter
 from app.routes.activitypub import create_local_actor
 from app.routes.activitypub.helpers import (
@@ -51,61 +47,6 @@ from app.routes.activitypub.helpers import (
 logger = logging.getLogger("pheme")
 
 router = APIRouter()
-
-_NOMINATIM_BASE = "https://nominatim.openstreetmap.org"
-_NOMINATIM_HEADERS = {
-    "User-Agent": f"Pheme/0.1 ({config.base_url})",
-    "Accept-Language": "en",
-}
-
-# Nominatim usage policy: at most 1 request/second — throttle upstream
-# calls and cache repeated lookups.
-_NOMINATIM_MIN_INTERVAL = 1.0
-_NOMINATIM_CACHE_TTL = 300.0
-_nominatim_cache: dict[tuple, tuple[float, Any]] = {}
-_nominatim_last_request = 0.0
-_nominatim_lock = asyncio.Lock()
-
-
-async def _nominatim_get(path: str, params: dict[str, Any]) -> JSONResponse:
-    """GET a Nominatim endpoint, cached and throttled to 1 req/s.
-
-    Only successful (200) responses are cached; upstream errors surface as
-    502 instead of leaking Nominatim's status/body to the SPA.
-    """
-    global _nominatim_last_request
-
-    key = (path, tuple(sorted(params.items())))
-    now = time.monotonic()
-    cached = _nominatim_cache.get(key)
-    if cached is not None and now - cached[0] < _NOMINATIM_CACHE_TTL:
-        return JSONResponse(cached[1])
-
-    async with _nominatim_lock:
-        wait = _NOMINATIM_MIN_INTERVAL - (time.monotonic() - _nominatim_last_request)
-        if wait > 0:
-            await asyncio.sleep(wait)
-        _nominatim_last_request = time.monotonic()
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                resp = await client.get(
-                    f"{_NOMINATIM_BASE}{path}",
-                    params=params,
-                    headers=_NOMINATIM_HEADERS,
-                )
-            except httpx.RequestError as exc:
-                logger.warning("Nominatim %s failed: %s", path, exc)
-                raise HTTPException(502, "Geocoding service unavailable") from exc
-
-    if resp.status_code != 200:
-        logger.warning("Nominatim %s returned %d", path, resp.status_code)
-        raise HTTPException(502, "Geocoding service unavailable")
-
-    data = resp.json()
-    if len(_nominatim_cache) > 1000:
-        _nominatim_cache.clear()
-    _nominatim_cache[key] = (time.monotonic(), data)
-    return JSONResponse(data)
 
 
 @router.get("/api/me")
@@ -132,8 +73,14 @@ async def api_me(request: Request) -> JSONResponse:
 
 @router.get("/api/meta")
 async def api_meta() -> JSONResponse:
-    """Public server metadata for the SPA (registration mode, etc.)."""
-    return JSONResponse({"registration_mode": config.registration_mode})
+    """Public server metadata for the SPA (registration mode, place bucket
+    precision, etc.)."""
+    return JSONResponse(
+        {
+            "registration_mode": config.registration_mode,
+            "place_decimals": config.place_decimals,
+        }
+    )
 
 
 @router.get("/api/me/following")
@@ -151,7 +98,7 @@ async def api_geocode(
     q: str, limit: int = Query(default=5, ge=1, le=50)
 ) -> JSONResponse:
     """Proxy a place search to Nominatim (avoids exposing user IPs)."""
-    return await _nominatim_get(
+    return await places.nominatim_get(
         "/search",
         {"q": q, "format": "json", "limit": limit, "addressdetails": 1},
     )
@@ -160,7 +107,9 @@ async def api_geocode(
 @router.get("/api/reverse-geocode")
 async def api_reverse_geocode(lat: float, lon: float) -> JSONResponse:
     """Proxy a reverse geocode lookup to Nominatim."""
-    return await _nominatim_get("/reverse", {"lat": lat, "lon": lon, "format": "json"})
+    return await places.nominatim_get(
+        "/reverse", {"lat": lat, "lon": lon, "format": "json"}
+    )
 
 
 @router.get("/api/reviews")
@@ -282,31 +231,26 @@ async def api_create_review(
         return parsed
     payload = parsed
 
-    # One review per actor per place (coordinates bucketed like the map UI):
-    # a second review at the same place is a 409 pointing at the existing one.
-    existing = await get_review_by_actor_at_place(
-        actor["id"], payload.latitude, payload.longitude
-    )
-    if existing is not None:
+    # Materialize the place object for the clicked coordinates (loaded with
+    # its reviews from the DB) and add the review on it — one review per
+    # actor per place is enforced there (AlreadyReviewed → 409).
+    p = await places.at(payload.latitude, payload.longitude)
+    try:
+        review = await p.add_review(
+            actor,
+            content=payload.content,
+            rating=payload.rating,
+            place_name=payload.place_name,
+            place_address=payload.place_address,
+        )
+    except AlreadyReviewed as exc:
         return JSONResponse(
             {
                 "detail": "You already reviewed this place — edit your review instead.",
-                "review_id": existing["id"],
+                "review_id": exc.review["id"],
             },
             status_code=409,
         )
-
-    ap_id = f"{actor['actor_uri']}/review/{uuid.uuid4()}"
-    review = await create_review(
-        actor_id=actor["id"],
-        ap_id=ap_id,
-        content=payload.content,
-        rating=payload.rating,
-        latitude=payload.latitude,
-        longitude=payload.longitude,
-        place_name=payload.place_name,
-        place_address=payload.place_address,
-    )
 
     activity = build_create_activity(actor, review)
 
@@ -320,7 +264,7 @@ async def api_create_review(
 
     logger.info(
         "Created review %s — federated to %d followers (%d ok, %d fail)",
-        ap_id,
+        review["ap_id"],
         len(follower_inboxes),
         result["ok"],
         result["fail"],
@@ -351,11 +295,11 @@ async def api_update_review(
         return parsed
     payload = parsed
 
-    # The edit must not move the review onto a place where the author already
-    # has a different review — one review per actor per place still holds.
-    at_place = await get_review_by_actor_at_place(
-        actor["id"], payload.latitude, payload.longitude
-    )
+    # Edit through the place object for the target coordinates — the edit
+    # must not move the review onto a place where the author already has a
+    # different review (one review per actor per place still holds).
+    p = await places.at(payload.latitude, payload.longitude)
+    at_place = p.review_by(actor["id"])
     if at_place is not None and at_place["id"] != review_id:
         return JSONResponse(
             {
@@ -365,12 +309,10 @@ async def api_update_review(
             status_code=409,
         )
 
-    updated = await update_review(
-        review_id=review_id,
+    updated = await p.update_review(
+        review_id,
         content=payload.content,
         rating=payload.rating,
-        latitude=payload.latitude,
-        longitude=payload.longitude,
         place_name=payload.place_name,
         place_address=payload.place_address,
     )

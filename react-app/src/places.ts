@@ -14,12 +14,26 @@ export interface ReviewPlace {
 }
 
 /**
- * Bucket key for "same place": coordinates to 4 decimal places (~11 m),
- * which covers reviews posted via place search (identical Nominatim
- * coordinates) and nearby map clicks.
+ * Place-bucket precision (decimal places of lat/lng). Defaults to 4 (~11 m)
+ * and is set from the server's /api/meta (`place_decimals`, the server's
+ * PLACE_DECIMALS runtime parameter) at startup — see configurePlaceDecimals.
+ */
+let placeDecimals = 4;
+
+/** Set the place-bucket precision from the server's /api/meta. */
+export function configurePlaceDecimals(decimals: number): void {
+  if (Number.isInteger(decimals) && decimals >= 1 && decimals <= 8) {
+    placeDecimals = decimals;
+  }
+}
+
+/**
+ * Bucket key for "same place": coordinates to `placeDecimals` decimal
+ * places, which covers reviews posted via place search (identical
+ * Nominatim coordinates) and nearby map clicks.
  */
 export function placeKey(lat: number, lng: number): string {
-  return `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  return `${lat.toFixed(placeDecimals)},${lng.toFixed(placeDecimals)}`;
 }
 
 /** All reviews at the same place as the given point. */
