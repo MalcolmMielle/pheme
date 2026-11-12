@@ -23,12 +23,11 @@ async def _bootstrap() -> None:
     """Create a default actor and seed demo reviews."""
     from app.db import (
         close_db,
-        create_review,
         get_actor_by_username,
         hash_password,
         init_db,
-        review_exists,
     )
+    from app.reviews import reviews
     from app.routes.activitypub.helpers import create_local_actor
 
     # Standalone script — no app lifespan, so manage the connection here.
@@ -140,9 +139,9 @@ async def _bootstrap() -> None:
     for i, r in enumerate(demo_reviews):
         ap_id = f"{base_uri}/review/demo-{i}"
         # Check if we've already seeded
-        if await review_exists(ap_id):
+        if await reviews.exists(ap_id):
             continue
-        await create_review(
+        await reviews.create(
             actor_id=actor_id,
             ap_id=ap_id,
             content=r["content"],

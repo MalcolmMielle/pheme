@@ -1,4 +1,6 @@
-"""Tests for the database layer (actors, reviews, follows)."""
+"""Tests for the database layer (actors, follows, invites, connection).
+
+Review CRUD tests live in tests/test_reviews.py (the app/reviews package)."""
 
 import unittest
 
@@ -8,18 +10,14 @@ from app.activitypub.signing import generate_keypair
 from app.db import (
     accept_follow,
     create_actor,
-    create_review,
     follow_actor,
     get_actor_by_id,
     get_actor_by_uri,
     get_actor_by_username,
     get_followers,
     get_following,
-    get_reviews,
-    get_reviews_by_bounds,
     hash_password,
     list_local_actors,
-    review_exists,
     verify_password,
 )
 
@@ -98,123 +96,6 @@ class TestActorCRUD(AsyncTestCase):
             await _make_actor("alice")
 
 
-class TestReviewCRUD(AsyncTestCase):
-    async def test_create_and_get_review(self):
-        actor = await _make_actor()
-        review = await create_review(
-            actor_id=actor["id"],
-            ap_id="http://testserver/actor/alice/review/1",
-            content="Great place!",
-            rating=5,
-            latitude=37.7749,
-            longitude=-122.4194,
-            place_name="Test Place",
-            place_address="123 Test St",
-        )
-        assert review["content"] == "Great place!"
-        assert review["rating"] == 5
-
-    async def test_get_reviews_includes_actor_info(self):
-        actor = await _make_actor()
-        await create_review(
-            actor_id=actor["id"],
-            ap_id="http://testserver/actor/alice/review/1",
-            content="Nice",
-            rating=4,
-            latitude=37.0,
-            longitude=-122.0,
-        )
-        reviews = await get_reviews()
-        assert len(reviews) == 1
-        assert reviews[0]["username"] == "alice"
-        assert reviews[0]["display_name"] == "Alice"
-
-    async def test_get_reviews_by_bounds(self):
-        actor = await _make_actor()
-        # Inside SF bounds
-        await create_review(
-            actor_id=actor["id"],
-            ap_id="http://testserver/actor/alice/review/1",
-            content="In SF",
-            rating=5,
-            latitude=37.7749,
-            longitude=-122.4194,
-        )
-        # Outside SF bounds (NYC)
-        await create_review(
-            actor_id=actor["id"],
-            ap_id="http://testserver/actor/alice/review/2",
-            content="In NYC",
-            rating=3,
-            latitude=40.7128,
-            longitude=-74.0060,
-        )
-        sf_reviews = await get_reviews_by_bounds(
-            min_lat=37.70, max_lat=37.85, min_lng=-122.50, max_lng=-122.35
-        )
-        assert len(sf_reviews) == 1
-        assert sf_reviews[0]["content"] == "In SF"
-
-    async def test_duplicate_ap_id_returns_existing(self):
-        actor = await _make_actor()
-        ap_id = "http://testserver/actor/alice/review/dup"
-        r1 = await create_review(
-            actor_id=actor["id"],
-            ap_id=ap_id,
-            content="First",
-            rating=5,
-            latitude=37.0,
-            longitude=-122.0,
-        )
-        r2 = await create_review(
-            actor_id=actor["id"],
-            ap_id=ap_id,
-            content="Second",
-            rating=1,
-            latitude=0,
-            longitude=0,
-        )
-        assert r1["id"] == r2["id"]
-        assert r2["content"] == "First"  # original preserved
-
-    async def test_review_exists(self):
-        actor = await _make_actor()
-        ap_id = "http://testserver/actor/alice/review/exists"
-        assert await review_exists(ap_id) is False
-        await create_review(
-            actor_id=actor["id"],
-            ap_id=ap_id,
-            content="Test",
-            rating=3,
-            latitude=0,
-            longitude=0,
-        )
-        assert await review_exists(ap_id) is True
-
-    async def test_rating_constraint(self):
-        """Rating outside 1-5 should fail the CHECK constraint."""
-        actor = await _make_actor()
-        # create_review catches IntegrityError and returns {} on failure
-        result = await create_review(
-            actor_id=actor["id"],
-            ap_id="http://testserver/actor/alice/review/bad",
-            content="Bad rating",
-            rating=6,  # > 5
-            latitude=0,
-            longitude=0,
-        )
-        assert result == {}  # insert rejected by CHECK constraint
-        result = await create_review(
-            actor_id=actor["id"],
-            ap_id="http://testserver/actor/alice/review/bad2",
-            content="Bad rating",
-            rating=0,  # < 1
-            latitude=0,
-            longitude=0,
-        )
-        assert result == {}
-
-
 class TestFollows(AsyncTestCase):
     """Tests for follow relationships (corrected semantics)."""
 
@@ -284,31 +165,6 @@ class TestFollows(AsyncTestCase):
         result = await row.fetchone()
         assert result is not None
         assert result["n"] == 0
-
-    async def test_reviews_by_actor(self):
-        from app.db import get_reviews_by_actor
-
-        alice = await _make_actor("alice")
-        bob = await _make_actor("bob")
-        await create_review(
-            actor_id=alice["id"],
-            ap_id="http://testserver/actor/alice/review/1",
-            content="Alice's review",
-            rating=5,
-            latitude=37.0,
-            longitude=-122.0,
-        )
-        await create_review(
-            actor_id=bob["id"],
-            ap_id="http://testserver/actor/bob/review/1",
-            content="Bob's review",
-            rating=3,
-            latitude=37.0,
-            longitude=-122.0,
-        )
-        alice_reviews = await get_reviews_by_actor(alice["id"])
-        assert len(alice_reviews) == 1
-        assert alice_reviews[0]["content"] == "Alice's review"
 
 
 class TestConnectionLifecycle(AsyncTestCase):

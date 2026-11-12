@@ -6,10 +6,10 @@ from unittest.mock import patch
 from app.db import (
     accept_follow,
     create_actor,
-    create_review,
     follow_actor,
     get_actor_by_username,
 )
+from app.reviews import reviews
 from app.routes.api import _resolve_actor_uri, _webfinger_schemes
 from tests.base import AsyncTestCase, get_csrf_token
 
@@ -832,7 +832,7 @@ class TestReviewsScope(AsyncTestCase):
     async def _make_review(
         self, actor_id: int, ap_id: str, content: str, lat: float = 37.0
     ):
-        await create_review(
+        await reviews.create(
             actor_id=actor_id,
             ap_id=ap_id,
             content=content,

@@ -10,8 +10,8 @@ from app.db import (
     follow_actor,
     get_actor_by_username,
     get_followers,
-    get_review_by_id,
 )
+from app.reviews import reviews
 from tests.base import AsyncTestCase, get_csrf_token
 
 
@@ -323,7 +323,6 @@ class TestInbox(AsyncTestCase):
         return await self._post_signed(priv, activity)
 
     async def test_create_stores_federated_review(self):
-        from app.db import review_exists
 
         _, priv = await self._make_remote_bob()
         note = {
@@ -338,12 +337,11 @@ class TestInbox(AsyncTestCase):
         resp = await self._post_signed_create(priv, note)
         assert resp.status_code == 200
         assert resp.json()["status"] == "created"
-        assert await review_exists(note["id"])
+        assert await reviews.exists(note["id"])
 
     async def test_create_rejects_invalid_rating(self):
         """A federated rating outside 1-5 must be rejected with 400, not
         silently dropped by the DB CHECK while reporting "created"."""
-        from app.db import review_exists
 
         _, priv = await self._make_remote_bob()
         note = {
@@ -356,7 +354,7 @@ class TestInbox(AsyncTestCase):
         }
         resp = await self._post_signed_create(priv, note)
         assert resp.status_code == 400
-        assert not await review_exists(note["id"])
+        assert not await reviews.exists(note["id"])
 
     def _make_note(self, ap_id: str, content: str, rating: int) -> dict:
         return {
@@ -391,10 +389,9 @@ class TestInbox(AsyncTestCase):
         assert resp.json()["status"] == "updated"
 
         # The stored review carries the edit — still a single row.
-        from app.db import review_exists
 
-        assert await review_exists(ap_id)
-        review = await get_review_by_id(await self._review_id_by_ap_id(ap_id))
+        assert await reviews.exists(ap_id)
+        review = await reviews.by_id(await self._review_id_by_ap_id(ap_id))
         assert review is not None
         assert review["content"] == "Actually it was fine"
         assert review["rating"] == 3
@@ -446,7 +443,7 @@ class TestInbox(AsyncTestCase):
         )
         assert resp.status_code == 403
 
-        review = await get_review_by_id(await self._review_id_by_ap_id(ap_id))
+        review = await reviews.by_id(await self._review_id_by_ap_id(ap_id))
         assert review is not None
         assert review["content"] == "Loved it"
         assert review["rating"] == 5
@@ -469,7 +466,7 @@ class TestInbox(AsyncTestCase):
         """One review per actor per place also holds for federated Creates:
         a second Create from the same sender at the same place (different
         ap_id) is ignored, while a different actor at the same place is fine."""
-        from app.db import get_db, review_exists
+        from app.db import get_db
 
         _, priv = await self._make_remote_bob()
         note1 = self._make_note("https://remote.example/actor/bob/review/1", "First", 5)
@@ -483,7 +480,7 @@ class TestInbox(AsyncTestCase):
         resp = await self._post_signed_create(priv, note2)
         assert resp.status_code == 200
         assert resp.json()["status"] == "duplicate"
-        assert not await review_exists(note2["id"])
+        assert not await reviews.exists(note2["id"])
 
         # A different remote actor at the same place is not a duplicate.
         carol_priv, carol_pub = generate_keypair()

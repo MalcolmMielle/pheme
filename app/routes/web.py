@@ -19,11 +19,11 @@ from app.db import (
     consume_invite,
     delete_actor,
     get_actor_by_username,
-    get_review_by_id,
     get_valid_invite,
     hash_password,
     verify_password,
 )
+from app.reviews import reviews
 from app.forms import RegisterForm, first_validation_error
 from app.ratelimit import limiter
 from app.routes.activitypub import create_local_actor
@@ -66,7 +66,7 @@ def _format_review_date(value: str) -> str:
 @router.get("/review/{review_id}", response_class=HTMLResponse)
 async def review_page(request: Request, review_id: int) -> HTMLResponse:
     """Single review detail page."""
-    review = await get_review_by_id(review_id)
+    review = await reviews.by_id(review_id)
     if not review:
         raise HTTPException(404, "Review not found")
     # The author's server, derived from their actor URI ("user@server").

@@ -10,9 +10,9 @@ from fastapi.responses import JSONResponse
 from app.db import (
     get_followers,
     get_following,
-    get_reviews_by_actor,
     list_local_actors,
 )
+from app.reviews import reviews
 from app.routes.activitypub.helpers import (
     build_create_activity,
     outbox_uri,
@@ -36,8 +36,10 @@ async def shared_inbox(request: Request) -> JSONResponse:
 async def get_outbox(username: str) -> JSONResponse:
     """Return an actor's outbox (published activities)."""
     actor = await require_local_actor(username)
-    reviews = await get_reviews_by_actor(actor["id"], limit=50)
-    items: list[dict[str, Any]] = [build_create_activity(actor, r) for r in reviews]
+    actor_reviews = await reviews.by_actor(actor["id"], limit=50)
+    items: list[dict[str, Any]] = [
+        build_create_activity(actor, r) for r in actor_reviews
+    ]
     return JSONResponse(
         {
             "id": outbox_uri(username),

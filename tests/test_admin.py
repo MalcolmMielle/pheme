@@ -480,10 +480,11 @@ class TestModeration(AdminTestCase):
             await victim.aclose()
 
     async def test_delete_user_removes_account_and_reviews(self):
-        from app.db import create_review, get_actor_by_id, get_reviews
+        from app.db import get_actor_by_id
+        from app.reviews import reviews
 
         uid = await self._create_user()
-        await create_review(
+        await reviews.create(
             actor_id=uid,
             ap_id="http://testserver/review/del-1",
             content="spam",
@@ -491,12 +492,12 @@ class TestModeration(AdminTestCase):
             latitude=0.0,
             longitude=0.0,
         )
-        assert len(await get_reviews()) == 1
+        assert len(await reviews.all()) == 1
 
         resp = await self.client.delete(f"/api/admin/users/{uid}", headers=JSON_HEADERS)
         assert resp.status_code == 200
         assert await get_actor_by_id(uid) is None
-        assert len(await get_reviews()) == 0
+        assert len(await reviews.all()) == 0
 
     async def test_delete_user_referenced_by_invites(self):
         """invite_codes.created_by/used_by are FKs to actors with no ON DELETE

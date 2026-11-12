@@ -20,6 +20,7 @@ from app.db import (
     get_actor_by_username,
     get_db,
 )
+from app.reviews import Review
 
 logger = logging.getLogger("pheme")
 
@@ -69,9 +70,7 @@ def sqlite_from_iso8601(value: str) -> str | None:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def build_create_activity(
-    actor: dict[str, Any], review: dict[str, Any]
-) -> dict[str, Any]:
+def build_create_activity(actor: dict[str, Any], review: Review) -> dict[str, Any]:
     """Build the Create activity wrapping a review (Note) — used both when
     fanning out a new review to followers and when rendering the outbox."""
     ap_id = review["ap_id"]
@@ -98,9 +97,7 @@ def build_create_activity(
     }
 
 
-def build_update_activity(
-    actor: dict[str, Any], review: dict[str, Any]
-) -> dict[str, Any]:
+def build_update_activity(actor: dict[str, Any], review: Review) -> dict[str, Any]:
     """Build the Update activity wrapping a review (Note) — fanned out to
     followers when the author edits their review. Same object shape as the
     Create (see build_create_activity), so remote servers can apply it the

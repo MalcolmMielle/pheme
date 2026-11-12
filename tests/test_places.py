@@ -12,7 +12,8 @@ import httpx
 from fastapi import HTTPException
 
 from app.config import Config, config
-from app.db import create_actor, create_review
+from app.db import create_actor
+from app.reviews import reviews
 from app.places import AlreadyReviewed, Place, Places, places
 from tests.base import AsyncTestCase
 
@@ -272,7 +273,7 @@ class TestPlaceObject(AsyncTestCase):
     async def _make_review(
         self, actor_id: int, ap_id: str, lat: float, lng: float, **kwargs
     ):
-        return await create_review(
+        return await reviews.create(
             actor_id=actor_id,
             ap_id=ap_id,
             content=kwargs.get("content", "x"),

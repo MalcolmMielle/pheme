@@ -13,6 +13,7 @@ from typing import Any
 
 from app.db.connection import get_db
 from app.places.errors import AlreadyReviewed
+from app.reviews import Review, reviews
 
 
 class Place:
@@ -29,7 +30,7 @@ class Place:
         decimals: int,
         lat: float,
         lng: float,
-        reviews: list[dict[str, Any]] | None = None,
+        reviews: list[Review] | None = None,
     ) -> None:
         if not 1 <= decimals <= self.MAX_DECIMALS:
             raise ValueError(
@@ -84,7 +85,7 @@ class Place:
 
     # ── DB access ───────────────────────────────────────────────────────
 
-    async def reviews_at(self) -> list[dict[str, Any]]:
+    async def reviews_at(self) -> list[Review]:
         """All reviews at this place (the bucket containing this object's
         coordinates), with actor info, newest first."""
         db = await get_db()
@@ -95,7 +96,7 @@ class Place:
                ORDER BY r.created_at DESC""",
             (self.lat, self.lng),
         )
-        return [dict(r) for r in await rows.fetchall()]
+        return [Review(dict(r)) for r in await rows.fetchall()]
 
     @property
     def name(self) -> str:
@@ -122,7 +123,7 @@ class Place:
             return None
         return sum(r["rating"] for r in self.reviews) / len(self.reviews)
 
-    def review_by(self, actor_id: int) -> dict[str, Any] | None:
+    def review_by(self, actor_id: int) -> Review | None:
         """The actor's own review at this place, or None."""
         return next((r for r in self.reviews if r["actor_id"] == actor_id), None)
 
@@ -134,19 +135,15 @@ class Place:
         rating: int,
         place_name: str = "",
         place_address: str = "",
-    ) -> dict[str, Any]:
+    ) -> Review:
         """Add the actor's review at this place. Enforces one review per
         actor per place — raises AlreadyReviewed when they already have one.
         The new review is appended to this object's ``reviews``."""
         existing = self.review_by(actor["id"])
         if existing is not None:
             raise AlreadyReviewed(existing)
-        # Local import: app.db.reviews pulls its place bucketing from
-        # app.places, so a module-level import here would be circular.
-        from app.db import create_review as db_create_review
-
         ap_id = f"{actor['actor_uri']}/review/{uuid.uuid4()}"
-        review = await db_create_review(
+        review = await reviews.create(
             actor_id=actor["id"],
             ap_id=ap_id,
             content=content,
@@ -167,18 +164,14 @@ class Place:
         rating: int,
         place_name: str = "",
         place_address: str = "",
-    ) -> dict[str, Any] | None:
+    ) -> Review | None:
         """Update a review of this place (kept at the place's coordinates).
         Returns the updated review, or None when the ID doesn't exist. The
         object's ``reviews`` list is kept in sync."""
-        # Local import — see add_review.
-        from app.db import get_review_by_id
-        from app.db import update_review as db_update_review
-
-        if await get_review_by_id(review_id) is None:
+        review = await reviews.by_id(review_id)
+        if review is None:
             return None
-        updated = await db_update_review(
-            review_id=review_id,
+        await review.save(
             content=content,
             rating=rating,
             latitude=self.lat,
@@ -188,6 +181,6 @@ class Place:
         )
         for i, r in enumerate(self.reviews):
             if r["id"] == review_id:
-                self.reviews[i] = updated  # type: ignore[assignment]
+                self.reviews[i] = review
                 break
-        return updated
+        return review

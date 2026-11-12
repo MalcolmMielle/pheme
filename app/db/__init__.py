@@ -4,12 +4,13 @@ Async SQLite database layer.
 Package layout:
   connection   — init_db/close_db/get_db, SCHEMA, connection management
   actors       — actor CRUD, password hashing
-  reviews      — review CRUD, bounds queries, pagination
   follows      — follow/follower relationships
   invites      — one-time invite codes for the "invite" registration mode
 
+(Review CRUD lives in the app/reviews package — see app/reviews/.)
+
 All public functions are re-exported here for backward compatibility:
-    from app.db import create_actor, get_reviews, follow_actor, ...
+    from app.db import create_actor, follow_actor, ...
 """
 
 from app.db.actors import (
@@ -42,19 +43,6 @@ from app.db.invites import (
     get_valid_invite,
     list_invites,
 )
-from app.db.reviews import (
-    count_reviews,
-    count_reviews_by_bounds,
-    create_review,
-    delete_review,
-    get_review_by_actor_at_place,
-    get_review_by_id,
-    get_reviews,
-    get_reviews_by_actor,
-    get_reviews_by_bounds,
-    review_exists,
-    update_review,
-)
 
 __all__ = [
     # connection
@@ -74,18 +62,6 @@ __all__ = [
     "delete_actor",
     "hash_password",
     "verify_password",
-    # reviews
-    "create_review",
-    "delete_review",
-    "get_review_by_id",
-    "get_reviews",
-    "get_reviews_by_actor",
-    "get_reviews_by_bounds",
-    "review_exists",
-    "update_review",
-    "get_review_by_actor_at_place",
-    "count_reviews",
-    "count_reviews_by_bounds",
     # follows
     "follow_actor",
     "accept_follow",

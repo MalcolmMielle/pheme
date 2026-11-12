@@ -17,16 +17,12 @@ from app.activitypub.delivery import deliver_to_inbox
 from app.activitypub.signing import parse_signature_header, verify_signature
 from app.db import (
     accept_follow,
-    create_review,
-    delete_review,
     follow_actor,
     get_actor_by_uri,
-    get_db,
-    review_exists,
     unfollow_actor,
-    update_review,
 )
 from app.places import places
+from app.reviews import reviews
 from app.routes.activitypub.helpers import (
     fetch_remote_actor,
     require_local_actor,
@@ -132,7 +128,7 @@ async def _handle_create(
     obj = activity.get("object", {})
     ap_id = obj.get("id", "")
 
-    if not ap_id or await review_exists(ap_id):
+    if not ap_id or await reviews.exists(ap_id):
         return JSONResponse({"status": "duplicate"})
 
     reason = _invalid_note_reason(obj)
@@ -159,7 +155,7 @@ async def _handle_create(
     # back to the local receipt time when it is missing or unparseable.
     published = obj.get("published", "")
     created_at = sqlite_from_iso8601(published) if isinstance(published, str) else None
-    await create_review(
+    await reviews.create(
         actor_id=sender_actor["id"],
         ap_id=ap_id,
         content=obj.get("content", ""),
@@ -185,9 +181,7 @@ async def _handle_update(
     if not ap_id:
         return JSONResponse({"status": "ignored", "reason": "no object id"})
 
-    db = await get_db()
-    row = await db.execute("SELECT id, actor_id FROM reviews WHERE ap_id = ?", (ap_id,))
-    review = await row.fetchone()
+    review = await reviews.by_ap_id(ap_id)
     if not review:
         return JSONResponse({"status": "not_found"})
 
@@ -207,8 +201,7 @@ async def _handle_update(
         logger.warning("Rejecting Update %s: %s", ap_id, reason)
         return JSONResponse({"status": "ignored", "reason": reason}, status_code=400)
 
-    await update_review(
-        review_id=review["id"],
+    await review.save(
         content=obj.get("content", ""),
         rating=int(obj.get("rating", 3)),
         latitude=float(obj.get("latitude", 0.0)),
@@ -288,9 +281,7 @@ async def _handle_delete(
     if not ap_id:
         return JSONResponse({"status": "ignored", "reason": "no object id"})
 
-    db = await get_db()
-    row = await db.execute("SELECT id, actor_id FROM reviews WHERE ap_id = ?", (ap_id,))
-    review = await row.fetchone()
+    review = await reviews.by_ap_id(ap_id)
     if not review:
         return JSONResponse({"status": "not_found"})
 
@@ -303,6 +294,6 @@ async def _handle_delete(
         )
         return JSONResponse({"status": "forbidden"}, status_code=403)
 
-    await delete_review(review["id"])
+    await review.delete()
     logger.info("Deleted federated review %s (via Delete activity)", ap_id)
     return JSONResponse({"status": "deleted"})

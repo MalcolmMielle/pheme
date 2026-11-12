@@ -1,9 +1,9 @@
 """
 JSON API routes — review CRUD, /api/me, and bootstrap.
 
-Place identity and geocoding (the Nominatim proxy) live in the app/places
-package (the ``places`` singleton); follow/unfollow in routes/follow.py;
-admin endpoints (accounts, invite codes) in routes/admin.py. The WebFinger
+Place identity and geocoding (the Nominatim proxy) live in app/places.py
+(the ``place`` singleton); follow/unfollow in routes/follow.py; admin
+endpoints (accounts, invite codes) in routes/admin.py. The WebFinger
 resolution helpers at the bottom are shared with routes/follow.py.
 """
 
@@ -21,23 +21,18 @@ from app.activitypub.delivery import fanout_activity
 from app.activitypub.fetchguard import check_fetch_url
 from app.auth import get_current_user, get_session_actor
 from app.db import (
-    count_reviews,
-    count_reviews_by_bounds,
-    delete_review,
     get_actor_by_id,
     get_actor_by_username,
     get_follower_inboxes,
     get_following,
     get_following_actors,
-    get_review_by_id,
-    get_reviews,
-    get_reviews_by_bounds,
     hash_password,
     list_local_actors,
 )
 from app.config import config
 from app.places import AlreadyReviewed, places
 from app.ratelimit import limiter
+from app.reviews import reviews
 from app.routes.activitypub import create_local_actor
 from app.routes.activitypub.helpers import (
     build_create_activity,
@@ -151,7 +146,7 @@ async def api_reviews(
         and min_lng is not None
         and max_lng is not None
     ):
-        reviews = await get_reviews_by_bounds(
+        found = await reviews.by_bounds(
             min_lat,
             max_lat,
             min_lng,
@@ -160,14 +155,14 @@ async def api_reviews(
             offset=offset,
             actor_uris=actor_uris,
         )
-        total = await count_reviews_by_bounds(
+        total = await reviews.count_by_bounds(
             min_lat, max_lat, min_lng, max_lng, actor_uris=actor_uris
         )
     else:
-        reviews = await get_reviews(limit=limit, offset=offset, actor_uris=actor_uris)
-        total = await count_reviews(actor_uris=actor_uris)
+        found = await reviews.all(limit=limit, offset=offset, actor_uris=actor_uris)
+        total = await reviews.count(actor_uris=actor_uris)
     return JSONResponse(
-        reviews,
+        [r.to_dict() for r in found],
         headers={"X-Total-Count": str(total)},
     )
 
@@ -175,10 +170,10 @@ async def api_reviews(
 @router.get("/api/reviews/{review_id}")
 async def api_get_review(review_id: int) -> JSONResponse:
     """Return a single review by ID."""
-    review = await get_review_by_id(review_id)
+    review = await reviews.by_id(review_id)
     if not review:
         raise HTTPException(404, "Review not found")
-    return JSONResponse(review)
+    return JSONResponse(review.to_dict())
 
 
 class CreateReviewPayload(BaseModel):
@@ -270,7 +265,9 @@ async def api_create_review(
         result["fail"],
     )
 
-    return JSONResponse({"status": "ok", "review": review, "federation": result})
+    return JSONResponse(
+        {"status": "ok", "review": review.to_dict(), "federation": result}
+    )
 
 
 @router.put("/api/reviews/{review_id}")
@@ -284,7 +281,7 @@ async def api_update_review(
     Only the author can edit their own review. The body is the same shape as
     POST /api/reviews (validated against CreateReviewPayload).
     """
-    review = await get_review_by_id(review_id)
+    review = await reviews.by_id(review_id)
     if not review:
         raise HTTPException(404, "Review not found")
     if review["actor_id"] != actor["id"]:
@@ -336,7 +333,9 @@ async def api_update_review(
         result["fail"],
     )
 
-    return JSONResponse({"status": "ok", "review": updated, "federation": result})
+    return JSONResponse(
+        {"status": "ok", "review": updated.to_dict(), "federation": result}
+    )
 
 
 @router.delete("/api/reviews/{review_id}")
@@ -345,13 +344,13 @@ async def api_delete_review(
     actor: dict = Depends(get_current_user),
 ) -> JSONResponse:
     """Delete a review. Only the author can delete their own reviews."""
-    review = await get_review_by_id(review_id)
+    review = await reviews.by_id(review_id)
     if not review:
         raise HTTPException(404, "Review not found")
     if review["actor_id"] != actor["id"]:
         raise HTTPException(403, "You can only delete your own reviews")
 
-    deleted = await delete_review(review_id)
+    deleted = await review.delete()
     if not deleted:
         raise HTTPException(404, "Review not found")
 
