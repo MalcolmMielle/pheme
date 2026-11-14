@@ -159,6 +159,18 @@ export async function updateReview(
   });
 }
 
+/**
+ * DELETE a review (only the author may delete it — the server answers 403
+ * otherwise). Resolves with the raw Response so the caller can distinguish
+ * 401 (logged out → redirect to /login) from other errors.
+ */
+export async function deleteReview(reviewId: number): Promise<Response> {
+  return fetchWithCsrf(`/api/reviews/${reviewId}`, {
+    method: "DELETE",
+    headers: { Accept: "application/json", ...csrfHeaders() },
+  });
+}
+
 /** Place search via the server's Nominatim proxy (avoids exposing user IPs).
  *  Callers debounce — Nominatim usage policy. */
 export async function searchPlaces(query: string): Promise<NominatimResult[]> {

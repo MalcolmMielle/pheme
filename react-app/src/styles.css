@@ -372,6 +372,24 @@ button.user-chip:hover .user-name { color: var(--accent); }
 .review-card .meta-line .date { margin-left: auto; white-space: nowrap; opacity: 0.85; }
 .review-card .meta-line .coords { opacity: 0.7; }
 
+/* Delete button at the end of the card's meta line (own review / admin). */
+.review-delete-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  transition: background .15s, color .15s;
+}
+.review-delete-btn:hover { color: var(--danger); background: var(--danger-soft); }
+.review-delete-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+
+/* Error banner above the sidebar review list (e.g. a failed card delete). */
+.list-error { margin: 8px 16px 0; }
+
 /* SVG star row (display) */
 .stars { display: inline-flex; gap: 2px; }
 .stars svg { display: block; fill: var(--star); }
@@ -547,6 +565,10 @@ button.user-chip:hover .user-name { color: var(--accent); }
   box-shadow: 0 0 0 3px var(--ring);
 }
 .review-form textarea { resize: vertical; }
+
+/* Submit + delete row at the bottom of the review form. */
+.form-actions { display: flex; gap: 10px; }
+.form-actions .btn { flex: 1; }
 
 /* Star rating input (SVG stars) */
 .star-rating {

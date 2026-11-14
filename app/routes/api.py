@@ -36,6 +36,7 @@ from app.reviews import reviews
 from app.routes.activitypub import create_local_actor
 from app.routes.activitypub.helpers import (
     build_create_activity,
+    build_delete_activity,
     build_update_activity,
 )
 
@@ -343,39 +344,55 @@ async def api_delete_review(
     review_id: int,
     actor: dict = Depends(get_current_user),
 ) -> JSONResponse:
-    """Delete a review. Only the author can delete their own reviews."""
+    """Delete a review. The author can delete their own reviews; admins can
+    delete any review (moderation)."""
     review = await reviews.by_id(review_id)
     if not review:
         raise HTTPException(404, "Review not found")
-    if review["actor_id"] != actor["id"]:
+    is_author = review["actor_id"] == actor["id"]
+    if not is_author and not actor.get("is_admin"):
         raise HTTPException(403, "You can only delete your own reviews")
 
     deleted = await review.delete()
     if not deleted:
         raise HTTPException(404, "Review not found")
 
-    # Federate a Delete activity to followers
-    delete_activity: dict[str, Any] = {
-        "id": f"{review['ap_id']}/delete",
-        "type": "Delete",
-        "actor": actor["actor_uri"],
-        "to": ["https://www.w3.org/ns/activitystreams#Public"],
-        "cc": [actor["followers_uri"]],
-        "object": {
-            "id": review["ap_id"],
-            "type": "Note",
-        },
-    }
-    follower_inboxes = await get_follower_inboxes(actor["id"])
+    # Federate a Delete activity. Remote servers only accept a Delete for a
+    # review from its author, so the activity is signed with the author's
+    # key: the deleter's own when they are the author, otherwise the local
+    # author's key (admin moderation of a local user's review). A review by
+    # a remote author can't be federated-deleted from here — we don't hold
+    # their key — so it is removed locally only.
+    signer = actor
+    if not is_author:
+        author = await get_actor_by_id(review["actor_id"])
+        if author is None or not author.get("private_key_pem"):
+            logger.warning(
+                "Deleted review %s (ap_id=%s) as admin — author %s is not local, "
+                "Delete not federated",
+                review_id,
+                review["ap_id"],
+                review["actor_uri"],
+            )
+            return JSONResponse({"status": "deleted", "id": review_id})
+        signer = author
+
+    delete_activity = build_delete_activity(signer, review)
+    follower_inboxes = await get_follower_inboxes(signer["id"])
     if follower_inboxes:
         await fanout_activity(
             delete_activity,
-            f"{actor['actor_uri']}#main-key",
-            actor["private_key_pem"],
+            f"{signer['actor_uri']}#main-key",
+            signer["private_key_pem"],
             follower_inboxes,
         )
 
-    logger.info("Deleted review %s (ap_id=%s)", review_id, review["ap_id"])
+    logger.info(
+        "Deleted review %s (ap_id=%s) by %s",
+        review_id,
+        review["ap_id"],
+        actor["username"],
+    )
     return JSONResponse({"status": "deleted", "id": review_id})
 
 

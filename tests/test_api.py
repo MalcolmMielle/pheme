@@ -271,6 +271,64 @@ class TestReviewsAPI(AsyncTestCase):
         resp = await self.client.delete("/api/reviews/1")
         assert resp.status_code in (303, 401, 403)
 
+    async def test_delete_forbidden_for_other_user(self):
+        """Only the author may delete: a second account gets 403."""
+        await self.register_user()  # testuser
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
+            "/api/reviews",
+            data={
+                "content": "Mine, not yours",
+                "rating": "4",
+                "latitude": "37.0",
+                "longitude": "-122.0",
+                "csrf_token": csrf,
+            },
+        )
+        review_id = resp.json()["review"]["id"]
+        # Registering a second user switches the session to that user.
+        await self.register_user(username="otheruser", display_name="Other")
+        resp = await self.client.delete(f"/api/reviews/{review_id}")
+        assert resp.status_code == 403
+        # The review is still there.
+        resp = await self.client.get(f"/api/reviews/{review_id}")
+        assert resp.status_code == 200
+        assert resp.json()["content"] == "Mine, not yours"
+
+    async def test_delete_as_admin_allowed(self):
+        """An admin can delete any review, not just their own (moderation)."""
+        # The first registered account automatically becomes the admin.
+        await self.register_user(username="admin", password="adminpass123")
+        # Registering a second user switches the session to that user.
+        await self.register_user(username="bob", password="bobpass123")
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
+            "/api/reviews",
+            data={
+                "content": "Bob's review",
+                "rating": "4",
+                "latitude": "37.0",
+                "longitude": "-122.0",
+                "csrf_token": csrf,
+            },
+        )
+        review_id = resp.json()["review"]["id"]
+
+        # Log back in as the admin and delete bob's review.
+        csrf = await get_csrf_token(self.client, "/login")
+        resp = await self.client.post(
+            "/login",
+            data={"username": "admin", "password": "adminpass123", "csrf_token": csrf},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        resp = await self.client.delete(f"/api/reviews/{review_id}")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "deleted"
+
+        resp = await self.client.get(f"/api/reviews/{review_id}")
+        assert resp.status_code == 404
+
     async def test_pagination(self):
         await self.register_user()
         csrf = await get_csrf_token(self.client, "/register")

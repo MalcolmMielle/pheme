@@ -18,6 +18,10 @@ interface ReviewCardProps {
   showRatingNum?: boolean;
   /** Show the coordinate line (place panel only). */
   showCoords?: boolean;
+  /** Show a delete button on the card (own review, or any review for admins). */
+  canDelete?: boolean;
+  /** Delete handler for this card's review. */
+  onDelete?: (review: Review) => void;
 }
 
 /** One review card — shared by the sidebar review list and the place panel. */
@@ -27,6 +31,8 @@ export default function ReviewCard({
   showPlace = true,
   showRatingNum = true,
   showCoords = false,
+  canDelete = false,
+  onDelete,
 }: ReviewCardProps) {
   const server = actorServer(r.actor_uri);
   const who = r.display_name || r.username;
@@ -65,6 +71,36 @@ export default function ReviewCard({
             <span className="coords">
               📍 {r.latitude.toFixed(3)}, {r.longitude.toFixed(3)}
             </span>
+          )}
+          {canDelete && onDelete && (
+            <button
+              type="button"
+              className="review-delete-btn"
+              title="Delete review"
+              aria-label="Delete review"
+              onClick={(e) => {
+                // The card itself is clickable (select) — don't trigger it.
+                e.stopPropagation();
+                onDelete(r);
+              }}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 6h18" />
+                <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+            </button>
           )}
         </div>
       </div>

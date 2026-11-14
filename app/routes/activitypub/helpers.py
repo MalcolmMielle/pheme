@@ -126,6 +126,24 @@ def build_update_activity(actor: dict[str, Any], review: Review) -> dict[str, An
     }
 
 
+def build_delete_activity(actor: dict[str, Any], review: Review) -> dict[str, Any]:
+    """Build the Delete activity for a review — fanned out to followers when
+    a review is deleted. ``actor`` must be the review's author: remote
+    servers only accept a Delete for a review from its author."""
+    ap_id = review["ap_id"]
+    return {
+        "id": f"{ap_id}/delete",
+        "type": "Delete",
+        "actor": actor["actor_uri"],
+        "to": ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc": [actor["followers_uri"]],
+        "object": {
+            "id": ap_id,
+            "type": "Note",
+        },
+    }
+
+
 async def create_local_actor(
     username: str,
     display_name: str,

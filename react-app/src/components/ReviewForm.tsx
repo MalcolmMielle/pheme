@@ -15,6 +15,11 @@ interface ReviewFormProps {
     content: string,
     rating: number,
   ) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Delete the review being edited — only offered in edit mode. Returns
+   * success or an error message; on success the parent closes the form.
+   */
+  onDelete?: () => Promise<{ ok: boolean; error?: string }>;
   onClose: () => void;
 }
 
@@ -22,18 +27,21 @@ interface ReviewFormProps {
  * Review panel for a fixed place (opened from the place panel / place
  * marker — the location is chosen there and cannot change here): star
  * rating and content. In edit mode (initialReview set) it pre-fills the
- * existing review and the parent updates it instead of creating one.
- * The parent guards the location in onSubmit.
+ * existing review and the parent updates it instead of creating one — and
+ * offers a Delete button (onDelete) to remove it. The parent guards the
+ * location in onSubmit.
  */
 export default function ReviewForm({
   initialReview,
   onSubmit,
+  onDelete,
   onClose,
 }: ReviewFormProps) {
   const editing = initialReview != null;
   const [content, setContent] = useState(initialReview?.content ?? "");
   const [rating, setRating] = useState(initialReview?.rating ?? 5);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,6 +60,16 @@ export default function ReviewForm({
     } else if (result.error) {
       setError(result.error);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    if (!window.confirm("Delete this review? This cannot be undone.")) return;
+    setDeleting(true);
+    setError(null);
+    const result = await onDelete();
+    setDeleting(false);
+    if (!result.ok && result.error) setError(result.error);
   };
 
   return (
@@ -82,15 +100,31 @@ export default function ReviewForm({
 
         {error && <div className="form-error">{error}</div>}
 
-        <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting
-            ? editing
-              ? "Saving…"
-              : "Posting…"
-            : editing
-              ? "Save changes"
-              : "Post Review"}
-        </button>
+        <div className="form-actions">
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={submitting || deleting}
+          >
+            {submitting
+              ? editing
+                ? "Saving…"
+                : "Posting…"
+              : editing
+                ? "Save changes"
+                : "Post Review"}
+          </button>
+          {editing && onDelete && (
+            <button
+              type="button"
+              className="btn btn-danger-soft"
+              disabled={submitting || deleting}
+              onClick={handleDelete}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );

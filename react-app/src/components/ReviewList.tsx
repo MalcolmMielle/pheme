@@ -1,9 +1,14 @@
 import ReviewCard from "./ReviewCard";
-import type { Review } from "../types";
+import type { Me, Review } from "../types";
 
 interface ReviewListProps {
   reviews: Review[];
   onSelect: (review: Review) => void;
+  /** The logged-in user — their own reviews and (for admins) all reviews get
+   *  a delete button. Null when logged out. */
+  user: Me | null;
+  /** Delete handler for a card's review (confirm happens in the parent). */
+  onDeleteReview?: (review: Review) => void;
   /** Shown when the list is empty (e.g. the "following" scope has no matches). */
   emptyMessage?: string;
   /** True while a load is in flight — skeleton cards when the list is empty. */
@@ -14,6 +19,8 @@ interface ReviewListProps {
 export default function ReviewList({
   reviews,
   onSelect,
+  user,
+  onDeleteReview,
   emptyMessage,
   loading = false,
 }: ReviewListProps) {
@@ -58,7 +65,13 @@ export default function ReviewList({
         </div>
       )}
       {reviews.map((r) => (
-        <ReviewCard key={r.id} review={r} onSelect={onSelect} />
+        <ReviewCard
+          key={r.id}
+          review={r}
+          onSelect={onSelect}
+          canDelete={!!user && (user.is_admin || r.actor_id === user.id)}
+          onDelete={onDeleteReview}
+        />
       ))}
     </div>
   );

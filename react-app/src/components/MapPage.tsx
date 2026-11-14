@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import {
   ApiError,
   createReview,
+  deleteReview,
   errorFromResponse,
   fetchMeta,
   fetchReviews,
@@ -74,6 +75,8 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
   } | null>(null);
   /** Registration mode from /api/meta — hides the Register button when "closed". */
   const [registrationMode, setRegistrationMode] = useState("open");
+  /** Error from a card-initiated delete (no form is open to show it in). */
+  const [listError, setListError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) return;
@@ -382,6 +385,77 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
     [draft, editingReview, loadReviews],
   );
 
+  /** Delete the review being edited. Returns success or an error message. */
+  const deleteEditingReview = useCallback(async (): Promise<{
+    ok: boolean;
+    error?: string;
+  }> => {
+    if (!editingReview) {
+      return { ok: false, error: "No review is being edited." };
+    }
+    let resp: Response;
+    try {
+      resp = await deleteReview(editingReview.id);
+    } catch (err) {
+      return { ok: false, error: `Error deleting review: ${(err as Error).message}` };
+    }
+    if (resp.status === 401) {
+      // Logged out (or session expired) — send the user to the login page.
+      window.location.href = "/login";
+      return { ok: false };
+    }
+    if (!resp.ok) {
+      return { ok: false, error: await errorFromResponse(resp) };
+    }
+    // Success — close the form and refresh the list at the current bounds.
+    setFormOpen(false);
+    setDraft(null);
+    setEditingReview(null);
+    if (lastBounds.current) await loadReviews(lastBounds.current);
+    return { ok: true };
+  }, [editingReview, loadReviews]);
+
+  /**
+   * Delete a review from its card (own review, or any review as admin).
+   * Confirms first, then deletes via the API and refreshes the list.
+   */
+  const handleDeleteReview = useCallback(
+    async (review: Review) => {
+      if (!user) return;
+      const who = review.display_name || review.username;
+      const question =
+        review.actor_id === user.id
+          ? "Delete your review? This cannot be undone."
+          : `Delete ${who}'s review? This cannot be undone.`;
+      if (!window.confirm(question)) return;
+      setListError(null);
+      let resp: Response;
+      try {
+        resp = await deleteReview(review.id);
+      } catch (err) {
+        setListError(`Error deleting review: ${(err as Error).message}`);
+        return;
+      }
+      if (resp.status === 401) {
+        // Logged out (or session expired) — send the user to the login page.
+        window.location.href = "/login";
+        return;
+      }
+      if (!resp.ok) {
+        setListError(await errorFromResponse(resp));
+        return;
+      }
+      // If the deleted review was open in the edit form, close the form.
+      if (editingReview?.id === review.id) {
+        setFormOpen(false);
+        setDraft(null);
+        setEditingReview(null);
+      }
+      if (lastBounds.current) await loadReviews(lastBounds.current);
+    },
+    [user, editingReview, loadReviews],
+  );
+
   return (
     <div className="app">
       <MapView
@@ -423,6 +497,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
             user={user}
             formOpen={formOpen}
             onRatePlace={openForm}
+            onDeleteReview={handleDeleteReview}
             onClose={closePlacePanel}
           />
         ) : (
@@ -501,9 +576,13 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
 
             <ScopeToggle scope={scope} onChange={setScope} loggedIn={!!user} />
 
+            {listError && <div className="form-error list-error">{listError}</div>}
+
             <ReviewList
               reviews={reviews}
               onSelect={selectReview}
+              user={user}
+              onDeleteReview={handleDeleteReview}
               loading={loading}
               emptyMessage={
                 scope === "following"
@@ -522,6 +601,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
           <ReviewForm
             initialReview={editingReview}
             onSubmit={submitReview}
+            onDelete={deleteEditingReview}
             onClose={closeForm}
           />
         )}

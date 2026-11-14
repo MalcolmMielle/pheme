@@ -16,6 +16,8 @@ interface PlacePanelProps {
    * the form then opens in edit mode instead of add mode.
    */
   onRatePlace: (place: PlaceSelection, existingReview?: Review) => void;
+  /** Delete handler for a review card (own review, or any review for admins). */
+  onDeleteReview?: (review: Review) => void;
   onClose: () => void;
 }
 
@@ -31,6 +33,7 @@ export default function PlacePanel({
   user,
   formOpen,
   onRatePlace,
+  onDeleteReview,
   onClose,
 }: PlacePanelProps) {
   const avg =
@@ -71,6 +74,8 @@ export default function PlacePanel({
                   showPlace={false}
                   showRatingNum={false}
                   showCoords
+                  canDelete={!!user && (user.is_admin || r.actor_id === user.id)}
+                  onDelete={onDeleteReview}
                 />
               ))}
             </div>
