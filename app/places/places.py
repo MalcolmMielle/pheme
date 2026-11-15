@@ -208,7 +208,7 @@ class Places:
     @staticmethod
     def _parse_reviewable_tags(spec: str) -> list[tuple[bool, str, str | None]]:
         """Parse a REVIEWABLE_TAGS value into (negated, key, value) specs."""
-        out = []
+        out: list[tuple[bool, str, str | None]] = []
         for part in spec.split(","):
             part = part.strip()
             if not part:
@@ -268,7 +268,7 @@ class Places:
         distance is to the nearest member node."""
         r = self.POI_RADIUS_M if radius is None else radius
         elements = await self._osm_map_elements(lat, lon, r) or []
-        pois = []
+        pois: list[dict[str, Any]] = []
         for el in elements:
             tags = el.get("tags") or {}
             mtype = self._reviewable_match(tags)
@@ -317,7 +317,7 @@ class Places:
         # the road share one bucket. Dedup on the raw name so a bus stop's
         # node and its platform (same name) collapse into one entry.
         seen_highways: set[str] = set()
-        deduped = []
+        deduped: list[dict[str, Any]] = []
         for p in pois:
             if p["type"] == "highway":
                 key = p["_raw_name"] or p["name"]
@@ -376,21 +376,27 @@ class Places:
             logger.warning("OSM map %s: bad XML: %s", bbox, exc)
             return None
 
-        node_ll = {
-            n.get("id"): (float(n.get("lat")), float(n.get("lon")))
-            for n in root.findall("node")
-        }
+        node_ll: dict[str, tuple[float, float]] = {}
+        for n in root.findall("node"):
+            n_id, n_lat, n_lon = n.get("id"), n.get("lat"), n.get("lon")
+            if n_id is not None and n_lat is not None and n_lon is not None:
+                node_ll[n_id] = (float(n_lat), float(n_lon))
         scan_keys = sorted({k for _, k, _ in self._reviewable_specs})
         keys_re = re.compile(f"^({'|'.join(scan_keys)})$")
-        out = []
+        out: list[dict[str, Any]] = []
         for el in root:
             if el.tag not in ("node", "way", "relation"):
                 continue
-            tags = {t.get("k"): t.get("v") for t in el.findall("tag")}
+            tags: dict[str, str | None] = {}
+            for t in el.findall("tag"):
+                k = t.get("k")
+                if k is not None:
+                    tags[k] = t.get("v")
             if not any(keys_re.match(k) for k in tags):
                 continue
             if el.tag == "node":
-                ll = node_ll.get(el.get("id"))
+                el_id = el.get("id")
+                ll = node_ll.get(el_id) if el_id is not None else None
                 min_d = _haversine_m(lat, lon, ll[0], ll[1]) if ll is not None else None
             else:
                 # Way/relation: position = centroid of the member nodes we

@@ -6,6 +6,7 @@ import json
 import os
 import time
 import unittest
+from typing import Any
 from unittest.mock import patch
 
 import httpx
@@ -250,7 +251,7 @@ class TestNominatimProxy(AsyncTestCase):
             return await self.places.nominatim_get(path, params)
 
     async def test_caches_successful_responses(self):
-        calls = []
+        calls: list[str] = []
 
         async def get_impl(url, params):
             calls.append(url)
@@ -266,7 +267,7 @@ class TestNominatimProxy(AsyncTestCase):
         assert json.loads(bytes(r1.body)) == [{"display_name": "Cafe"}]
 
     async def test_cache_key_includes_params(self):
-        calls = []
+        calls: list[dict[str, Any]] = []
 
         async def get_impl(url, params):
             calls.append(params)
@@ -277,7 +278,7 @@ class TestNominatimProxy(AsyncTestCase):
         assert len(calls) == 2
 
     async def test_cache_expires_after_ttl(self):
-        calls = []
+        calls: list[str] = []
 
         async def get_impl(url, params):
             calls.append(url)
@@ -294,7 +295,7 @@ class TestNominatimProxy(AsyncTestCase):
         assert len(calls) == 2
 
     async def test_throttles_to_one_request_per_second(self):
-        sleeps = []
+        sleeps: list[float] = []
 
         async def fake_sleep(seconds):
             sleeps.append(seconds)
@@ -310,7 +311,7 @@ class TestNominatimProxy(AsyncTestCase):
         assert 0.9 <= sleeps[0] <= Places.NOMINATIM_MIN_INTERVAL
 
     async def test_no_wait_when_interval_elapsed(self):
-        sleeps = []
+        sleeps: list[float] = []
 
         async def fake_sleep(seconds):
             sleeps.append(seconds)
@@ -332,7 +333,7 @@ class TestNominatimProxy(AsyncTestCase):
         assert cm.exception.status_code == 502
 
     async def test_upstream_non_200_maps_to_502_and_is_not_cached(self):
-        calls = []
+        calls: list[str] = []
 
         async def get_impl(url, params):
             calls.append(url)
@@ -363,7 +364,7 @@ class TestReverseGeocodePoiPriority(AsyncTestCase):
     async def _reverse(
         self, nominatim_data, osm_elements=None, osm_status=200, osm_error=False
     ):
-        gets = []
+        gets: list[str] = []
 
         async def get_impl(url, params):
             gets.append(url)
@@ -685,6 +686,7 @@ class TestReverseGeocodePoiPriority(AsyncTestCase):
 
         with patch("app.places.places.httpx.AsyncClient", _fake_client_get(get_impl)):
             poi = await self.places.nearest_poi(37.0, -122.0)
+        assert poi is not None
         assert poi["name"] == "Parking"
         assert poi["type"] == "amenity"
 
@@ -736,7 +738,7 @@ class TestReverseGeocodePoiPriority(AsyncTestCase):
                 "tags": {"name": "Near Hospital", "amenity": "hospital"},
             },
         ]
-        gets = []
+        gets: list[str] = []
 
         async def get_impl(url, params):
             gets.append(url)
@@ -746,6 +748,7 @@ class TestReverseGeocodePoiPriority(AsyncTestCase):
             poi = await self.places.nearest_poi(37.0, -122.0)
             # Same point again → served from the cache, no second call.
             poi2 = await self.places.nearest_poi(37.0, -122.0)
+        assert poi is not None and poi2 is not None
         assert poi["name"] == "Near Hospital"
         assert poi["type"] == "amenity"
         assert poi["distance_m"] < 10
@@ -767,6 +770,7 @@ class TestReverseGeocodePoiPriority(AsyncTestCase):
 
         with patch("app.places.places.httpx.AsyncClient", _fake_client_get(get_impl)):
             poi = await self.places.nearest_poi(37.0, -122.0)
+        assert poi is not None
         assert poi["name"] == "Big Mall"
         assert poi["type"] == "shop"
 
@@ -787,7 +791,7 @@ class TestOsmPoiSource(AsyncTestCase):
         self.places = Places(decimals=4, base_url="http://testserver")
 
     async def test_bbox_call_is_cached(self):
-        calls = []
+        calls: list[tuple[str, Any]] = []
 
         async def get_impl(url, params):
             calls.append((url, params))
@@ -801,7 +805,7 @@ class TestOsmPoiSource(AsyncTestCase):
         assert "bbox" in calls[0][1]
 
     async def test_osm_error_returns_empty_and_is_not_cached(self):
-        calls = []
+        calls: list[str] = []
 
         async def get_impl(url, params):
             calls.append(url)

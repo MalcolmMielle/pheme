@@ -688,7 +688,7 @@ class TestResolveActorUri(AsyncTestCase):
 
     async def test_acct_resolves_via_http_webfinger_on_localhost(self):
         """bob@localhost:8000 must resolve over plain http (dev server)."""
-        requested = []
+        requested: list[str] = []
 
         async def fake_get(url, params=None):
             requested.append(url)
@@ -705,7 +705,7 @@ class TestResolveActorUri(AsyncTestCase):
 
     async def test_acct_falls_back_to_https_on_localhost(self):
         """If http fails on a local host, https is still tried."""
-        requested = []
+        requested: list[str] = []
 
         async def fake_get(url, params=None):
             requested.append(url)
@@ -726,7 +726,7 @@ class TestResolveActorUri(AsyncTestCase):
 
     async def test_acct_public_domain_uses_https_only(self):
         """Public hosts must never be downgraded to plain http."""
-        requested = []
+        requested: list[str] = []
 
         async def fake_get(url, params=None):
             requested.append(url)
