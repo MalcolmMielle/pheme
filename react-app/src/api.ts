@@ -6,6 +6,7 @@ import type {
   MapBounds,
   Me,
   NominatimResult,
+  ReverseGeocodeResult,
   Review,
   ReviewScope,
 } from "./types";
@@ -179,15 +180,17 @@ export async function searchPlaces(query: string): Promise<NominatimResult[]> {
   return resp.json();
 }
 
-/** Reverse geocode via the server's Nominatim proxy — display name or null. */
+/** Reverse geocode via the server's Nominatim+OSM-API proxy — the full
+ * result (display name plus the ranked POI `candidates` near the point),
+ * or null when the lookup failed. */
 export async function reverseGeocode(
   lat: number,
   lng: number,
-): Promise<string | null> {
+): Promise<ReverseGeocodeResult | null> {
   const resp = await fetch(`/api/reverse-geocode?lat=${lat}&lon=${lng}`);
   if (!resp.ok) return null;
   const data = await resp.json();
-  return typeof data.display_name === "string" ? data.display_name : null;
+  return typeof data.display_name === "string" ? data : null;
 }
 
 /** Public server metadata, from `GET /api/meta`. */

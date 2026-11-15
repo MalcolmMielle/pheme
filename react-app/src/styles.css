@@ -454,6 +454,37 @@ button.user-chip:hover .user-name { color: var(--accent); }
   font-size: 0.875rem;
   margin: 0 0 8px;
 }
+.poi-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.poi-candidates-label {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  margin: 0;
+}
+.poi-candidate {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.875rem;
+}
+.poi-candidate:hover { border-color: var(--accent); }
+.poi-candidate.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.poi-candidate small { color: var(--text-secondary); flex: none; }
 .place-panel-avg {
   display: flex;
   align-items: center;

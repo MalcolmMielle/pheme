@@ -3,8 +3,8 @@
 One class per file:
   errors.py   — AlreadyReviewed
   place.py    — Place: one place on the map, loaded from the DB
-  places.py   — Places: the manager (bucketing config, Nominatim proxy,
-                Place factory) + the ``places`` singleton
+  places.py   — Places: the manager (bucketing config, Nominatim/OSM-API
+                geocoding proxies, Place factory) + the ``places`` singleton
 
 Import from the package root: ``from app.places import Place, Places,
 AlreadyReviewed, places``.

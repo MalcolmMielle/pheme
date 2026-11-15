@@ -27,8 +27,10 @@ import type {
   Me,
   NominatimResult,
   PlaceSelection,
+  PoiCandidate,
   Review,
   ReviewScope,
+  SearchMarker,
 } from "../types";
 
 const SIDEBAR_W = 380;
@@ -62,6 +64,23 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
    * or the panel is closed.
    */
   const [selectedPlace, setSelectedPlace] = useState<PlaceSelection | null>(null);
+  /**
+   * Distance-sorted POI candidates around the selected map point (from the
+   * reverse geocode) — shown in the place panel so the user can pick the
+   * exact place when several share one ~11 m bucket; the first (closest) is
+   * auto-selected. ``poiBaseAddress`` is the Nominatim display name without
+   * the POI label, used as the address when a candidate is picked.
+   */
+  const [poiCandidates, setPoiCandidates] = useState<PoiCandidate[]>([]);
+  const [poiBaseAddress, setPoiBaseAddress] = useState("");
+  /**
+   * Candidate currently hovered (or focused) in the place panel's list —
+   * the map marker moves to it, so the user sees where each candidate sits
+   * before picking one.
+   */
+  const [hoveredCandidate, setHoveredCandidate] = useState<PoiCandidate | null>(
+    null,
+  );
   const [focus, setFocus] = useState<FocusTarget | null>(null);
   /**
    * A freshly picked point awaiting reverse geocoding — the effect below
@@ -246,8 +265,9 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
     const { lat, lng, target } = pendingGeocode;
     let cancelled = false;
     reverseGeocode(lat, lng)
-      .then((displayName) => {
-        if (cancelled || !displayName) return;
+      .then((result) => {
+        if (cancelled || !result) return;
+        const displayName = result.display_name;
         const name = displayName.split(",")[0];
         if (target === "draft") {
           setDraft((d) =>
@@ -256,11 +276,26 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
               : d,
           );
         } else {
-          setSelectedPlace((p) =>
-            p && p.lat === lat && p.lng === lng
-              ? { ...p, name, address: displayName }
-              : p,
-          );
+          const top = result.candidates?.[0];
+          setPoiCandidates(result.candidates ?? []);
+          setPoiBaseAddress(result.address ?? displayName);
+          setSelectedPlace((p) => {
+            if (!p || p.lat !== lat || p.lng !== lng) return p;
+            // When the candidate list appears, auto-select the first (closest)
+            // element: the marker moves to it and the panel names that exact
+            // place. For a road this snaps to its canonical (centroid) point,
+            // so every review of the same road lands in the same bucket.
+            if (top) {
+              return {
+                ...p,
+                lat: top.lat,
+                lng: top.lon,
+                name: top.name,
+                address: result.address ?? displayName,
+              };
+            }
+            return { ...p, name, address: displayName };
+          });
         }
       })
       .catch((err) => console.error("Reverse geocode failed", err));
@@ -298,9 +333,35 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         name: result.display_name.split(",")[0],
         address: result.display_name,
       });
+      setPoiCandidates([]);
+      setPoiBaseAddress("");
       setFocus(makeFocus(lat, lng, 16));
     },
     [makeFocus],
+  );
+
+  /**
+   * Pick one of the candidate POIs at the selected spot: the place panel
+   * (and any review started from it) then names that exact place, with the
+   * street address behind it. The position snaps to the candidate's exact
+   * marker coordinates, so every pick of the same POI lands in the same
+   * place bucket — a duplicate review is impossible (409 from the server).
+   */
+  const onSelectCandidate = useCallback(
+    (c: PoiCandidate) => {
+      setSelectedPlace((p) =>
+        p
+          ? {
+              ...p,
+              lat: c.lat,
+              lng: c.lon,
+              name: c.name,
+              address: poiBaseAddress,
+            }
+          : p,
+      );
+    },
+    [poiBaseAddress],
   );
 
   /**
@@ -310,6 +371,8 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
    */
   const closePlacePanel = useCallback(() => {
     setSelectedPlace(null);
+    setPoiCandidates([]);
+    setPoiBaseAddress("");
     closeForm();
   }, [closeForm]);
 
@@ -323,6 +386,8 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
   const onMapSelect = useCallback((lat: number, lng: number) => {
     const coords = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     setSelectedPlace({ lat, lng, name: coords, address: coords });
+    setPoiCandidates([]);
+    setPoiBaseAddress("");
     setPendingGeocode({ lat, lng, target: "place" });
   }, []);
 
@@ -456,12 +521,25 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
     [user, editingReview, loadReviews],
   );
 
+  // The map marker: at the hovered candidate while the pointer is over the
+  // candidate list (identity check so a stale hover from a previous list
+  // falls back to the selected place), otherwise at the selected place.
+  const mapMarker: SearchMarker | null =
+    hoveredCandidate && poiCandidates.some((c) => c === hoveredCandidate)
+      ? {
+          lat: hoveredCandidate.lat,
+          lng: hoveredCandidate.lon,
+          name: hoveredCandidate.name,
+          address: poiBaseAddress || selectedPlace?.address || "",
+        }
+      : selectedPlace;
+
   return (
     <div className="app">
       <MapView
         reviews={reviews}
         draft={draft}
-        searchMarker={selectedPlace}
+        searchMarker={mapMarker}
         userId={user?.id ?? null}
         formOpen={formOpen}
         focus={focus}
@@ -494,6 +572,9 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
               selectedPlace.lat,
               selectedPlace.lng,
             )}
+            candidates={poiCandidates}
+            onSelectCandidate={onSelectCandidate}
+            onHoverCandidate={setHoveredCandidate}
             user={user}
             formOpen={formOpen}
             onRatePlace={openForm}

@@ -1,12 +1,24 @@
 import { formatRating } from "../api";
 import ReviewCard from "./ReviewCard";
 import Stars from "./Stars";
-import type { Me, PlaceSelection, Review } from "../types";
+import type { Me, PlaceSelection, PoiCandidate, Review } from "../types";
 
 interface PlacePanelProps {
   place: PlaceSelection;
   /** Existing reviews at this place (within the current map bounds). */
   reviews: Review[];
+  /**
+   * Ranked POIs near the selected point — when several places share the
+   * clicked spot (one ~11 m bucket), the panel offers them for picking.
+   */
+  candidates?: PoiCandidate[];
+  /** Called when the user picks one of the candidates as the place. */
+  onSelectCandidate?: (c: PoiCandidate) => void;
+  /**
+   * Called with the candidate under the pointer (or keyboard focus) in the
+   * list, or null when it leaves — the map marker moves with it.
+   */
+  onHoverCandidate?: (c: PoiCandidate | null) => void;
   /** The logged-in user, or null when logged out. */
   user: Me | null;
   /** True while the review form is open at the bottom of the sidebar. */
@@ -30,6 +42,9 @@ interface PlacePanelProps {
 export default function PlacePanel({
   place,
   reviews,
+  candidates,
+  onSelectCandidate,
+  onHoverCandidate,
   user,
   formOpen,
   onRatePlace,
@@ -57,6 +72,28 @@ export default function PlacePanel({
       </div>
       <div className="place-panel-body">
         <p className="address">{place.address}</p>
+        {candidates && candidates.length > 1 && onSelectCandidate && (
+          <div className="poi-candidates">
+            <p className="poi-candidates-label">Several places here — pick one:</p>
+            {candidates.map((c) => (
+              <button
+                key={`${c.lat},${c.lon},${c.name}`}
+                type="button"
+                className={`poi-candidate${
+                  c.lat === place.lat && c.lon === place.lng ? " selected" : ""
+                }`}
+                onClick={() => onSelectCandidate(c)}
+                onMouseEnter={() => onHoverCandidate?.(c)}
+                onMouseLeave={() => onHoverCandidate?.(null)}
+                onFocus={() => onHoverCandidate?.(c)}
+                onBlur={() => onHoverCandidate?.(null)}
+              >
+                <span className="poi-candidate-name">{c.name}</span>
+                <small>{Math.round(c.distance_m)} m</small>
+              </button>
+            ))}
+          </div>
+        )}
         {avg != null ? (
           <>
             <div className="place-panel-avg">

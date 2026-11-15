@@ -73,6 +73,24 @@ class Config:
         default_factory=lambda: int(os.getenv("PLACE_DECIMALS", "4"))
     )
 
+    # Which OSM places can be reviewed (the candidate filter for map clicks /
+    # reverse geocode): comma-separated tag specs, each ``key`` or
+    # ``key=value``; prefix ``!`` to exclude (e.g. ``!amenity=toilets``).
+    # Drives the nearest-place lookup in app.places. Keep in sync with
+    # Places.DEFAULT_REVIEWABLE_TAGS.
+    reviewable_tags: str = field(
+        default_factory=lambda: os.getenv(
+            "REVIEWABLE_TAGS",
+            "shop,office,tourism,leisure,healthcare,emergency,craft,historic,"
+            "man_made,amenity,place,highway,natural=peak,natural=saddle,"
+            "!amenity=toilets,!amenity=bench,!amenity=waste_basket,"
+            "!amenity=drinking_water,!amenity=sanitary_dump_station,"
+            "!amenity=recycling,!amenity=charging_station,"
+            "!amenity=vending_machine,!amenity=water_point,"
+            "!amenity=compressed_air",
+        )
+    )
+
     def __post_init__(self) -> None:
         if self.registration_mode not in ("open", "invite", "closed"):
             raise ValueError(

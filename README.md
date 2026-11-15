@@ -508,6 +508,7 @@ app loads it automatically via [python-dotenv](https://pypi.org/project/python-d
 | `PASSWORD_MIN_LENGTH` | `8` | Minimum password length for new accounts |
 | `REGISTRATION_MODE` | `open` | `open` = anyone can register, `invite` = valid one-time invite code required, `closed` = admins create accounts only |
 | `PLACE_DECIMALS` | `4` | Precision of the "same place" coordinate bucket (decimal places of lat/lng, ~11 m per step at 4) — drives map place grouping and the one-review-per-actor-per-place rule; exposed to the SPA via `/api/meta` |
+| `REVIEWABLE_TAGS` | `shop,office,tourism,leisure,healthcare,emergency,craft,historic,man_made,amenity,place,highway,natural=peak,natural=saddle,!amenity=toilets,!amenity=bench,!amenity=waste_basket,!amenity=drinking_water,!amenity=sanitary_dump_station,!amenity=recycling,!amenity=charging_station,!amenity=vending_machine,!amenity=water_point,!amenity=compressed_air` | Which OSM places can be reviewed (map-click candidates, sorted by distance): comma-separated `key` or `key=value` specs, `!key=value` to exclude. The default covers POIs, roads, localities and peaks/passes (`natural=peak`, `natural=saddle`) but excludes utility amenities like toilets/benches (add e.g. `amenity=toilets` back if you want to rate them) |
 
 ## Registration & moderation
 
@@ -565,7 +566,7 @@ An admin cannot moderate themselves or remove the last admin.
 | `POST` | `/api/follow` | Follow a remote actor (form: `target` — URI or `acct:user@domain`) |
 | `POST` | `/api/unfollow` | Unfollow an actor (form: `target` — URI or `acct:user@domain`); sends an `Undo` to the remote inbox |
 | `GET` | `/api/geocode?q=` | Proxy place search to Nominatim |
-| `GET` | `/api/reverse-geocode?lat=&lon=` | Proxy reverse geocode to Nominatim |
+| `GET` | `/api/reverse-geocode?lat=&lon=` | Reverse geocode via Nominatim, preferring a nearby POI (commerce, hospital, parking, …) over a bare street address (OSM API lookup); the response includes a ranked `candidates` list of nearby POIs so the UI can disambiguate when several share one spot |
 | `POST` | `/api/bootstrap` | Create the first actor (one-time; 403 once any account exists) |
 
 ### Admin API (session of an admin required; unsafe methods need `X-CSRFToken`)

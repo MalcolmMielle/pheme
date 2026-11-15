@@ -58,6 +58,32 @@ export interface NominatimResult {
   category?: string;
 }
 
+/** A reviewable place near a clicked point, from the server's OSM-API
+ * lookup — one entry of the `candidates` list in a reverse-geocode
+ * response, sorted by distance. */
+export interface PoiCandidate {
+  name: string;
+  /** OSM tag key that made it reviewable, e.g. "shop" or "amenity". */
+  type: string;
+  lat: number;
+  lon: number;
+  distance_m: number;
+}
+
+/** `GET /api/reverse-geocode` — Nominatim reverse geocode enriched with the
+ * distance-sorted reviewable candidates around the point, so the UI can let
+ * the user pick the exact place when several share one spot. */
+export interface ReverseGeocodeResult {
+  display_name: string;
+  name?: string;
+  /** The Nominatim display name without the prepended POI label. */
+  address?: string;
+  candidates?: PoiCandidate[];
+  /** Nominatim's class/type of the clicked object, e.g. "highway". */
+  class?: string;
+  type?: string;
+}
+
 /** Where a new review is being placed (review-form state). */
 export interface Draft {
   lat: number | null;

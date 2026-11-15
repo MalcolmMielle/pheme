@@ -102,10 +102,9 @@ async def api_geocode(
 
 @router.get("/api/reverse-geocode")
 async def api_reverse_geocode(lat: float, lon: float) -> JSONResponse:
-    """Proxy a reverse geocode lookup to Nominatim."""
-    return await places.nominatim_get(
-        "/reverse", {"lat": lat, "lon": lon, "format": "json"}
-    )
+    """Reverse geocode a point via Nominatim, giving priority to a named POI
+    (commerce, hospital, …) near the point — see Places.reverse_geocode."""
+    return await places.reverse_geocode(lat, lon)
 
 
 @router.get("/api/reviews")
