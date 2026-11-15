@@ -14,7 +14,6 @@ import {
 import { useBottomSheet } from "../hooks/useBottomSheet";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { reviewsAtPlace } from "../places";
-import LogoutButton from "./LogoutButton";
 import MapView from "./MapView";
 import PlacePanel from "./PlacePanel";
 import ReviewFilter from "./ReviewFilter";
@@ -128,13 +127,13 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
 
   /**
    * Padding for map focus: desktop keeps the point clear of the sidebar;
-   * mobile keeps it clear of the floating search bar, the zoom/locate row
-   * below it (ends at ~129 px) and the bottom sheet.
+   * mobile keeps it clear of the floating search bar and the account /
+   * zoom / locate rows below it (they end at ~164 px) and the bottom sheet.
    */
   const makeFocus = useCallback(
     (lat: number, lng: number, zoom: number): FocusTarget =>
       isMobile
-        ? { lat, lng, zoom, padLeft: 30, padTop: 140, padRight: 30, padBottom: 164 }
+        ? { lat, lng, zoom, padLeft: 30, padTop: 174, padRight: 30, padBottom: 164 }
         : {
           lat,
           lng,
@@ -604,6 +603,22 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         onRatePlace={openForm}
       />
 
+      {/* Account button floats over the map's top-right corner — the sidebar
+          header stays app-level (wordmark + theme/auth), and the profile
+          page (with its Log out button) is one tap away. */}
+      {user && (
+        <button
+          type="button"
+          className="account-btn"
+          title={`Profile — logged in as ${user.display_name || user.username}`}
+          onClick={onOpenProfile}
+        >
+          <span className="avatar" aria-hidden="true">
+            {(user.display_name || user.username).charAt(0)}
+          </span>
+        </button>
+      )}
+
       <aside className="sidebar" data-sheet={shownSheet} style={sheetStyle}>
         <button
           type="button"
@@ -657,38 +672,8 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
                 Pheme
               </h1>
               <div className="header-actions">
-                <span className="review-count">
-                  {reviews.length} review{reviews.length !== 1 ? "s" : ""}
-                </span>
-                <ThemeToggle />
-              </div>
-            </div>
-
-            {userLoaded && (
-              <div
-                className={`sidebar-user${user ? "" : " sidebar-user-anon"}`}
-              >
-                {user ? (
+                {userLoaded && !user && (
                   <>
-                    <button
-                      type="button"
-                      className="user-chip"
-                      title={`Profile — logged in as ${user.display_name || user.username}`}
-                      onClick={onOpenProfile}
-                    >
-                      <span className="avatar" aria-hidden="true">
-                        {(user.display_name || user.username).charAt(0)}
-                      </span>
-                      <span className="user-name">
-                        {user.display_name || user.username}
-                      </span>
-                    </button>
-                    <div className="user-actions">
-                      <LogoutButton />
-                    </div>
-                  </>
-                ) : (
-                  <div className="user-actions">
                     {registrationMode !== "closed" && (
                       <a href="/register" className="btn btn-sm btn-secondary">
                         Register
@@ -697,14 +682,15 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
                     <a href="/login" className="btn btn-sm btn-primary">
                       Sign in
                     </a>
-                  </div>
+                  </>
                 )}
+                <ThemeToggle />
               </div>
-            )}
-
-            <SearchBox onSelect={onSearchPlaceSelected} onClear={closePlacePanel} />
+            </div>
 
             <ScopeToggle scope={scope} onChange={setScope} loggedIn={!!user} />
+
+            <SearchBox onSelect={onSearchPlaceSelected} onClear={closePlacePanel} />
 
             <ReviewFilter
               text={filterText}

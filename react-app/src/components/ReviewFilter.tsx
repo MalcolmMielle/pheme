@@ -18,8 +18,8 @@ const RATING_OPTIONS: { value: number | null; label: string }[] = [
 ];
 
 /**
- * Sidebar filter bar, under the scope toggle: a review-text filter plus
- * minimum-rating chips. Narrows the loaded review list (and the map
+ * Sidebar filter bar, under the place search: minimum-rating chips with the
+ * review-text filter underneath. Narrows the loaded review list (and the map
  * markers, which are grouped from the same list) at the current bounds.
  * Distinct from the search box, which jumps to a place/review.
  */
@@ -31,28 +31,6 @@ export default function ReviewFilter({
 }: ReviewFilterProps) {
   return (
     <div className="review-filter">
-      <div className="filter-input-wrap">
-        <span className="search-icon" aria-hidden="true" />
-        <input
-          type="text"
-          className="filter-input"
-          placeholder="Filter reviews by text…"
-          autoComplete="off"
-          aria-label="Filter reviews by text"
-          value={text}
-          onChange={(e) => onTextChange(e.target.value)}
-        />
-        {text && (
-          <button
-            type="button"
-            className="filter-clear"
-            aria-label="Clear text filter"
-            onClick={() => onTextChange("")}
-          >
-            ✕
-          </button>
-        )}
-      </div>
       <div className="filter-ratings" role="group" aria-label="Minimum rating">
         {RATING_OPTIONS.map((o) => (
           <button
@@ -79,6 +57,28 @@ export default function ReviewFilter({
             {o.label}
           </button>
         ))}
+      </div>
+      <div className="filter-input-wrap">
+        <span className="search-icon" aria-hidden="true" />
+        <input
+          type="text"
+          className="filter-input"
+          placeholder="Filter reviews by text…"
+          autoComplete="off"
+          aria-label="Filter reviews by text"
+          value={text}
+          onChange={(e) => onTextChange(e.target.value)}
+        />
+        {text && (
+          <button
+            type="button"
+            className="filter-clear"
+            aria-label="Clear text filter"
+            onClick={() => onTextChange("")}
+          >
+            ✕
+          </button>
+        )}
       </div>
     </div>
   );
