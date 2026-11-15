@@ -2,6 +2,7 @@
 bucketing, Nominatim proxy, Place factory) and Place (a single place loaded
 from the DB, with add/update/review_by on it)."""
 
+import asyncio
 import json
 import os
 import time
@@ -842,6 +843,26 @@ class TestOsmPoiSource(AsyncTestCase):
         assert "api.openstreetmap.org" in calls[0][0]
         assert "bbox" in calls[0][1]
 
+    async def test_osm_lookup_does_not_wait_behind_nominatim_lock(self):
+        """The OSM bbox call has its own lock and throttle clock — an
+        in-flight Nominatim request (holding ``_lock``) must not serialize
+        the POI lookup (regression: both used one shared lock)."""
+
+        async def get_impl(url, params):
+            return _FakeResp(200, text=_elements_xml([]))
+
+        await self.places._lock.acquire()  # simulate an in-flight Nominatim call
+        try:
+            with patch(
+                "app.places.places.httpx.AsyncClient", _fake_client_get(get_impl)
+            ):
+                pois = await asyncio.wait_for(
+                    self.places.pois_near(37.0, -122.0), timeout=2
+                )
+            assert pois == []
+        finally:
+            self.places._lock.release()
+
     async def test_osm_error_returns_empty_and_is_not_cached(self):
         calls: list[str] = []
 
@@ -1062,17 +1083,22 @@ class TestOsmPoiSource(AsyncTestCase):
         assert by_name["Pass"]["value"] == "saddle"
         assert by_name["Pass"]["tags"] == {}
 
-    async def test_radius_covers_nearby_peak_but_drops_far_relation_members(self):
-        """A peak ~100 m away is within the default radius and shows up; a
-        same-named stop 300+ m away (a relation member dragged into the map
-        response) is beyond 1.5·r and dropped."""
-        # 0.00087° lat ≈ 96.6 m; 0.003° lat ≈ 334 m.
+    async def test_default_radius_is_20m_and_drops_far_relation_members(self):
+        """The default search radius is 20 m — a small bbox keeps the OSM
+        map call fast. A peak ~15 m away shows up; a peak ~96 m and a stop
+        300+ m away (a relation member dragged into the map response) are
+        beyond 1.5·r = 30 m and dropped. An explicit larger radius still
+        covers the ~100 m peak (a peak icon's label can sit that far from
+        the summit node)."""
+        # 0.000135° lat ≈ 15 m; 0.00087° lat ≈ 96.6 m; 0.003° lat ≈ 334 m.
         xml = (
             "<osm>"
             '<node id="1" lat="37.00087" lon="-122.0">'
             '<tag k="natural" v="peak"/><tag k="name" v="First"/>'
             '<tag k="ele" v="2440"/></node>'
-            '<node id="2" lat="37.003" lon="-122.0">'
+            '<node id="2" lat="37.000135" lon="-122.0">'
+            '<tag k="natural" v="peak"/><tag k="name" v="Near"/></node>'
+            '<node id="3" lat="37.003" lon="-122.0">'
             '<tag k="highway" v="bus_stop"/><tag k="name" v="Far stop"/></node>'
             "</osm>"
         )
@@ -1082,8 +1108,12 @@ class TestOsmPoiSource(AsyncTestCase):
 
         with patch("app.places.places.httpx.AsyncClient", _fake_client_get(get_impl)):
             pois = await self.places.pois_near(37.0, -122.0)
-        assert [p["name"] for p in pois] == ["First"]
-        assert 90 < pois[0]["distance_m"] < 105  # ~96.6 m, not dropped
+            assert [p["name"] for p in pois] == ["Near"]
+            assert 10 < pois[0]["distance_m"] < 20  # ~15 m, within 1.5·20 m
+            # An explicit 150 m radius still finds the ~96.6 m peak (and
+            # still drops the 334 m stop: 334 > 1.5·150).
+            pois_wide = await self.places.pois_near(37.0, -122.0, radius=150)
+        assert [p["name"] for p in pois_wide] == ["Near", "First"]
 
     async def test_named_road_alone_is_the_top_candidate(self):
         """Clicking mid-road with no POI nearby: the road is the place, at

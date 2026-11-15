@@ -94,10 +94,12 @@ class Places:
         "!amenity=recycling,!amenity=charging_station,!amenity=vending_machine,"
         "!amenity=water_point,!amenity=compressed_air"
     )
-    #: Search radius (meters) for places around a click — wide enough that a
-    #: station forecourt or a nearby summit/pass (a peak icon's label can sit
-    #: ~100 m from the node) yields candidates for the picker.
-    POI_RADIUS_M = 150.0
+    #: Search radius (meters) for places around a click — small on purpose:
+    #: a 20 m bbox keeps the OSM ``map`` call fast (it returns the full XML
+    #: of the area). A peak is found when the click lands near its node (a
+    #: peak icon's label can sit ~100 m from the summit, so click the
+    #: summit itself).
+    POI_RADIUS_M = 20.0
     #: ``highway``/``railway``/``public_transport`` values that mark a transit
     #: stop (a place you wait at), not a road. Such candidates get a
     #: kind-qualified label ("Bus stop · …") so a stop named after a hamlet
@@ -157,6 +159,10 @@ class Places:
         self._last_request = 0.0
         self._osm_last_request = 0.0
         self._lock = asyncio.Lock()
+        # The OSM-API call is throttled against a different upstream than
+        # Nominatim, so it gets its own lock — the two lookups can run
+        # concurrently instead of serializing behind one lock.
+        self._osm_lock = asyncio.Lock()
         # Indirection so tests can patch the wait without touching the loop.
         self._sleep = asyncio.sleep
 
@@ -381,7 +387,7 @@ class Places:
         if cached is not None and now - cached[0] < self.NOMINATIM_CACHE_TTL:
             return cached[1]
 
-        async with self._lock:
+        async with self._osm_lock:
             elapsed = time.monotonic() - self._osm_last_request
             wait = self.OSM_MIN_INTERVAL - elapsed
             if wait > 0:
@@ -501,13 +507,20 @@ class Places:
         under its own key.
         OSM API failures otherwise just fall back to the plain Nominatim
         result."""
-        try:
-            data = await self._nominatim_data(
+        # Both upstream lookups run concurrently (separate locks, separate
+        # throttle clocks — one per upstream), so the response waits
+        # max(RTT) instead of the sum of both calls.
+        nom_fut = asyncio.ensure_future(
+            self._nominatim_data(
                 "/reverse",
                 {"lat": lat, "lon": lon, "format": "json", "addressdetails": 1},
             )
+        )
+        pois_fut = asyncio.ensure_future(self.pois_near(lat, lon))
+        try:
+            data = await nom_fut
         except HTTPException:
-            candidates = await self.pois_near(lat, lon)
+            candidates = await pois_fut
             if candidates:
                 top = candidates[0]
                 return JSONResponse(
@@ -530,7 +543,7 @@ class Places:
         address_details = (
             data.get("address") if isinstance(data.get("address"), dict) else None
         )
-        candidates = await self.pois_near(lat, lon)
+        candidates = await pois_fut
         tags = {str(data.get("class") or ""): str(data.get("type") or "")}
         label = candidates[0]["name"] if candidates else None
         if label and " · " in label:
