@@ -843,6 +843,9 @@ body, .sidebar, .panel-header, .scope-toggle, .review-card, .search-dropdown,
 
 /* ── follow panel (federation) — embedded in the profile card ────────── */
 .follow-panel { display: flex; flex-direction: column; gap: 12px; }
+/* Inside the merged Following section on the profile page, the form sits
+   below the list. */
+.profile-section .follow-panel { margin-top: 14px; }
 .follow-hint {
   margin: 0;
   color: var(--text-secondary);
@@ -964,6 +967,39 @@ body, .sidebar, .panel-header, .scope-toggle, .review-card, .search-dropdown,
   white-space: nowrap;
 }
 .profile-id .admin-badge { margin-left: 0; margin-bottom: 4px; }
+
+/* Profile/Admin tab switch (admin accounts only) — segmented pill. */
+.profile-tabs {
+  display: flex;
+  gap: 4px;
+  width: fit-content;
+  padding: 4px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.profile-tabs button {
+  border: none;
+  background: transparent;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color .15s;
+}
+.profile-tabs button:hover { color: var(--text-primary); }
+.profile-tabs button.active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+.profile-tabs button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
 
 /* Card section (following list, follow form, admin panel). */
 .profile-section {
