@@ -546,7 +546,41 @@ body, .sidebar, .panel-header, .scope-toggle, .review-card, .search-dropdown,
   color: var(--text-secondary);
   font-size: 0.875rem;
   margin: 0 0 8px;
+  white-space: pre-line;
 }
+.panel-header-title { min-width: 0; }
+.place-category {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.place-info {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8125rem;
+}
+.place-info li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.place-info-label { color: var(--text-secondary); flex: none; }
+.place-info-value,
+.place-info a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+.place-info a { color: var(--accent); }
 .poi-candidates {
   display: flex;
   flex-direction: column;
@@ -576,6 +610,23 @@ body, .sidebar, .panel-header, .scope-toggle, .review-card, .search-dropdown,
 .poi-candidate.selected {
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+.poi-candidate-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  text-align: left;
+}
+.poi-candidate-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.poi-candidate-address {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .poi-candidate small { color: var(--text-secondary); flex: none; }
 .place-panel-avg {

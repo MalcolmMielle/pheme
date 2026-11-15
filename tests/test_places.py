@@ -713,6 +713,44 @@ class TestReverseGeocodePoiPriority(AsyncTestCase):
         assert resp.status_code == 200
         assert body["display_name"] == "Cafe Foo"
         assert body["name"] == "Cafe Foo"
+        # No Nominatim answer → no structured address either.
+        assert "address_details" not in body
+
+    async def test_reverse_requests_and_returns_structured_address(self):
+        """The /reverse call asks for addressdetails=1, and Nominatim's
+        structured address is passed through as ``address_details`` while
+        ``address`` stays the display name without the POI label."""
+        seen: dict[str, Any] = {}
+
+        async def get_impl(url, params):
+            if "nominatim" in url:
+                seen.update(params)
+                return _FakeResp(
+                    200,
+                    {
+                        "display_name": "1 Main Street, Springfield, United States",
+                        "class": "building",
+                        "type": "yes",
+                        "address": {
+                            "house_number": "1",
+                            "road": "Main Street",
+                            "city": "Springfield",
+                            "postcode": "62701",
+                            "country": "United States",
+                            "country_code": "us",
+                        },
+                    },
+                )
+            return _FakeResp(200, text=_elements_xml([]))
+
+        with patch("app.places.places.httpx.AsyncClient", _fake_client_get(get_impl)):
+            resp = await self.places.reverse_geocode(37.0, -122.0)
+        body = json.loads(bytes(resp.body))
+        assert seen.get("addressdetails") == 1
+        assert body["address_details"]["road"] == "Main Street"
+        assert body["address_details"]["country_code"] == "us"
+        # "address" stays the string display name (no POI label here).
+        assert body["address"] == "1 Main Street, Springfield, United States"
 
     async def test_nominatim_502_and_osm_down_still_502(self):
         async def get_impl(url, params):
@@ -1016,6 +1054,13 @@ class TestOsmPoiSource(AsyncTestCase):
             pois = await self.places.pois_near(37.0, -122.0)
         assert [p["name"] for p in pois] == ["Mont Test", "Pass"]
         assert all(p["type"] == "natural" for p in pois)
+        by_name = {p["name"]: p for p in pois}
+        # The matched tag's value (category) and the whitelisted tags (here
+        # the peak's elevation) ride along on each candidate.
+        assert by_name["Mont Test"]["value"] == "peak"
+        assert by_name["Mont Test"]["tags"] == {"ele": "2508"}
+        assert by_name["Pass"]["value"] == "saddle"
+        assert by_name["Pass"]["tags"] == {}
 
     async def test_radius_covers_nearby_peak_but_drops_far_relation_members(self):
         """A peak ~100 m away is within the default radius and shows up; a
@@ -1065,6 +1110,51 @@ class TestOsmPoiSource(AsyncTestCase):
         # Centroid of the two member nodes — the canonical road position.
         assert pois[0]["lat"] == 37.0005
         assert pois[0]["lon"] == -122.0
+
+    async def test_candidates_carry_tag_value_and_whitelisted_info_tags(self):
+        """Each candidate also carries the matched tag's value (the category,
+        e.g. "cafe") and the whitelisted info tags (website, phone, hours,
+        cuisine, wheelchair, its own addr:* address) — the element's other
+        tags (capacity, …) stay server-side."""
+        xml = (
+            "<osm>"
+            '<node id="1" lat="37.00001" lon="-122.0">'
+            '<tag k="amenity" v="cafe"/><tag k="name" v="Cafe Foo"/>'
+            '<tag k="website" v="https://cafefoo.example"/>'
+            '<tag k="contact:phone" v="+41 21 000 00 00"/>'
+            '<tag k="opening_hours" v="Mo-Fr 07:00-18:00"/>'
+            '<tag k="cuisine" v="coffee_shop"/>'
+            '<tag k="wheelchair" v="yes"/>'
+            '<tag k="addr:housenumber" v="8"/>'
+            '<tag k="addr:street" v="Rue de la Mouline"/>'
+            '<tag k="addr:postcode" v="1007"/>'
+            '<tag k="addr:city" v="Lausanne"/>'
+            '<tag k="capacity" v="40"/>'
+            "</node>"
+            "</osm>"
+        )
+
+        async def get_impl(url, params):
+            return _FakeResp(200, text=xml)
+
+        with patch("app.places.places.httpx.AsyncClient", _fake_client_get(get_impl)):
+            pois = await self.places.pois_near(37.0, -122.0)
+        assert len(pois) == 1
+        poi = pois[0]
+        assert poi["name"] == "Cafe Foo"
+        assert poi["type"] == "amenity"
+        assert poi["value"] == "cafe"
+        assert poi["tags"] == {
+            "website": "https://cafefoo.example",
+            "contact:phone": "+41 21 000 00 00",
+            "opening_hours": "Mo-Fr 07:00-18:00",
+            "cuisine": "coffee_shop",
+            "wheelchair": "yes",
+            "addr:housenumber": "8",
+            "addr:street": "Rue de la Mouline",
+            "addr:postcode": "1007",
+            "addr:city": "Lausanne",
+        }
 
 
 class TestPlaceObject(AsyncTestCase):

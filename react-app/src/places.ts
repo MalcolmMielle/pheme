@@ -36,6 +36,58 @@ export function placeKey(lat: number, lng: number): string {
   return `${lat.toFixed(placeDecimals)},${lng.toFixed(placeDecimals)}`;
 }
 
+/**
+ * Display label for an OSM tag value — mirrors the server's _humanize_label:
+ * "motorcycle_parking" → "Motorcycle parking", "saddle" → "Pass".
+ */
+export function humanizeTag(value: string): string {
+  if (value === "saddle") return "Pass";
+  const s = value.replace(/_/g, " ").trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Short address line from a place's OSM addr:* tags —
+ * "8 Rue de la Mouline, 1007 Lausanne". Falls back to `fallback` (the
+ * reverse-geocoded address of the clicked point) when the place has no
+ * addr:* tags of its own.
+ */
+export function addressFromTags(
+  tags: Record<string, string> | undefined,
+  fallback = "",
+): string {
+  if (!tags) return fallback;
+  const street = [tags["addr:housenumber"], tags["addr:street"]]
+    .filter(Boolean)
+    .join(" ");
+  const city = [
+    tags["addr:postcode"],
+    tags["addr:city"] ?? tags["addr:town"] ?? tags["addr:village"],
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return [street, city].filter(Boolean).join(", ") || fallback;
+}
+
+/**
+ * Nominatim-style structured address (house_number, road, postcode, city)
+ * from a place's OSM addr:* tags — used as the panel's `addressDetails` when
+ * the place has an address of its own (instead of the clicked point's).
+ * Undefined when there are no addr:* tags.
+ */
+export function addressDetailsFromTags(
+  tags: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!tags) return undefined;
+  const out: Record<string, string> = {};
+  if (tags["addr:housenumber"]) out.house_number = tags["addr:housenumber"];
+  if (tags["addr:street"]) out.road = tags["addr:street"];
+  if (tags["addr:postcode"]) out.postcode = tags["addr:postcode"];
+  const city = tags["addr:city"] ?? tags["addr:town"] ?? tags["addr:village"];
+  if (city) out.city = city;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** All reviews at the same place as the given point. */
 export function reviewsAtPlace(
   reviews: Review[],

@@ -13,7 +13,12 @@ import {
 } from "../api";
 import { useBottomSheet } from "../hooks/useBottomSheet";
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import { reviewsAtPlace } from "../places";
+import {
+  addressDetailsFromTags,
+  addressFromTags,
+  humanizeTag,
+  reviewsAtPlace,
+} from "../places";
 import MapView from "./MapView";
 import PlacePanel from "./PlacePanel";
 import ReviewFilter from "./ReviewFilter";
@@ -98,12 +103,14 @@ export default function MapPage({
   /**
    * A freshly picked point awaiting reverse geocoding — the effect below
    * fills in the name/address of the draft or selected place that still
-   * matches these coordinates.
+   * matches these coordinates. ``target`` is "draft" (review form), "place"
+   * (map click / search pick — the candidate picker is shown) or "review"
+   * (panel opened from a review card / marker — enriched, but no picker).
    */
   const [pendingGeocode, setPendingGeocode] = useState<{
     lat: number;
     lng: number;
-    target: "draft" | "place";
+    target: "draft" | "place" | "review";
   } | null>(null);
   /** Registration mode from /api/meta — hides the Register button when "closed". */
   const [registrationMode, setRegistrationMode] = useState("open");
@@ -211,10 +218,18 @@ export default function MapPage({
     if (lastBounds.current) void loadReviews(lastBounds.current);
   }, [loadReviews]);
 
-  /** Select a place (map marker, map click, search): open the place panel. */
+  /**
+   * Select a place (review card, place marker): open the place panel. The
+   * stored review only carries name/address, so the reverse geocode is
+   * fired too — it fills in the category, OSM tags and structured address
+   * when it resolves. Target "review": no candidate picker is shown.
+   */
   const selectPlace = useCallback(
     (place: PlaceSelection) => {
       setSelectedPlace(place);
+      setPoiCandidates([]);
+      setPoiBaseAddress("");
+      setPendingGeocode({ lat: place.lat, lng: place.lng, target: "review" });
       setFocus(makeFocus(place.lat, place.lng, 16));
     },
     [makeFocus],
@@ -324,8 +339,13 @@ export default function MapPage({
             return { ...d, placeName: name, placeAddress: displayName };
           });
         } else {
-          setPoiCandidates(result.candidates ?? []);
-          setPoiBaseAddress(result.address ?? displayName);
+          // The candidate picker only makes sense for a fresh map click /
+          // search pick — a panel opened from an existing review is just
+          // enriched, without a "several places here" list.
+          if (target === "place") {
+            setPoiCandidates(result.candidates ?? []);
+            setPoiBaseAddress(result.address ?? displayName);
+          }
           setSelectedPlace((p) => {
             if (!p || p.lat !== lat || p.lng !== lng) return p;
             // When the candidate list appears, auto-select the first (closest)
@@ -341,9 +361,20 @@ export default function MapPage({
                 // Label-included display ("Indian Zayeka, Life School
                 // Lausanne, 8, …") — same format as a search pick's address.
                 address: displayName,
+                category: top.value ? humanizeTag(top.value) : undefined,
+                tags: top.tags,
+                // The candidate's own addr:* address wins over the clicked
+                // point's reverse-geocoded address in the panel.
+                addressDetails:
+                  addressDetailsFromTags(top.tags) ?? result.address_details,
               };
             }
-            return { ...p, name, address: displayName };
+            return {
+              ...p,
+              name,
+              address: displayName,
+              addressDetails: result.address_details,
+            };
           });
         }
       })
@@ -381,6 +412,7 @@ export default function MapPage({
         lng,
         name: result.display_name.split(",")[0],
         address: result.display_name,
+        addressDetails: result.address,
       });
       setPoiCandidates([]);
       setPoiBaseAddress("");
@@ -410,10 +442,20 @@ export default function MapPage({
               lat: c.lat,
               lng: c.lon,
               name: c.name,
-              address: `${c.name}, ${poiBaseAddress}`,
+              // The picked place's own address (addr:* tags) when it has
+              // one, else the clicked point's address.
+              address: `${c.name}, ${addressFromTags(c.tags, poiBaseAddress)}`,
+              category: c.value ? humanizeTag(c.value) : undefined,
+              tags: c.tags,
+              addressDetails: addressDetailsFromTags(c.tags) ?? p.addressDetails,
             }
           : p,
       );
+      // The pick is final: close the picker, so the panel shows the chosen
+      // place in full (info, reviews, rate button) — same as a search pick.
+      setPoiCandidates([]);
+      setPoiBaseAddress("");
+      setHoveredCandidate(null);
     },
     [poiBaseAddress],
   );
@@ -583,27 +625,25 @@ export default function MapPage({
       ? hoveredCandidate
       : null;
   // The map marker: at the hovered candidate while the pointer is over the
-  // candidate list, otherwise at the selected place.
+  // candidate list, otherwise at the selected place. The hovered row's
+  // bubble shows that place's own address (addr:* tags), not the clicked
+  // point's.
   const mapMarker: SearchMarker | null = hovered
     ? {
         lat: hovered.lat,
         lng: hovered.lon,
         name: hovered.name,
-        address: poiBaseAddress || selectedPlace?.address || "",
+        address: addressFromTags(
+          hovered.tags,
+          poiBaseAddress || selectedPlace?.address || "",
+        ),
       }
     : selectedPlace;
-  // The panel follows the hover too, so scrolling the candidate list updates
-  // the name/address (and the marker) row by row; click a row to select it.
-  const panelPlace: PlaceSelection | null = selectedPlace
-    ? hovered
-      ? {
-          lat: hovered.lat,
-          lng: hovered.lon,
-          name: hovered.name,
-          address: `${hovered.name}, ${poiBaseAddress || selectedPlace.address}`,
-        }
-      : selectedPlace
-    : null;
+  // The panel shows the selected place only — hovering a candidate row moves
+  // just the map marker, so the header and info don't flicker between places
+  // while the pointer crosses the list. Clicking a row selects that place,
+  // and the panel then shows it in full, like a search pick.
+  const panelPlace: PlaceSelection | null = selectedPlace;
 
   return (
     <div className="app">
@@ -656,6 +696,7 @@ export default function MapPage({
             place={panelPlace}
             reviews={reviewsAtPlace(reviews, panelPlace.lat, panelPlace.lng)}
             candidates={poiCandidates}
+            baseAddress={poiBaseAddress}
             onSelectCandidate={onSelectCandidate}
             onHoverCandidate={setHoveredCandidate}
             user={user}

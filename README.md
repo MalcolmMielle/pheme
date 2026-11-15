@@ -569,7 +569,7 @@ An admin cannot moderate themselves or remove the last admin.
 | `POST` | `/api/follow` | Follow a remote actor (form: `target` — URI or `acct:user@domain`) |
 | `POST` | `/api/unfollow` | Unfollow an actor (form: `target` — URI or `acct:user@domain`); sends an `Undo` to the remote inbox |
 | `GET` | `/api/geocode?q=` | Proxy place search to Nominatim |
-| `GET` | `/api/reverse-geocode?lat=&lon=` | Reverse geocode via Nominatim, preferring a nearby POI (commerce, hospital, parking, …) over a bare street address (OSM API lookup); the response includes a ranked `candidates` list of nearby POIs so the UI can disambiguate when several share one spot |
+| `GET` | `/api/reverse-geocode?lat=&lon=` | Reverse geocode via Nominatim (`addressdetails=1`, so the structured address is returned as `address_details`), preferring a nearby POI (commerce, hospital, parking, …) over a bare street address (OSM API lookup); the response includes a ranked `candidates` list of nearby POIs — each with its reviewable tag key (`type`), value (`value`) and a whitelist of OSM tags (`tags`: website, phone, opening_hours, cuisine, wheelchair, ele, addr:*) — so the UI can disambiguate when several share one spot (each row shows the place's own address) and show the place's details |
 | `POST` | `/api/bootstrap` | Create the first actor (one-time; 403 once any account exists) |
 
 ### Admin API (session of an admin required; unsafe methods need `X-CSRFToken`)

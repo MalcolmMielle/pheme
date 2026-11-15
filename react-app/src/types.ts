@@ -69,6 +69,9 @@ export interface NominatimResult {
   display_name: string;
   type?: string;
   category?: string;
+  /** Structured address parts (road, city, postcode, country, …) — the
+   * search proxy requests `addressdetails=1`. */
+  address?: Record<string, string>;
 }
 
 /** A reviewable place near a clicked point, from the server's OSM-API
@@ -78,9 +81,14 @@ export interface PoiCandidate {
   name: string;
   /** OSM tag key that made it reviewable, e.g. "shop" or "amenity". */
   type: string;
+  /** Value of that tag — the category, e.g. "cafe" for amenity=cafe. */
+  value?: string;
   lat: number;
   lon: number;
   distance_m: number;
+  /** Whitelisted OSM tags of the place (website, phone, opening_hours,
+   * cuisine, wheelchair, ele, …) — the panel renders these. */
+  tags?: Record<string, string>;
 }
 
 /** `GET /api/reverse-geocode` — Nominatim reverse geocode enriched with the
@@ -91,6 +99,9 @@ export interface ReverseGeocodeResult {
   name?: string;
   /** The Nominatim display name without the prepended POI label. */
   address?: string;
+  /** Nominatim's structured address parts (road, city, postcode, country, …),
+   * from `addressdetails=1` on the reverse call. */
+  address_details?: Record<string, string>;
   candidates?: PoiCandidate[];
   /** Nominatim's class/type of the clicked object, e.g. "highway". */
   class?: string;
@@ -130,6 +141,13 @@ export interface PlaceSelection {
   lng: number;
   name: string;
   address: string;
+  /** Category label from the OSM tag that made the place reviewable,
+   * e.g. "Cafe" — only set when the place came from the OSM candidate list. */
+  category?: string;
+  /** Whitelisted OSM tags of the place (website, phone, opening_hours, …). */
+  tags?: Record<string, string>;
+  /** Nominatim's structured address parts, when a geocode provided them. */
+  addressDetails?: Record<string, string>;
 }
 
 /**

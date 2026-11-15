@@ -114,6 +114,26 @@ class Places:
             "halt",
         }
     )
+    #: OSM tags surfaced on each POI candidate as ``tags`` (rendered in the
+    #: place panel — including each candidate's own ``addr:*`` in the picker
+    #: list) — the element's other tags stay server-side.
+    CANDIDATE_INFO_TAGS = frozenset(
+        {
+            "website",
+            "contact:website",
+            "url",
+            "phone",
+            "contact:phone",
+            "opening_hours",
+            "cuisine",
+            "wheelchair",
+            "ele",
+            "addr:housenumber",
+            "addr:street",
+            "addr:city",
+            "addr:postcode",
+        }
+    )
 
     def __init__(
         self,
@@ -260,8 +280,11 @@ class Places:
         named after a hamlet is still recognizable as a stop. Roads
         (``highway`` ways) appear with their centroid as position, so
         selecting a road snaps to one canonical point.
-        Returns up to ``limit`` entries as ``{"name", "type", "lat", "lon",
-        "distance_m"}`` sorted by distance only, keeping only elements within
+        Returns up to ``limit`` entries as ``{"name", "type", "value", "lat",
+        "lon", "distance_m", "tags"}`` sorted by distance only — ``value`` is
+        the matched tag's value (the category, e.g. "cafe") and ``tags`` the
+        whitelisted ``CANDIDATE_INFO_TAGS`` of the element — keeping only
+        elements within
         ~1.5× the radius (the square bbox's corners reach √2·r; beyond that
         only far-away relation members appear in the map response). For
         ways/relations the position is the centroid (the snap point) but the
@@ -303,9 +326,15 @@ class Places:
                 {
                     "name": name,
                     "type": mtype,
+                    "value": str(tags.get(mtype) or ""),
                     "lat": plat,
                     "lon": plon,
                     "distance_m": round(d, 1),
+                    "tags": {
+                        k: v
+                        for k, v in tags.items()
+                        if k in self.CANDIDATE_INFO_TAGS and v
+                    },
                     "_raw_name": raw_name,
                     "_kind": kind,
                 }
@@ -466,12 +495,16 @@ class Places:
         of reviewable places around the point — so the UI can offer the user
         a choice when
         several places share the clicked spot, plus ``address`` (the
-        Nominatim display name without the prepended POI label).
+        Nominatim display name without the prepended POI label) and, because
+        the reverse call asks for ``addressdetails=1``, Nominatim's
+        structured ``address_details`` (road, city, postcode, country, …)
+        under its own key.
         OSM API failures otherwise just fall back to the plain Nominatim
         result."""
         try:
             data = await self._nominatim_data(
-                "/reverse", {"lat": lat, "lon": lon, "format": "json"}
+                "/reverse",
+                {"lat": lat, "lon": lon, "format": "json", "addressdetails": 1},
             )
         except HTTPException:
             candidates = await self.pois_near(lat, lon)
@@ -491,6 +524,12 @@ class Places:
             raise
 
         base_display = str(data.get("display_name") or "")
+        # Nominatim's structured address (addressdetails=1) — kept under its
+        # own key because "address" in this response is the display name
+        # without the prepended POI label.
+        address_details = (
+            data.get("address") if isinstance(data.get("address"), dict) else None
+        )
         candidates = await self.pois_near(lat, lon)
         tags = {str(data.get("class") or ""): str(data.get("type") or "")}
         label = candidates[0]["name"] if candidates else None
@@ -533,6 +572,8 @@ class Places:
                 "display_name": f"{label}, {rest}" if rest else label,
             }
         data["address"] = address
+        if address_details is not None:
+            data["address_details"] = address_details
         data["candidates"] = candidates
         return JSONResponse(data)
 
