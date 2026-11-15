@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from app.activitypub.actor import build_follow_activity
 from app.activitypub.delivery import deliver_to_inbox
 from app.auth import get_current_user
-from app.db import follow_actor, get_actor_by_uri, unfollow_actor
+from app.db import accept_follow, follow_actor, get_actor_by_uri, unfollow_actor
 from app.routes.activitypub import fetch_remote_actor
 from app.routes.api import _resolve_actor_uri
 
@@ -39,6 +39,17 @@ async def api_follow(
 
     if target_uri == actor["actor_uri"]:
         raise HTTPException(400, "Cannot follow yourself")
+
+    # Local actor (same server): store and accept the follow immediately —
+    # there is no remote inbox to deliver to.
+    local_target = await get_actor_by_uri(target_uri)
+    if local_target and local_target.get("is_local"):
+        await follow_actor(actor["id"], target_uri)
+        await accept_follow(actor["id"], target_uri)
+        logger.info("Follow %s → %s (local)", actor["username"], target_uri)
+        return JSONResponse(
+            {"status": "follow_sent", "target": target_uri, "delivered": True}
+        )
 
     # Fetch and cache the remote actor
     remote_actor = await fetch_remote_actor(target_uri)
@@ -86,9 +97,22 @@ async def api_unfollow(
 
     removed = await unfollow_actor(actor["id"], target_uri)
 
+    # Local target: nothing to notify — the follow row is already gone.
+    target_actor = await get_actor_by_uri(target_uri)
+    if target_actor and target_actor.get("is_local"):
+        logger.info("Unfollow %s → %s (local)", actor["username"], target_uri)
+        return JSONResponse(
+            {
+                "status": "unfollowed",
+                "target": target_uri,
+                "was_following": removed,
+                "delivered": True,
+            }
+        )
+
     # Notify the remote server (best effort — no retry in MVP).
     delivered = False
-    remote_actor = await get_actor_by_uri(target_uri)
+    remote_actor = target_actor
     if remote_actor and remote_actor.get("inbox_uri"):
         undo = {
             "id": f"{actor['actor_uri']}/undo/{uuid.uuid4()}",

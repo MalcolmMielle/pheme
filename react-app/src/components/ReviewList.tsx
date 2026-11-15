@@ -4,6 +4,8 @@ import type { Me, Review } from "../types";
 interface ReviewListProps {
   reviews: Review[];
   onSelect: (review: Review) => void;
+  /** Click on a card's author — opens that actor's profile page. */
+  onSelectActor?: (review: Review) => void;
   /** The logged-in user — their own reviews and (for admins) all reviews get
    *  a delete button. Null when logged out. */
   user: Me | null;
@@ -19,6 +21,7 @@ interface ReviewListProps {
 export default function ReviewList({
   reviews,
   onSelect,
+  onSelectActor,
   user,
   onDeleteReview,
   emptyMessage,
@@ -69,6 +72,7 @@ export default function ReviewList({
           key={r.id}
           review={r}
           onSelect={onSelect}
+          onSelectActor={onSelectActor}
           canDelete={!!user && (user.is_admin || r.actor_id === user.id)}
           onDelete={onDeleteReview}
         />

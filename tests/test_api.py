@@ -1207,3 +1207,145 @@ class TestReviewsScope(AsyncTestCase):
         resp = await self.client.get("/api/reviews?scope=local", headers=JSON_HEADERS)
         assert resp.status_code == 200
         assert resp.json() == []
+
+
+class TestUserProfileAPI(AsyncTestCase):
+    """GET /api/users/{actor_id} — public profile pages (/u/<id> in the SPA)."""
+
+    async def test_profile_returns_identity_and_reviews(self):
+        await self.register_user(username="alice", display_name="Alice")
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
+            "/api/reviews",
+            data={
+                "content": "Great coffee!",
+                "rating": "5",
+                "latitude": "37.7749",
+                "longitude": "-122.4194",
+                "place_name": "Coffee Shop",
+                "place_address": "123 Main St",
+                "csrf_token": csrf,
+            },
+        )
+        assert resp.status_code == 200
+        actor = await get_actor_by_username("alice")
+        assert actor is not None
+        resp = await self.client.get(f"/api/users/{actor['id']}", headers=JSON_HEADERS)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == actor["id"]
+        assert data["username"] == "alice"
+        assert data["display_name"] == "Alice"
+        assert data["actor_uri"] == actor["actor_uri"]
+        assert data["is_local"] is True
+        assert data["review_count"] == 1
+        assert len(data["reviews"]) == 1
+        assert data["reviews"][0]["content"] == "Great coffee!"
+        assert data["reviews"][0]["username"] == "alice"
+
+    async def test_profile_of_remote_actor(self):
+        """Federated actors have profile pages too (their reviews federated in)."""
+        bob = await create_actor(
+            username="remotebob",
+            display_name="Remote Bob",
+            summary="",
+            private_key_pem="",
+            public_key_pem="",
+            actor_uri="https://remote.example/actor/bob",
+            inbox_uri="https://remote.example/actor/bob/inbox",
+            outbox_uri="https://remote.example/actor/bob/outbox",
+            followers_uri="https://remote.example/actor/bob/followers",
+            following_uri="https://remote.example/actor/bob/following",
+            is_local=False,
+        )
+        await reviews.create(
+            actor_id=bob["id"],
+            ap_id="https://remote.example/actor/bob/review/1",
+            content="bobs",
+            rating=4,
+            latitude=40.0,
+            longitude=-122.0,
+        )
+        # No login needed — the profile is public.
+        resp = await self.client.get(f"/api/users/{bob['id']}", headers=JSON_HEADERS)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["username"] == "remotebob"
+        assert data["is_local"] is False
+        assert data["review_count"] == 1
+        assert data["reviews"][0]["content"] == "bobs"
+
+    async def test_profile_not_found(self):
+        resp = await self.client.get("/api/users/9999", headers=JSON_HEADERS)
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "User not found"
+
+
+class TestFollowLocalActor(AsyncTestCase):
+    """POST /api/follow with a same-server actor URI — accepted immediately,
+    no remote delivery (the profile page's Follow button uses this path)."""
+
+    async def test_follow_and_unfollow_local_actor(self):
+        await self.register_user(username="alice")  # session = alice
+        bob = await create_actor(
+            username="bob",
+            display_name="Bob",
+            summary="",
+            private_key_pem="",
+            public_key_pem="",
+            actor_uri="http://testserver/actor/bob",
+            inbox_uri="http://testserver/actor/bob/inbox",
+            outbox_uri="http://testserver/actor/bob/outbox",
+            followers_uri="http://testserver/actor/bob/followers",
+            following_uri="http://testserver/actor/bob/following",
+            is_local=True,
+        )
+        await reviews.create(
+            actor_id=bob["id"],
+            ap_id="http://testserver/actor/bob/review/1",
+            content="bobs",
+            rating=5,
+            latitude=37.0,
+            longitude=-122.0,
+        )
+        csrf = await get_csrf_token(self.client, "/register")
+
+        resp = await self.client.post(
+            "/api/follow",
+            data={"target": bob["actor_uri"], "csrf_token": csrf},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "follow_sent"
+        assert data["target"] == bob["actor_uri"]
+        assert data["delivered"] is True
+
+        # The follow is accepted: it shows in /api/me/following and bob's
+        # review appears in scope=following.
+        resp = await self.client.get("/api/me/following", headers=JSON_HEADERS)
+        assert [f["actor_uri"] for f in resp.json()["following"]] == [bob["actor_uri"]]
+        resp = await self.client.get(
+            "/api/reviews?scope=following", headers=JSON_HEADERS
+        )
+        assert [r["content"] for r in resp.json()] == ["bobs"]
+
+        resp = await self.client.post(
+            "/api/unfollow",
+            data={"target": bob["actor_uri"], "csrf_token": csrf},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["was_following"] is True
+        resp = await self.client.get("/api/me/following", headers=JSON_HEADERS)
+        assert resp.json()["following"] == []
+
+    async def test_follow_yourself_rejected(self):
+        await self.register_user(username="alice")
+        me = await get_actor_by_username("alice")
+        assert me is not None
+        csrf = await get_csrf_token(self.client, "/register")
+        resp = await self.client.post(
+            "/api/follow",
+            data={"target": me["actor_uri"], "csrf_token": csrf},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Cannot follow yourself"

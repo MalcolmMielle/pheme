@@ -39,13 +39,20 @@ interface MapPageProps {
   user: Me | null;
   userLoaded: boolean;
   onOpenProfile: () => void;
+  /** Open another actor's public profile page (/u/<id>). */
+  onOpenUserProfile: (actorId: number) => void;
 }
 
 /**
  * The map page — layout, state and data flow for the whole app.
  * Ported from app/static/app.js.
  */
-export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProps) {
+export default function MapPage({
+  user,
+  userLoaded,
+  onOpenProfile,
+  onOpenUserProfile,
+}: MapPageProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
   /** True while a review load is in flight (drives skeleton cards). */
   const [loading, setLoading] = useState(true);
@@ -224,6 +231,18 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
       });
     },
     [selectPlace],
+  );
+
+  /**
+   * A review's author was clicked: if it's the logged-in user, open their own
+   * /profile page; otherwise open that actor's public profile (/u/<id>).
+   */
+  const openActorProfile = useCallback(
+    (review: Review) => {
+      if (user && review.actor_id === user.id) onOpenProfile();
+      else onOpenUserProfile(review.actor_id);
+    },
+    [user, onOpenProfile, onOpenUserProfile],
   );
 
   /**
@@ -643,6 +662,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
             formOpen={formOpen}
             onRatePlace={openForm}
             onDeleteReview={handleDeleteReview}
+            onSelectActor={openActorProfile}
             onClose={closePlacePanel}
           />
         ) : (
@@ -704,6 +724,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
             <ReviewList
               reviews={reviews}
               onSelect={selectReview}
+              onSelectActor={openActorProfile}
               user={user}
               onDeleteReview={handleDeleteReview}
               loading={loading}

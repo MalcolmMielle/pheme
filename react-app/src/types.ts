@@ -38,6 +38,19 @@ export interface FollowingEntry {
   display_name: string;
 }
 
+/** Public profile of any actor (local or federated), from `GET /api/users/{id}` —
+ *  shown at the SPA route `/u/<id>`, reached by clicking a review's author. */
+export interface UserProfile {
+  id: number;
+  username: string;
+  display_name: string;
+  actor_uri: string;
+  is_admin: boolean;
+  is_local: boolean;
+  review_count: number;
+  reviews: Review[];
+}
+
 /** A local account as listed by `GET /api/admin/users` (admin only). */
 export interface AdminUser {
   id: number;

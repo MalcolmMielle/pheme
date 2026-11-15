@@ -30,6 +30,8 @@ interface PlacePanelProps {
   onRatePlace: (place: PlaceSelection, existingReview?: Review) => void;
   /** Delete handler for a review card (own review, or any review for admins). */
   onDeleteReview?: (review: Review) => void;
+  /** Click on a card's author — opens that actor's profile page. */
+  onSelectActor?: (review: Review) => void;
   onClose: () => void;
 }
 
@@ -49,6 +51,7 @@ export default function PlacePanel({
   formOpen,
   onRatePlace,
   onDeleteReview,
+  onSelectActor,
   onClose,
 }: PlacePanelProps) {
   const avg =
@@ -121,6 +124,7 @@ export default function PlacePanel({
                   showCoords
                   canDelete={!!user && (user.is_admin || r.actor_id === user.id)}
                   onDelete={onDeleteReview}
+                  onSelectActor={onSelectActor}
                 />
               ))}
             </div>

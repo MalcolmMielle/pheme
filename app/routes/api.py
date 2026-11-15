@@ -89,6 +89,30 @@ async def api_me_following(actor: dict = Depends(get_current_user)) -> JSONRespo
     return JSONResponse({"following": await get_following_actors(actor["id"])})
 
 
+@router.get("/api/users/{actor_id}")
+async def api_user_profile(actor_id: int) -> JSONResponse:
+    """Public profile of an actor (local or federated): identity fields plus
+    their reviews, newest first. Powers the SPA's ``/u/<id>`` pages, reached
+    by clicking a review's author on the map. No login required."""
+    actor = await get_actor_by_id(actor_id)
+    if actor is None:
+        raise HTTPException(404, "User not found")
+    found = await reviews.by_actor(actor_id, limit=200)
+    total = await reviews.count(actor_uris=[actor["actor_uri"]])
+    return JSONResponse(
+        {
+            "id": actor["id"],
+            "username": actor["username"],
+            "display_name": actor["display_name"],
+            "actor_uri": actor["actor_uri"],
+            "is_admin": bool(actor.get("is_admin")),
+            "is_local": bool(actor.get("is_local")),
+            "review_count": total,
+            "reviews": [r.to_dict() for r in found],
+        }
+    )
+
+
 @router.get("/api/geocode")
 async def api_geocode(
     q: str, limit: int = Query(default=5, ge=1, le=50)

@@ -12,6 +12,8 @@ interface ReviewCardProps {
   review: Review;
   /** Click handler — makes the card selectable (sidebar list). */
   onSelect?: (review: Review) => void;
+  /** Click on the author (avatar or name) — opens that actor's profile page. */
+  onSelectActor?: (review: Review) => void;
   /** Show the place name line (hidden in the place panel, where it's the title). */
   showPlace?: boolean;
   /** Show the numeric rating next to the stars (sidebar list only). */
@@ -28,6 +30,7 @@ interface ReviewCardProps {
 export default function ReviewCard({
   review: r,
   onSelect,
+  onSelectActor,
   showPlace = true,
   showRatingNum = true,
   showCoords = false,
@@ -36,18 +39,44 @@ export default function ReviewCard({
 }: ReviewCardProps) {
   const server = actorServer(r.actor_uri);
   const who = r.display_name || r.username;
+  /** Author click — must not trigger the card's own select handler. */
+  const onAuthorClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelectActor?.(r);
+  };
+  const authorAvatar = (
+    <span
+      className="avatar review-avatar"
+      style={{ background: avatarColor(who) }}
+      aria-hidden="true"
+    >
+      {who.charAt(0)}
+    </span>
+  );
+  const authorName = (
+    <>
+      {who}
+      {server && <span className="server"> @{server}</span>}
+    </>
+  );
   return (
     <div
       className={`review-card${onSelect ? "" : " review-card-static"}`}
       onClick={onSelect ? () => onSelect(r) : undefined}
     >
-      <span
-        className="avatar review-avatar"
-        style={{ background: avatarColor(who) }}
-        aria-hidden="true"
-      >
-        {who.charAt(0)}
-      </span>
+      {onSelectActor ? (
+        <button
+          type="button"
+          className="review-avatar-btn"
+          title={`View ${who}'s profile`}
+          aria-label={`View ${who}'s profile`}
+          onClick={onAuthorClick}
+        >
+          {authorAvatar}
+        </button>
+      ) : (
+        authorAvatar
+      )}
       <div className="review-card-main">
         {showPlace && <span className="place">{r.place_name || "Unnamed place"}</span>}
         {showRatingNum ? (
@@ -60,10 +89,18 @@ export default function ReviewCard({
         )}
         <div className="snippet">{r.content}</div>
         <div className="meta-line">
-          <span className="who">
-            {who}
-            {server && <span className="server"> @{server}</span>}
-          </span>
+          {onSelectActor ? (
+            <button
+              type="button"
+              className="who who-btn"
+              title={`View ${who}'s profile`}
+              onClick={onAuthorClick}
+            >
+              {authorName}
+            </button>
+          ) : (
+            <span className="who">{authorName}</span>
+          )}
           <span className="date" title={formatDate(r.created_at)}>
             {formatRelative(r.created_at)}
           </span>

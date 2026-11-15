@@ -9,6 +9,7 @@ import type {
   ReverseGeocodeResult,
   Review,
   ReviewScope,
+  UserProfile,
 } from "./types";
 
 /** Error from an API call, carrying the HTTP status (e.g. 401 → re-login). */
@@ -87,6 +88,18 @@ export async function fetchMyFollowing(): Promise<FollowingEntry[] | null> {
   if (!resp.ok) throw new Error(`GET /api/me/following failed: ${resp.status}`);
   const data = await resp.json();
   return data.following;
+}
+
+/** Public profile (identity + reviews) of any actor — `GET /api/users/{id}`,
+ *  no login required. Throws ApiError with status 404 when unknown. */
+export async function fetchUserProfile(actorId: number): Promise<UserProfile> {
+  const resp = await fetch(`/api/users/${actorId}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!resp.ok) {
+    throw new ApiError(resp.status, `GET /api/users/${actorId} failed: ${resp.status}`);
+  }
+  return resp.json();
 }
 
 /** Extra filters for the review list, combined with bounds and scope. */
