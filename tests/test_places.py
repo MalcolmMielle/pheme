@@ -609,6 +609,60 @@ class TestReverseGeocodePoiPriority(AsyncTestCase):
         assert body["candidates"][0]["name"] == "Bus stop · Pelleautier - Le Lozeron"
         assert body["candidates"][0]["type"] == "highway"
 
+    async def test_closest_named_poi_name_dropped_from_address(self):
+        """Nominatim's closest object is a different named POI (the school
+        building under the restaurant click): its name is dropped from the
+        display and the address — "Indian Zayeka, 8, Rue de la Mouline, …",
+        not "Indian Zayeka, Life School Lausanne, 8, …". Roads keep their
+        name (the road IS the address)."""
+        nom = {
+            "display_name": (
+                "Life School Lausanne, 8, Rue de la Mouline, Chavannes-près-Renens"
+            ),
+            "name": "Life School Lausanne",
+            "class": "amenity",
+            "type": "school",
+        }
+        osm = [
+            {
+                "type": "node",
+                "lat": 37.00001,
+                "lon": -122.0,
+                "tags": {"amenity": "restaurant", "name": "Indian Zayeka"},
+            }
+        ]
+        resp, _ = await self._reverse(nom, osm)
+        body = json.loads(bytes(resp.body))
+        assert body["display_name"] == (
+            "Indian Zayeka, 8, Rue de la Mouline, Chavannes-près-Renens"
+        )
+        assert body["name"] == "Indian Zayeka"
+        assert body["address"] == "8, Rue de la Mouline, Chavannes-près-Renens"
+
+    async def test_road_name_kept_in_address_when_prepending_poi(self):
+        """A road as Nominatim's closest object keeps its name in the
+        address — the road IS the address."""
+        nom = {
+            "display_name": "Route du Lozeron, Pelleautier, Gap",
+            "name": "Route du Lozeron",
+            "class": "highway",
+            "type": "tertiary",
+        }
+        osm = [
+            {
+                "type": "node",
+                "lat": 37.00001,
+                "lon": -122.0,
+                "tags": {"amenity": "restaurant", "name": "Indian Zayeka"},
+            }
+        ]
+        resp, _ = await self._reverse(nom, osm)
+        body = json.loads(bytes(resp.body))
+        assert body["display_name"] == (
+            "Indian Zayeka, Route du Lozeron, Pelleautier, Gap"
+        )
+        assert body["address"] == "Route du Lozeron, Pelleautier, Gap"
+
     async def test_candidates_sorted_by_distance_only(self):
         """No category ranking anymore: the closest reviewable place wins,
         even if it's a parking and a shop is nearby."""

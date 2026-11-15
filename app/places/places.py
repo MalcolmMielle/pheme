@@ -443,6 +443,10 @@ class Places:
           "McDonald's, Place de la Gare, …" instead of "Toilets, …" or
           "Place de la Gare, 2, …"; transit stops get their kind prepended
           ("Bus stop, Pelleautier - Le Lozeron, Route du Lozeron, …");
+          when Nominatim's closest object is a *different* named POI (e.g.
+          the school under a restaurant click), its name is dropped from the
+          display/address — "Indian Zayeka, 8, Rue de la Mouline, …", not
+          "Indian Zayeka, Life School Lausanne, 8, …";
         - if Nominatim's closest object is itself an unnamed place of a
           reviewable kind (e.g. a parking, which often has no name in OSM)
           and the POI lookup finds nothing, its OSM type becomes the label:
@@ -497,14 +501,32 @@ class Places:
             # label it from its OSM type instead of the street name. Places
             # outside the REVIEWABLE_TAGS filter (toilets, …) get no label.
             label = _humanize_label(str(data["type"]))
+        address = base_display
         if label and label.lower() not in base_display.lower():
+            rest = base_display
+            nom_name = str(data.get("name") or "")
+            # The closest Nominatim object is a different named POI than the
+            # label (e.g. the school building "Life School Lausanne" under a
+            # restaurant click): drop its name from the display and address so
+            # only the street part remains — "Indian Zayeka, 8, Rue de la
+            # Mouline, …" instead of "Indian Zayeka, Life School Lausanne, 8,
+            # …". Roads (class=highway) keep their name — the road IS the
+            # address; non-POI objects (buildings, …) are left alone too.
+            if (
+                nom_name
+                and reviewable_at_point
+                and str(data.get("class") or "") != "highway"
+                and base_display.lower().startswith(nom_name.lower())
+            ):
+                rest = base_display[len(nom_name) :].lstrip(" ,")
+                address = rest
             data = {
                 **data,
                 "name": label,
                 **({"poi": candidates[0]} if candidates else {}),
-                "display_name": f"{label}, {base_display}" if base_display else label,
+                "display_name": f"{label}, {rest}" if rest else label,
             }
-        data["address"] = base_display or str(data.get("display_name") or "")
+        data["address"] = address
         data["candidates"] = candidates
         return JSONResponse(data)
 
