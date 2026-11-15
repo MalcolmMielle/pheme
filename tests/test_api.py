@@ -632,6 +632,207 @@ class TestOneReviewPerPlace(AsyncTestCase):
         assert resp.json()["review"]["content"] == "edited"
 
 
+class TestReviewsSearchAPI(AsyncTestCase):
+    """GET /api/reviews?q=… — full-text search over review content, place
+    name and address; combines with bounds and scope."""
+
+    async def _post(
+        self, content: str, lat: float = 37.0, place_name: str = ""
+    ) -> None:
+        resp = await self.client.post(
+            "/api/reviews",
+            json={
+                "content": content,
+                "rating": 4,
+                "latitude": lat,
+                "longitude": -122.0,
+                "place_name": place_name,
+            },
+        )
+        assert resp.status_code == 200
+
+    async def test_q_filters_by_content_and_reports_total(self):
+        await self.register_user()
+        await self._post("Great coffee in SF", place_name="Cafe A")
+        await self._post("Terrible service", lat=40.7, place_name="Bistro B")
+        resp = await self.client.get(
+            "/api/reviews", params={"q": "coffee"}, headers=JSON_HEADERS
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["content"] == "Great coffee in SF"
+        assert resp.headers["X-Total-Count"] == "1"
+
+    async def test_q_matches_place_name_case_insensitive(self):
+        await self.register_user()
+        await self._post("Nice", place_name="Blue Bottle Coffee")
+        await self._post("Meh", lat=38.0)
+        resp = await self.client.get(
+            "/api/reviews", params={"q": "blue bottle"}, headers=JSON_HEADERS
+        )
+        assert [r["place_name"] for r in resp.json()] == ["Blue Bottle Coffee"]
+
+    async def test_q_combined_with_bounds(self):
+        await self.register_user()
+        await self._post("coffee in SF", lat=37.0)
+        await self._post("coffee in NYC", lat=40.7)
+        resp = await self.client.get(
+            "/api/reviews",
+            params={
+                "q": "coffee",
+                "min_lat": "36",
+                "max_lat": "38",
+                "min_lng": "-123",
+                "max_lng": "-121",
+            },
+            headers=JSON_HEADERS,
+        )
+        assert [r["content"] for r in resp.json()] == ["coffee in SF"]
+
+    async def test_q_combined_with_scope_local(self):
+        """q and scope compose — here, only the local actor's review matches."""
+        await self.register_user()
+        await self._post("local coffee review", place_name="Local Cafe")
+        me = await get_actor_by_username("testuser")
+        assert me is not None
+        remote = await create_actor(
+            username="remotebob",
+            display_name="Remote Bob",
+            summary="",
+            private_key_pem="",
+            public_key_pem="",
+            actor_uri="https://remote.example/actor/bob",
+            inbox_uri="https://remote.example/actor/bob/inbox",
+            outbox_uri="https://remote.example/actor/bob/outbox",
+            followers_uri="https://remote.example/actor/bob/followers",
+            following_uri="https://remote.example/actor/bob/following",
+            is_local=False,
+        )
+        assert remote is not None
+        await reviews.create(
+            actor_id=remote["id"],
+            ap_id="https://remote.example/actor/bob/review/1",
+            content="remote coffee review",
+            rating=3,
+            latitude=37.0,
+            longitude=-122.0,
+        )
+        resp = await self.client.get(
+            "/api/reviews",
+            params={"q": "coffee", "scope": "local"},
+            headers=JSON_HEADERS,
+        )
+        assert [r["content"] for r in resp.json()] == ["local coffee review"]
+
+    async def test_q_scope_following_still_requires_auth(self):
+        resp = await self.client.get(
+            "/api/reviews",
+            params={"q": "x", "scope": "following"},
+            headers=JSON_HEADERS,
+        )
+        assert resp.status_code == 401
+
+    async def test_q_blank_is_ignored(self):
+        await self.register_user()
+        await self._post("one")
+        await self._post("two", lat=38.0)
+        for q in ("", "   "):
+            resp = await self.client.get(
+                "/api/reviews", params={"q": q}, headers=JSON_HEADERS
+            )
+            assert resp.status_code == 200
+            assert len(resp.json()) == 2
+
+    async def test_q_too_long_rejected(self):
+        resp = await self.client.get(
+            "/api/reviews", params={"q": "x" * 201}, headers=JSON_HEADERS
+        )
+        assert resp.status_code == 422
+        resp = await self.client.get(
+            "/api/reviews", params={"q": "x" * 200}, headers=JSON_HEADERS
+        )
+        assert resp.status_code == 200
+
+    async def test_q_escapes_like_wildcards(self):
+        """q=% must not dump the whole table."""
+        await self.register_user()
+        await self._post("plain")
+        resp = await self.client.get(
+            "/api/reviews", params={"q": "%"}, headers=JSON_HEADERS
+        )
+        assert resp.json() == []
+
+
+class TestReviewsMinRatingAPI(AsyncTestCase):
+    """GET /api/reviews?min_rating=… — keep only reviews with at least N stars."""
+
+    async def _post(self, content: str, rating: int, lat: float = 37.0) -> None:
+        resp = await self.client.post(
+            "/api/reviews",
+            json={
+                "content": content,
+                "rating": rating,
+                "latitude": lat,
+                "longitude": -122.0,
+            },
+        )
+        assert resp.status_code == 200
+
+    async def test_min_rating_filters_and_reports_total(self):
+        await self.register_user()
+        await self._post("great", 5)
+        await self._post("ok", 3, lat=38.0)
+        await self._post("bad", 1, lat=39.0)
+        resp = await self.client.get(
+            "/api/reviews", params={"min_rating": "4"}, headers=JSON_HEADERS
+        )
+        assert resp.status_code == 200
+        assert [r["content"] for r in resp.json()] == ["great"]
+        assert resp.headers["X-Total-Count"] == "1"
+
+    async def test_min_rating_combined_with_q(self):
+        await self.register_user()
+        await self._post("coffee great", 5)
+        await self._post("coffee meh", 2, lat=37.5)
+        await self._post("tea great", 5, lat=37.2)
+        resp = await self.client.get(
+            "/api/reviews",
+            params={"q": "coffee", "min_rating": "4"},
+            headers=JSON_HEADERS,
+        )
+        assert [r["content"] for r in resp.json()] == ["coffee great"]
+
+    async def test_min_rating_combined_with_bounds(self):
+        await self.register_user()
+        await self._post("in SF high", 5, lat=37.0)
+        await self._post("in NYC high", 5, lat=40.7)
+        await self._post("in SF low", 2, lat=37.2)
+        resp = await self.client.get(
+            "/api/reviews",
+            params={
+                "min_rating": "4",
+                "min_lat": "36",
+                "max_lat": "38",
+                "min_lng": "-123",
+                "max_lng": "-121",
+            },
+            headers=JSON_HEADERS,
+        )
+        assert [r["content"] for r in resp.json()] == ["in SF high"]
+
+    async def test_min_rating_validation(self):
+        for bad in ("0", "6", "-1"):
+            resp = await self.client.get(
+                "/api/reviews", params={"min_rating": bad}, headers=JSON_HEADERS
+            )
+            assert resp.status_code == 422, bad
+        resp = await self.client.get(
+            "/api/reviews", params={"min_rating": "5"}, headers=JSON_HEADERS
+        )
+        assert resp.status_code == 200
+
+
 class TestWebFingerSchemes(unittest.TestCase):
     """Scheme selection for WebFinger: HTTPS for public hosts, HTTP first
     for local/private hosts (dev servers without TLS)."""

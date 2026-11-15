@@ -89,13 +89,23 @@ export async function fetchMyFollowing(): Promise<FollowingEntry[] | null> {
   return data.following;
 }
 
+/** Extra filters for the review list, combined with bounds and scope. */
+export interface ReviewFilterOptions {
+  /** Full-text filter over review content / place name / address. */
+  q?: string;
+  /** Keep only reviews with at least this many stars; null/undefined = any. */
+  minRating?: number | null;
+}
+
 /** Reviews within the given map bounds. Pass a signal to cancel the request.
  *  scope "following" asks the server for own + followed actors' reviews
- *  (401 when logged out). */
+ *  (401 when logged out). ``filter`` narrows the result by review text
+ *  (``q``) and/or minimum rating (``min_rating``) — the sidebar filter bar. */
 export async function fetchReviews(
   bounds: MapBounds,
   signal?: AbortSignal,
   scope: ReviewScope = "all",
+  filter?: ReviewFilterOptions,
 ): Promise<Review[]> {
   const params = new URLSearchParams({
     min_lat: String(bounds.getSouth()),
@@ -104,6 +114,8 @@ export async function fetchReviews(
     max_lng: String(bounds.getEast()),
   });
   if (scope !== "all") params.set("scope", scope);
+  if (filter?.q) params.set("q", filter.q);
+  if (filter?.minRating != null) params.set("min_rating", String(filter.minRating));
   const resp = await fetch(`/api/reviews?${params}`, {
     headers: { Accept: "application/json" },
     signal,

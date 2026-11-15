@@ -119,6 +119,8 @@ async def api_reviews(
     # the whole table on ?limit=-1.
     limit: int = Query(default=200, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    q: str | None = Query(default=None, max_length=200),
+    min_rating: int | None = Query(default=None, ge=1, le=5),
 ) -> JSONResponse:
     """Return reviews, optionally filtered by map bounds. Supports pagination.
 
@@ -126,6 +128,12 @@ async def api_reviews(
     reviews plus reviews by actors they follow (401 when logged out);
     ``scope=local`` returns only reviews by local actors (no login needed);
     ``scope=all`` (default) returns everything.
+
+    ``q`` is a full-text search over the review text: it matches reviews whose
+    content, place name or place address contains the text (case-insensitive),
+    and combines with bounds and scope. Blank/whitespace-only is ignored.
+    ``min_rating`` keeps only reviews with at least that many stars (1-5).
+    Both combine with bounds and scope.
     """
     if scope not in ("all", "following", "local"):
         raise HTTPException(400, "scope must be 'all', 'following' or 'local'")
@@ -139,6 +147,8 @@ async def api_reviews(
         actor_uris = [actor["actor_uri"], *(await get_following(actor["id"]))]
     elif scope == "local":
         actor_uris = [a["actor_uri"] for a in await list_local_actors()]
+
+    q = q.strip() if q else None
 
     if (
         min_lat is not None
@@ -154,13 +164,27 @@ async def api_reviews(
             limit=limit,
             offset=offset,
             actor_uris=actor_uris,
+            q=q,
+            min_rating=min_rating,
         )
         total = await reviews.count_by_bounds(
-            min_lat, max_lat, min_lng, max_lng, actor_uris=actor_uris
+            min_lat,
+            max_lat,
+            min_lng,
+            max_lng,
+            actor_uris=actor_uris,
+            q=q,
+            min_rating=min_rating,
         )
     else:
-        found = await reviews.all(limit=limit, offset=offset, actor_uris=actor_uris)
-        total = await reviews.count(actor_uris=actor_uris)
+        found = await reviews.all(
+            limit=limit,
+            offset=offset,
+            actor_uris=actor_uris,
+            q=q,
+            min_rating=min_rating,
+        )
+        total = await reviews.count(actor_uris=actor_uris, q=q, min_rating=min_rating)
     return JSONResponse(
         [r.to_dict() for r in found],
         headers={"X-Total-Count": str(total)},

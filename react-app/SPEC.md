@@ -12,8 +12,12 @@ tags: [frontend, ui, react]
 
 The live web UI served at `/` — a React 18 + Vite + Leaflet single-page app
 ("Pheme"): a full-screen map with one avg-rating-colored marker per place, a
-380 px sidebar (review list synced to map bounds, global place search,
-scope toggle, user strip, place panel, review form) that becomes a draggable
+380 px sidebar (review list synced to map bounds, top search box for jumping
+to a *place* via Nominatim — global, place-only; a filter bar that narrows
+the reviews in the visible area by text and/or minimum rating — debounced
+300 ms, applied server-side via `GET /api/reviews?q=&min_rating=` with the
+visible bounds, so the map markers follow the filter; scope toggle, user
+strip, place panel, review form) that becomes a draggable
 bottom sheet under 768 px, plus a `/profile` page (identity card, following
 list, follow form, admin panel). The Flask templates under `app/templates`
 are legacy; all new UI work happens here. In dev, Vite proxies the same-origin

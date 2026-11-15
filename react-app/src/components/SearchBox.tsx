@@ -9,7 +9,9 @@ interface SearchBoxProps {
   onClear?: () => void;
 }
 
-/** Global map search (always visible at the top of the sidebar). */
+/** Global place search (always visible at the top of the sidebar) — jumping
+ *  to a place anywhere. Narrowing reviews by text/rating lives in the
+ *  sidebar filter bar (ReviewFilter). */
 export default function SearchBox({ onSelect, onClear }: SearchBoxProps) {
   const [value, setValue] = useState("");
   return (

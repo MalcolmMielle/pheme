@@ -342,6 +342,9 @@ curl http://localhost:8000/api/reviews
 # Reviews filtered by map bounds
 curl "http://localhost:8000/api/reviews?min_lat=37.70&max_lat=37.85&min_lng=-122.50&max_lng=-122.35"
 
+# Full-text search over review content / place name / address
+curl "http://localhost:8000/api/reviews?q=coffee"
+
 # Place search (proxied to Nominatim)
 curl "http://localhost:8000/api/geocode?q=Ferry%20Building%20San%20Francisco"
 ```
@@ -559,7 +562,7 @@ An admin cannot moderate themselves or remove the last admin.
 | `GET` | `/api/meta` | Public server metadata (`{"registration_mode": ...}`) |
 | `GET` | `/api/me` | Current session user (`{id, username, display_name, is_admin, actor_uri}`); 401 when logged out or suspended |
 | `GET` | `/api/me/following` | The logged-in user's accepted follows (`{"following": [{actor_uri, username, display_name}]}`); 401 when logged out |
-| `GET` | `/api/reviews` | JSON reviews (optional `?min_lat=&max_lat=&min_lng=&max_lng=&limit=&offset=&scope=`; `scope` is `all` (default), `following` (own + followed actors, needs login), or `local` (this server's users only)) |
+| `GET` | `/api/reviews` | JSON reviews (optional `?min_lat=&max_lat=&min_lng=&max_lng=&limit=&offset=&scope=&q=&min_rating=`; `scope` is `all` (default), `following` (own + followed actors, needs login), or `local` (this server's users only); `q` is a full-text filter over review content, place name and address and `min_rating` (1-5) keeps only reviews with at least that many stars — both combine with bounds and scope; the SPA's sidebar filter bar passes the visible map bounds, so review filtering stays in the shown region |
 | `GET` | `/api/reviews/{id}` | Single review as JSON |
 | `POST` | `/api/reviews` | Create review — form-encoded or JSON body (`content`, `rating`, `latitude`, `longitude`, `place_name`, `place_address`); requires login + `X-CSRFToken` header |
 | `DELETE` | `/api/reviews/{id}` | Delete a review (author only) |

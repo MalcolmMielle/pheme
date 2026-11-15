@@ -8,24 +8,56 @@ global one from app.db.connection), so the module singleton ``reviews`` is
 all the app needs.
 """
 
+from typing import Any
+
 import aiosqlite
 
 from app.db.connection import get_db
 from app.reviews.review import Review
 
 
-def _actor_uri_where(actor_uris: list[str] | None) -> tuple[str, list[str]]:
-    """SQL WHERE fragment restricting reviews to the given actor URIs.
+def _like_pattern(q: str) -> str:
+    """A ``%…%`` LIKE pattern for the search text, with LIKE wildcards in the
+    text itself escaped (``ESCAPE '\\'`` in the SQL) so e.g. ``q="100%"``
+    matches a literal percent sign, not everything."""
+    escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
 
-    Returns (clause, params) — ``None`` means no filter ("1=1"), an empty
+
+def _where(
+    actor_uris: list[str] | None,
+    search_text: str | None = None,
+    min_rating: int | None = None,
+) -> tuple[str, list[str]]:
+    """SQL WHERE fragment for the review queries: optionally restrict to the
+    given actor URIs, to reviews whose content, place name or address contains
+    the search text ``search_text`` (case-insensitive LIKE), and/or to reviews
+    with at least ``min_rating`` stars.
+
+    Returns (clause, params) — no filters means "1=1"; an empty ``actor_uris``
     list means "match nothing" ("1=0").
     """
-    if actor_uris is None:
+    clauses: list[str] = []
+    params: list[Any] = []  # actor URIs (str), LIKE patterns (str), rating (int)
+    if actor_uris is not None:
+        if not actor_uris:
+            return "1=0", []
+        placeholders = ",".join("?" for _ in actor_uris)
+        clauses.append(f"a.actor_uri IN ({placeholders})")
+        params.extend(actor_uris)
+    if search_text:
+        pattern = _like_pattern(search_text)
+        clauses.append(
+            "(r.content LIKE ? ESCAPE '\\' OR r.place_name LIKE ? ESCAPE '\\' "
+            "OR r.place_address LIKE ? ESCAPE '\\')"
+        )
+        params.extend([pattern, pattern, pattern])
+    if min_rating is not None:
+        clauses.append("r.rating >= ?")
+        params.append(min_rating)
+    if not clauses:
         return "1=1", []
-    if not actor_uris:
-        return "1=0", []
-    placeholders = ",".join("?" for _ in actor_uris)
-    return f"a.actor_uri IN ({placeholders})", list(actor_uris)
+    return " AND ".join(clauses), params
 
 
 class Reviews:
@@ -120,8 +152,12 @@ class Reviews:
         limit: int = 200,
         offset: int = 0,
         actor_uris: list[str] | None = None,
+        q: str | None = None,
+        min_rating: int | None = None,
     ) -> list[Review]:
-        where, params = _actor_uri_where(actor_uris)
+        """All reviews (optionally filtered by actor URIs, a text search ``q``
+        over content, place name and address, and/or a ``min_rating`` floor)."""
+        where, params = _where(actor_uris, q, min_rating)
         db = await get_db()
         rows = await db.execute(
             f"""{Review.SELECT_JOINED}
@@ -155,8 +191,12 @@ class Reviews:
         limit: int = 200,
         offset: int = 0,
         actor_uris: list[str] | None = None,
+        q: str | None = None,
+        min_rating: int | None = None,
     ) -> list[Review]:
-        where, params = _actor_uri_where(actor_uris)
+        """Reviews within the given map bounds (optionally filtered by actor
+        URIs, a text search ``q`` and/or a ``min_rating`` floor)."""
+        where, params = _where(actor_uris, q, min_rating)
         db = await get_db()
         rows = await db.execute(
             f"""{Review.SELECT_JOINED}
@@ -168,9 +208,15 @@ class Reviews:
         )
         return [Review(dict(r)) for r in await rows.fetchall()]
 
-    async def count(self, actor_uris: list[str] | None = None) -> int:
-        """Return the total number of reviews (optionally for given actor URIs)."""
-        where, params = _actor_uri_where(actor_uris)
+    async def count(
+        self,
+        actor_uris: list[str] | None = None,
+        q: str | None = None,
+        min_rating: int | None = None,
+    ) -> int:
+        """Return the total number of reviews (optionally for given actor
+        URIs, a text search ``q`` and/or a ``min_rating`` floor)."""
+        where, params = _where(actor_uris, q, min_rating)
         db = await get_db()
         row = await db.execute(
             f"""SELECT COUNT(*) AS cnt FROM reviews r
@@ -187,9 +233,13 @@ class Reviews:
         min_lng: float,
         max_lng: float,
         actor_uris: list[str] | None = None,
+        q: str | None = None,
+        min_rating: int | None = None,
     ) -> int:
-        """Return the number of reviews within the given map bounds."""
-        where, params = _actor_uri_where(actor_uris)
+        """Return the number of reviews within the given map bounds
+        (optionally filtered by actor URIs, a text search ``q`` and/or a
+        ``min_rating`` floor)."""
+        where, params = _where(actor_uris, q, min_rating)
         db = await get_db()
         row = await db.execute(
             f"""SELECT COUNT(*) AS cnt FROM reviews r

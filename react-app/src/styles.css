@@ -88,6 +88,7 @@ body {
 body, .sidebar, .panel-header, .scope-toggle, .review-card, .search-dropdown,
 .search-item, .profile-page, .profile-header, .profile-section, .profile-card,
 .following-list, .following-item, .admin-user-list, .admin-user, .map-search,
+.filter-input, .filter-chip,
 .leaflet-popup-content-wrapper, .leaflet-bar a {
   transition: background-color .2s ease, border-color .2s ease, color .2s ease;
 }
@@ -292,6 +293,87 @@ button.user-chip:hover .user-name { color: var(--accent); }
   left: 12px;
   right: 12px;
 }
+
+/* ── review filter bar (text + minimum rating) ──────────────────────── */
+.review-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 12px 10px;
+}
+.filter-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.filter-input-wrap .search-icon {
+  left: 10px;
+}
+.filter-input {
+  width: 100%;
+  padding: 8px 28px 8px 32px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 0.8125rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background-color: var(--surface-elevated);
+  transition: border-color .2s, box-shadow .2s, background-color .2s;
+}
+.filter-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+  background-color: var(--surface);
+}
+.filter-input::placeholder { color: var(--placeholder); }
+.filter-clear {
+  position: absolute;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.filter-clear:hover {
+  color: var(--text-primary);
+  background: var(--border);
+}
+.filter-ratings {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.filter-chip:hover { color: var(--text-primary); }
+.filter-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.filter-chip .chip-star { fill: currentColor; }
 
 /* ── review list ────────────────────────────────────────────────────── */
 .review-list {
@@ -1023,9 +1105,6 @@ button.user-chip:hover .user-name { color: var(--accent); }
   background: var(--surface-elevated);
   border-color: var(--border-strong);
 }
-
-.btn-soft { background: var(--accent-soft); color: var(--accent); }
-.btn-soft:hover:not(:disabled) { background: var(--accent-soft-strong); }
 
 .btn-ghost { background: transparent; color: var(--text-secondary); }
 .btn-ghost:hover:not(:disabled) {

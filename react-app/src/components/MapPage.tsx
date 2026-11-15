@@ -17,6 +17,7 @@ import { reviewsAtPlace } from "../places";
 import LogoutButton from "./LogoutButton";
 import MapView from "./MapView";
 import PlacePanel from "./PlacePanel";
+import ReviewFilter from "./ReviewFilter";
 import ReviewForm from "./ReviewForm";
 import ReviewList from "./ReviewList";
 import SearchBox from "./SearchBox";
@@ -51,6 +52,12 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
   const [loading, setLoading] = useState(true);
   /** "all" = everything in bounds; "following" = own + followed; "local" = this server. */
   const [scope, setScope] = useState<ReviewScope>("all");
+  /** Text of the sidebar filter input; `appliedFilter` is its debounced value
+   *  that actually drives the query. */
+  const [filterText, setFilterText] = useState("");
+  const [appliedFilter, setAppliedFilter] = useState("");
+  /** Minimum rating filter (stars), null = any. */
+  const [minRating, setMinRating] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   /**
@@ -156,17 +163,28 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
       }
       : undefined;
 
+  // Debounce the filter text so we don't refetch on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setAppliedFilter(filterText), 300);
+    return () => clearTimeout(t);
+  }, [filterText]);
+
   const loadReviews = useCallback(
     async (bounds: LatLngBounds) => {
       lastBounds.current = bounds;
       // Cancel any in-flight load — only the response for the latest
-      // bounds/scope may update the map.
+      // bounds/scope/filter may update the map.
       reviewsAbort.current?.abort();
       const ctrl = new AbortController();
       reviewsAbort.current = ctrl;
       setLoading(true);
       try {
-        setReviews(await fetchReviews(bounds, ctrl.signal, scope));
+        setReviews(
+          await fetchReviews(bounds, ctrl.signal, scope, {
+            q: appliedFilter.trim() || undefined,
+            minRating,
+          }),
+        );
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
         if (err instanceof ApiError && err.status === 401) {
@@ -179,10 +197,10 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         if (reviewsAbort.current === ctrl) setLoading(false);
       }
     },
-    [scope],
+    [scope, appliedFilter, minRating],
   );
 
-  /** Refetch at the current bounds when the scope changes. */
+  /** Refetch at the current bounds when the scope or filters change. */
   useEffect(() => {
     if (lastBounds.current) void loadReviews(lastBounds.current);
   }, [loadReviews]);
@@ -688,6 +706,13 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
 
             <ScopeToggle scope={scope} onChange={setScope} loggedIn={!!user} />
 
+            <ReviewFilter
+              text={filterText}
+              onTextChange={setFilterText}
+              minRating={minRating}
+              onMinRatingChange={setMinRating}
+            />
+
             {listError && <div className="form-error list-error">{listError}</div>}
 
             <ReviewList
@@ -697,11 +722,13 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
               onDeleteReview={handleDeleteReview}
               loading={loading}
               emptyMessage={
-                scope === "following"
-                  ? "No reviews from you or people you follow in this area."
-                  : scope === "local"
-                    ? "No local reviews in this area."
-                    : undefined
+                appliedFilter.trim() || minRating != null
+                  ? "No reviews match your filters in this area."
+                  : scope === "following"
+                    ? "No reviews from you or people you follow in this area."
+                    : scope === "local"
+                      ? "No local reviews in this area."
+                      : undefined
               }
             />
           </>

@@ -11,7 +11,9 @@ interface NominatimSearchProps {
 }
 
 /**
- * Debounced Nominatim place search with a dropdown.
+ * Debounced Nominatim place search with a dropdown. The top search box is for
+ * jumping to a place (anywhere on earth); narrowing the reviews in the
+ * visible area by text/rating lives in the sidebar filter bar (ReviewFilter).
  * The 350 ms debounce respects Nominatim's usage policy.
  */
 export default function NominatimSearch({
@@ -25,6 +27,8 @@ export default function NominatimSearch({
   /** Index of the keyboard-highlighted item, -1 = none. */
   const [active, setActive] = useState(-1);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Sequence number — drops responses that arrive after a newer keystroke. */
+  const reqId = useRef(0);
   const wrapper = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
 
@@ -57,20 +61,19 @@ export default function NominatimSearch({
     if (timer.current) clearTimeout(timer.current);
     const query = v.trim();
     if (query.length < 3) {
+      reqId.current++; // invalidate any in-flight search
       setResults([]);
       setOpen(false);
       setActive(-1);
       return;
     }
     timer.current = setTimeout(async () => {
-      try {
-        const found = await searchPlaces(query);
-        setResults(found);
-        setOpen(found.length > 0);
-        setActive(found.length > 0 ? 0 : -1);
-      } catch (err) {
-        console.error("Nominatim search failed", err);
-      }
+      const id = ++reqId.current;
+      const found = await searchPlaces(query).catch(() => [] as NominatimResult[]);
+      if (id !== reqId.current) return; // a newer keystroke superseded this one
+      setResults(found);
+      setOpen(found.length > 0);
+      setActive(found.length > 0 ? 0 : -1);
     }, 350);
   };
 

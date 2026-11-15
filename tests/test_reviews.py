@@ -203,6 +203,142 @@ class TestReviewsManager(AsyncTestCase):
         assert len(await reviews.all(actor_uris=[bob["actor_uri"]])) == 1
 
 
+class TestReviewsSearch(AsyncTestCase):
+    """Reviews manager text search (``q``) — matches content, place name and
+    place address, case-insensitively, and combines with bounds/actor URIs."""
+
+    async def _make(
+        self,
+        actor: dict,
+        ap_id: str,
+        content: str,
+        place_name: str = "",
+        place_address: str = "",
+        lat: float = 37.0,
+    ) -> None:
+        await reviews.create(
+            actor_id=actor["id"],
+            ap_id=ap_id,
+            content=content,
+            rating=4,
+            latitude=lat,
+            longitude=-122.0,
+            place_name=place_name,
+            place_address=place_address,
+        )
+
+    async def test_search_matches_content_case_insensitive(self):
+        actor = await _make_actor()
+        await self._make(actor, "http://t/actor/a/review/1", "Great COFFEE and staff")
+        await self._make(actor, "http://t/actor/a/review/2", "Loud music", lat=38.0)
+        found = await reviews.all(q="coffee")
+        assert [r["content"] for r in found] == ["Great COFFEE and staff"]
+        assert await reviews.count(q="Coffee") == 1
+
+    async def test_search_matches_place_name_and_address(self):
+        actor = await _make_actor()
+        await self._make(
+            actor, "http://t/actor/a/review/1", "Nice", place_name="Blue Bottle Coffee"
+        )
+        await self._make(
+            actor,
+            "http://t/actor/a/review/2",
+            "OK",
+            place_address="12 Rue du Café, Lausanne",
+            lat=38.0,
+        )
+        await self._make(actor, "http://t/actor/a/review/3", "Meh", lat=39.0)
+        # Place name match, case-insensitive (ASCII).
+        found = await reviews.all(q="coffee")
+        assert [r["place_name"] for r in found] == ["Blue Bottle Coffee"]
+        # Address match.
+        found = await reviews.all(q="Café")
+        assert [r["place_address"] for r in found] == ["12 Rue du Café, Lausanne"]
+
+    async def test_search_no_match_returns_empty(self):
+        actor = await _make_actor()
+        await self._make(actor, "http://t/actor/a/review/1", "abc")
+        assert await reviews.all(q="zzz") == []
+        assert await reviews.count(q="zzz") == 0
+
+    async def test_search_escapes_like_wildcards(self):
+        """q="%" / "_" must not match everything; a literal % is findable."""
+        actor = await _make_actor()
+        await self._make(actor, "http://t/actor/a/review/1", "plain text")
+        await self._make(actor, "http://t/actor/a/review/2", "100% good", lat=38.0)
+        assert await reviews.count(q="%") == 1  # only the literal "100% good"
+        assert await reviews.count(q="_") == 0
+        assert await reviews.count(q="100%") == 1
+        assert await reviews.count(q="100\\%") == 0  # backslash itself is literal
+
+    async def test_search_combined_with_bounds(self):
+        actor = await _make_actor()
+        await self._make(actor, "http://t/actor/a/review/1", "coffee in SF", lat=37.0)
+        await self._make(actor, "http://t/actor/a/review/2", "coffee in NYC", lat=40.7)
+        found = await reviews.by_bounds(37.0, 38.0, -123.0, -121.0, q="coffee")
+        assert [r["content"] for r in found] == ["coffee in SF"]
+        assert (
+            await reviews.count_by_bounds(37.0, 38.0, -123.0, -121.0, q="coffee") == 1
+        )
+        assert await reviews.count_by_bounds(37.0, 41.0, -123.0, -70.0, q="coffee") == 2
+
+    async def test_search_combined_with_actor_uris(self):
+        alice = await _make_actor("alice")
+        bob = await _make_actor("bob")
+        await self._make(alice, "http://t/actor/alice/review/1", "coffee by alice")
+        await self._make(bob, "http://t/actor/bob/review/1", "coffee by bob")
+        found = await reviews.all(q="coffee", actor_uris=[alice["actor_uri"]])
+        assert [r["content"] for r in found] == ["coffee by alice"]
+        assert await reviews.count(q="coffee", actor_uris=[]) == 0
+
+
+class TestReviewsMinRating(AsyncTestCase):
+    """Reviews manager ``min_rating`` filter — keeps reviews with at least
+    that many stars; combines with q, bounds and actor URIs."""
+
+    async def _make(
+        self, actor: dict, ap_id: str, content: str, rating: int, lat: float = 37.0
+    ):
+        await reviews.create(
+            actor_id=actor["id"],
+            ap_id=ap_id,
+            content=content,
+            rating=rating,
+            latitude=lat,
+            longitude=-122.0,
+        )
+
+    async def test_min_rating_filters(self):
+        actor = await _make_actor()
+        for i, rating in enumerate((1, 2, 3, 4, 5)):
+            await self._make(
+                actor, f"http://t/actor/a/review/{i}", f"r{rating}", rating
+            )
+        found = await reviews.all(min_rating=4)
+        assert sorted(r["rating"] for r in found) == [4, 5]
+        assert await reviews.count(min_rating=5) == 1
+        assert await reviews.count(min_rating=1) == 5
+        assert await reviews.count() == 5  # no filter = everything
+
+    async def test_min_rating_combined_with_q(self):
+        actor = await _make_actor()
+        await self._make(actor, "http://t/a/1", "coffee great", 5)
+        await self._make(actor, "http://t/a/2", "coffee bad", 2, lat=38.0)
+        found = await reviews.all(q="coffee", min_rating=4)
+        assert [r["content"] for r in found] == ["coffee great"]
+
+    async def test_min_rating_combined_with_bounds(self):
+        actor = await _make_actor()
+        await self._make(actor, "http://t/a/1", "a", 5, lat=37.0)
+        await self._make(actor, "http://t/a/2", "b", 5, lat=40.7)
+        await self._make(actor, "http://t/a/3", "c", 1, lat=37.5)
+        found = await reviews.by_bounds(37.0, 38.0, -123.0, -121.0, min_rating=4)
+        assert [r["content"] for r in found] == ["a"]
+        assert (
+            await reviews.count_by_bounds(37.0, 38.0, -123.0, -121.0, min_rating=4) == 1
+        )
+
+
 class TestReviewEntity(AsyncTestCase):
     """Review.save() / Review.delete() — the entity's own DB behavior."""
 
