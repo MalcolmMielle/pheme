@@ -116,7 +116,10 @@ class Places:
     )
 
     def __init__(
-        self, decimals: int, base_url: str = "", reviewable_tags: str | None = None
+        self,
+        decimals: int,
+        base_url: str = "",
+        reviewable_tags: str | None = None,
     ) -> None:
         if not 1 <= decimals <= Place.MAX_DECIMALS:
             raise ValueError(
@@ -142,7 +145,18 @@ class Places:
     async def at(self, lat: float, lng: float) -> Place:
         """The Place object for a coordinate pair (e.g. a clicked spot on the
         map), loaded with its reviews from the DB. The manager passes its
-        configured bucket precision straight into the Place."""
+        configured bucket precision straight into the Place.
+
+        The coordinates are first snapped to the nearest reviewable place —
+        the OSM candidate within the search radius — so the same POI always
+        lands in the same bucket no matter which coordinates the client sent:
+        search-result coordinates, a raw map click, or the candidate's own
+        can differ by a few meters and otherwise cross a bucket boundary
+        (two "places", two reviews for one restaurant). OSM lookup failures
+        fall back to the raw coordinates."""
+        top = await self.nearest_poi(lat, lng)
+        if top is not None:
+            lat, lng = top["lat"], top["lon"]
         p = Place(self.decimals, lat, lng)
         p.reviews = await p.reviews_at()
         return p

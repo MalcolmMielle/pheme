@@ -6,6 +6,7 @@ Shared test helpers — the stdlib-unittest replacement for the old pytest
 import asyncio
 import os
 import unittest
+from unittest.mock import AsyncMock, patch
 
 import httpx
 from httpx import ASGITransport, AsyncClient
@@ -54,6 +55,18 @@ class AsyncTestCase(unittest.IsolatedAsyncioTestCase):
         config.database_path = os.environ["DATABASE_PATH"]
         config.secret_key = os.environ["SECRET_KEY"]
         config.registration_mode = "open"
+
+        # places.at() snaps review coordinates to the nearest reviewable OSM
+        # place — that queries the OSM API, so keep route tests hermetic by
+        # stubbing the lookup to "no candidate" (raw coordinates) for the
+        # duration of each test.
+        from app.places.places import places as places_singleton
+
+        stub_no_poi = patch.object(
+            places_singleton, "nearest_poi", new=AsyncMock(return_value=None)
+        )
+        stub_no_poi.start()
+        self.addCleanup(stub_no_poi.stop)
 
         # Fresh database per test. httpx's ASGITransport does not run the
         # app lifespan, so tests drive init_db()/close_db() themselves —

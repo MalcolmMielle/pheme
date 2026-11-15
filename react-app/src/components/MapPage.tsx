@@ -269,14 +269,25 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         if (cancelled || !result) return;
         const displayName = result.display_name;
         const name = displayName.split(",")[0];
+        const top = result.candidates?.[0];
         if (target === "draft") {
-          setDraft((d) =>
-            d && !d.locked && d.lat === lat && d.lng === lng
-              ? { ...d, placeName: name, placeAddress: displayName }
-              : d,
-          );
+          setDraft((d) => {
+            if (!d || d.locked || d.lat !== lat || d.lng !== lng) return d;
+            // Snap the placement pin to the nearest reviewable place too, so
+            // a review started from a map click lands in the same bucket as
+            // the place panel / search pick of that POI.
+            if (top) {
+              return {
+                ...d,
+                lat: top.lat,
+                lng: top.lon,
+                placeName: top.name,
+                placeAddress: displayName,
+              };
+            }
+            return { ...d, placeName: name, placeAddress: displayName };
+          });
         } else {
-          const top = result.candidates?.[0];
           setPoiCandidates(result.candidates ?? []);
           setPoiBaseAddress(result.address ?? displayName);
           setSelectedPlace((p) => {
@@ -291,7 +302,9 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
                 lat: top.lat,
                 lng: top.lon,
                 name: top.name,
-                address: result.address ?? displayName,
+                // Label-included display ("Indian Zayeka, Life School
+                // Lausanne, 8, …") — same format as a search pick's address.
+                address: displayName,
               };
             }
             return { ...p, name, address: displayName };
@@ -335,6 +348,11 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
       });
       setPoiCandidates([]);
       setPoiBaseAddress("");
+      // Reverse-geocode the search pick too, so it snaps to the same
+      // reviewable candidate a map click at that spot would pick — the same
+      // POI then always lands in the same place bucket (no duplicate
+      // reviews whether you arrive by search or by click).
+      setPendingGeocode({ lat, lng, target: "place" });
       setFocus(makeFocus(lat, lng, 16));
     },
     [makeFocus],
@@ -356,7 +374,7 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
               lat: c.lat,
               lng: c.lon,
               name: c.name,
-              address: poiBaseAddress,
+              address: `${c.name}, ${poiBaseAddress}`,
             }
           : p,
       );
@@ -521,18 +539,35 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
     [user, editingReview, loadReviews],
   );
 
-  // The map marker: at the hovered candidate while the pointer is over the
-  // candidate list (identity check so a stale hover from a previous list
-  // falls back to the selected place), otherwise at the selected place.
-  const mapMarker: SearchMarker | null =
+  // The candidate under the pointer in the list, if it is still in the
+  // current list (identity check — a stale hover from a previous list falls
+  // back to the selected place).
+  const hovered =
     hoveredCandidate && poiCandidates.some((c) => c === hoveredCandidate)
+      ? hoveredCandidate
+      : null;
+  // The map marker: at the hovered candidate while the pointer is over the
+  // candidate list, otherwise at the selected place.
+  const mapMarker: SearchMarker | null = hovered
+    ? {
+        lat: hovered.lat,
+        lng: hovered.lon,
+        name: hovered.name,
+        address: poiBaseAddress || selectedPlace?.address || "",
+      }
+    : selectedPlace;
+  // The panel follows the hover too, so scrolling the candidate list updates
+  // the name/address (and the marker) row by row; click a row to select it.
+  const panelPlace: PlaceSelection | null = selectedPlace
+    ? hovered
       ? {
-          lat: hoveredCandidate.lat,
-          lng: hoveredCandidate.lon,
-          name: hoveredCandidate.name,
-          address: poiBaseAddress || selectedPlace?.address || "",
+          lat: hovered.lat,
+          lng: hovered.lon,
+          name: hovered.name,
+          address: `${hovered.name}, ${poiBaseAddress || selectedPlace.address}`,
         }
-      : selectedPlace;
+      : selectedPlace
+    : null;
 
   return (
     <div className="app">
@@ -564,14 +599,10 @@ export default function MapPage({ user, userLoaded, onOpenProfile }: MapPageProp
         >
           <span className="sheet-handle-bar" />
         </button>
-        {selectedPlace ? (
+        {panelPlace ? (
           <PlacePanel
-            place={selectedPlace}
-            reviews={reviewsAtPlace(
-              reviews,
-              selectedPlace.lat,
-              selectedPlace.lng,
-            )}
+            place={panelPlace}
+            reviews={reviewsAtPlace(reviews, panelPlace.lat, panelPlace.lng)}
             candidates={poiCandidates}
             onSelectCandidate={onSelectCandidate}
             onHoverCandidate={setHoveredCandidate}

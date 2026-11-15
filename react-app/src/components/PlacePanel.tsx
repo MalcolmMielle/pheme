@@ -73,7 +73,17 @@ export default function PlacePanel({
       <div className="place-panel-body">
         <p className="address">{place.address}</p>
         {candidates && candidates.length > 1 && onSelectCandidate && (
-          <div className="poi-candidates">
+          <div
+            className="poi-candidates"
+            // Reset the hover only when the pointer leaves the whole list —
+            // moving between rows (or across the gaps) keeps the last row.
+            onMouseLeave={() => onHoverCandidate?.(null)}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                onHoverCandidate?.(null);
+              }
+            }}
+          >
             <p className="poi-candidates-label">Several places here — pick one:</p>
             {candidates.map((c) => (
               <button
@@ -84,9 +94,7 @@ export default function PlacePanel({
                 }`}
                 onClick={() => onSelectCandidate(c)}
                 onMouseEnter={() => onHoverCandidate?.(c)}
-                onMouseLeave={() => onHoverCandidate?.(null)}
                 onFocus={() => onHoverCandidate?.(c)}
-                onBlur={() => onHoverCandidate?.(null)}
               >
                 <span className="poi-candidate-name">{c.name}</span>
                 <small>{Math.round(c.distance_m)} m</small>

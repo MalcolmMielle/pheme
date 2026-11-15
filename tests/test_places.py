@@ -1087,6 +1087,43 @@ class TestPlaceObject(AsyncTestCase):
         assert p.name == "" and p.address == "" and p.avg_rating is None
         assert p.review_by(999) is None
 
+    async def test_at_snaps_to_nearest_reviewable_place(self):
+        """at() lands on the nearest OSM candidate's coordinates: search-result
+        coordinates and a raw map click near the same POI then share one
+        bucket (one place, no duplicate reviews). When the OSM lookup fails,
+        it falls back to the raw coordinates."""
+        xml = (
+            "<osm>"
+            '<node id="1" lat="37.00008" lon="-122.00006">'
+            '<tag k="amenity" v="restaurant"/>'
+            '<tag k="name" v="Indian Zayeka"/></node>'
+            "</osm>"
+        )
+
+        async def get_impl(url, params):
+            return _FakeResp(200, text=xml)
+
+        async def failing_impl(url, params):
+            raise httpx.RequestError("boom")
+
+        manager = Places(decimals=4, base_url="http://testserver")
+        with patch("app.places.places.httpx.AsyncClient", _fake_client_get(get_impl)):
+            p = await manager.at(37.0, -122.0)
+        # Snapped to the restaurant node (~10 m away), not the raw click —
+        # a different bucket than the raw coordinates would give.
+        assert (p.lat, p.lng) == (37.00008, -122.00006)
+        assert p.key == "37.0001,-122.0001"
+
+        # OSM API down: fall back to the raw coordinates (fresh manager — the
+        # first one's bbox cache still holds the candidate).
+        down = Places(decimals=4, base_url="http://testserver")
+        with patch(
+            "app.places.places.httpx.AsyncClient", _fake_client_get(failing_impl)
+        ):
+            p2 = await down.at(37.0, -122.0)
+        assert (p2.lat, p2.lng) == (37.0, -122.0)
+        assert p2.key == "37.0000,-122.0000"
+
     async def test_at_same_bucket_compares_equal(self):
         """Place.__eq__ on loaded objects: two clicks in the same bucket are
         the same place."""
