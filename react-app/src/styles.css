@@ -237,13 +237,12 @@ body, .sidebar, .panel-header, .scope-toggle, .review-card, .search-dropdown,
 .account-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
 .account-btn .avatar { width: 30px; height: 30px; font-size: 0.875rem; }
 
-/* ── forge link (top-right of the map, under the account button) ────────
-   Icon-only pill that expands to reveal the label on hover/focus. With no
-   logged-in user there is no account button above it, so .forge-btn-solo
-   pins it to the corner. */
-.forge-btn {
+/* ── map pills (top-right of the map, stacked under the account button) ──
+   Icon-only pills (Forgejo = contribute, PyPI = deploy) that expand to
+   reveal the label on hover/focus. With no logged-in user there is no
+   account button above them, so the -solo variants start at the corner. */
+.map-pill {
   position: absolute;
-  top: 54px;
   right: 10px;
   z-index: 1000;
   display: inline-flex;
@@ -259,10 +258,10 @@ body, .sidebar, .panel-header, .scope-toggle, .review-card, .search-dropdown,
   cursor: pointer;
   transition: background .15s;
 }
-.forge-btn:hover { background: var(--surface-elevated); }
-.forge-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
-.forge-btn svg { flex: none; }
-.forge-btn .forge-label {
+.map-pill:hover { background: var(--surface-elevated); }
+.map-pill:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.map-pill svg { flex: none; }
+.map-pill .pill-label {
   display: inline-block;
   max-width: 0;
   opacity: 0;
@@ -272,13 +271,18 @@ body, .sidebar, .panel-header, .scope-toggle, .review-card, .search-dropdown,
   font-weight: 600;
   transition: max-width .25s ease, opacity .2s ease, margin-left .25s ease;
 }
-.forge-btn:hover .forge-label,
-.forge-btn:focus-visible .forge-label {
+.map-pill:hover .pill-label,
+.map-pill:focus-visible .pill-label {
   max-width: 220px;
   opacity: 1;
   margin-left: 7px;
 }
+/* 36 px rows with 8 px gaps: contribute directly under the account button,
+   deploy below it; solo = logged out, shifted up by one row */
+.forge-btn { top: 54px; }
+.deploy-btn { top: 98px; }
 .forge-btn-solo { top: 10px; }
+.deploy-btn-solo { top: 54px; }
 .avatar {
   flex: none;
   width: 28px;
@@ -1497,9 +1501,9 @@ body, .sidebar, .panel-header, .scope-toggle, .review-card, .search-dropdown,
 
   /* zoom in/out (left) and the account button (right) sit on a row below
      the floating search bar instead of overlapping it: the bar's bottom
-     edge is ~55 px + safe-area, so the row starts at 68 px. The forge link
-     and the locate button stack under the account button — the bottom of
-     the screen is the sheet, not the map corner. */
+     edge is ~55 px + safe-area, so the row starts at 68 px. The contribute /
+     deploy pills and the locate button stack under the account button —
+     the bottom of the screen is the sheet, not the map corner. */
   .leaflet-top.leaflet-left {
     top: calc(68px + env(safe-area-inset-top));
   }
@@ -1511,20 +1515,18 @@ body, .sidebar, .panel-header, .scope-toggle, .review-card, .search-dropdown,
     height: 44px;
   }
   .account-btn .avatar { width: 36px; height: 36px; }
-  /* stacked under the account button (68 px + 44 px + 8 px gap); the
-     locate button moves one row further down; solo = logged out, pinned
-     to the corner row */
-  .forge-btn {
-    top: calc(120px + env(safe-area-inset-top));
+  /* the pills stack under the account button in 44 px rows with 8 px gaps;
+     the locate button moves below both pills; solo = logged out, shifted up */
+  .map-pill {
     right: 12px;
     height: 44px;
   }
-  .forge-btn-solo {
-    top: calc(68px + env(safe-area-inset-top));
-    right: 12px;
-  }
+  .forge-btn { top: calc(120px + env(safe-area-inset-top)); }
+  .deploy-btn { top: calc(172px + env(safe-area-inset-top)); }
+  .forge-btn-solo { top: calc(68px + env(safe-area-inset-top)); }
+  .deploy-btn-solo { top: calc(120px + env(safe-area-inset-top)); }
   .locate-btn {
-    top: calc(172px + env(safe-area-inset-top));
+    top: calc(224px + env(safe-area-inset-top));
     bottom: auto;
     right: 12px;
   }

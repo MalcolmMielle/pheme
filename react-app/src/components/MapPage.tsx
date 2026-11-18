@@ -142,13 +142,13 @@ export default function MapPage({
   /**
    * Padding for map focus: desktop keeps the point clear of the sidebar;
    * mobile keeps it clear of the floating search bar and the account /
-   * forge / zoom / locate rows below it (they end at ~206 px) and the
-   * bottom sheet.
+   * contribute / deploy / zoom / locate rows below it (they end at ~258 px)
+   * and the bottom sheet.
    */
   const makeFocus = useCallback(
     (lat: number, lng: number, zoom: number): FocusTarget =>
       isMobile
-        ? { lat, lng, zoom, padLeft: 30, padTop: 216, padRight: 30, padBottom: 164 }
+        ? { lat, lng, zoom, padLeft: 30, padTop: 268, padRight: 30, padBottom: 164 }
         : {
           lat,
           lng,
@@ -682,17 +682,17 @@ export default function MapPage({
         </button>
       )}
 
-      {/* Forge link floats on the map's top-right, under the account
-          button: an icon-only pill that reveals its label on hover/focus.
-          Without a logged-in user there is no account button, so it sits in
-          the corner itself (forge-btn-solo). */}
+      {/* Contribute / deploy pills float on the map's top-right, stacked
+          under the account button: icon-only pills that reveal their label
+          on hover/focus. Without a logged-in user there is no account
+          button, so they start at the corner (-solo variants). */}
       <a
-        className={user ? "forge-btn" : "forge-btn forge-btn-solo"}
+        className={user ? "map-pill forge-btn" : "map-pill forge-btn-solo"}
         href="https://forge.mielle.dev/MielleLabs/pheme"
         target="_blank"
         rel="noopener noreferrer"
-        title="Contribute or deploy your own instance — source on Forgejo"
-        aria-label="Contribute or deploy your own instance — source on Forgejo"
+        title="Contribute — source code on Forgejo"
+        aria-label="Contribute — source code on Forgejo"
       >
         {/* Official Forgejo logo (Simple Icons path, brand color #FB923C). */}
         <svg
@@ -704,7 +704,27 @@ export default function MapPage({
         >
           <path d="M16.7773 0c1.6018 0 2.9004 1.2986 2.9004 2.9005s-1.2986 2.9004-2.9004 2.9004c-1.0854 0-2.0315-.596-2.5288-1.4787H12.91c-2.3322 0-4.2272 1.8718-4.2649 4.195l-.0007 2.1175a7.0759 7.0759 0 0 1 4.148-1.4205l.1176-.001 1.3385.0002c.4973-.8827 1.4434-1.4788 2.5288-1.4788 1.6018 0 2.9004 1.2986 2.9004 2.9005s-1.2986 2.9004-2.9004 2.9004c-1.0854 0-2.0315-.596-2.5288-1.4787H12.91c-2.3322 0-4.2272 1.8718-4.2649 4.195l-.0007 2.319c.8827.4973 1.4788 1.4434 1.4788 2.5287 0 1.602-1.2986 2.9005-2.9005 2.9005-1.6018 0-2.9004-1.2986-2.9004-2.9005 0-1.0853.596-2.0314 1.4788-2.5287l-.0002-9.9831c0-3.887 3.1195-7.0453 6.9915-7.108l.1176-.001h1.3385C14.7458.5962 15.692 0 16.7773 0ZM7.2227 19.9052c-.6596 0-1.1943.5347-1.1943 1.1943s.5347 1.1943 1.1943 1.1943 1.1944-.5347 1.1944-1.1943-.5348-1.1943-1.1944-1.1943Zm9.5546-10.4644c-.6596 0-1.1944.5347-1.1944 1.1943s.5348 1.1943 1.1944 1.1943c.6596 0 1.1943-.5347 1.1943-1.1943s-.5347-1.1943-1.1943-1.1943Zm0-7.7346c-.6596 0-1.1944.5347-1.1944 1.1943s.5348 1.1943 1.1944 1.1943c.6596 0 1.1943-.5347 1.1943-1.1943s-.5347-1.1943-1.1943-1.1943Z" />
         </svg>
-        <span className="forge-label">Contribute or deploy your own</span>
+        <span className="pill-label">Contribute</span>
+      </a>
+      <a
+        className={user ? "map-pill deploy-btn" : "map-pill deploy-btn-solo"}
+        href="https://pypi.org/project/pheme-reviews/"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Deploy your own instance — pheme-reviews on PyPI"
+        aria-label="Deploy your own instance — pheme-reviews on PyPI"
+      >
+        {/* Official PyPI logo (Simple Icons path, brand color #3775A9). */}
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="#3775A9"
+          aria-hidden="true"
+        >
+          <path d="M23.922 13.58v3.912L20.55 18.72l-.078.055.052.037 3.45-1.256.026-.036v-3.997l-.053-.036-.025.092z M23.621 5.618l-3.04 1.107v3.912l3.339-1.215V5.509zM23.92 13.457V9.544l-3.336 1.215v3.913zM20.47 14.71V10.8L17.17 12v3.913zM17.034 19.996v-3.912l-3.313 1.206v3.912zM17.17 16.057v3.868l3.314-1.206V14.85l-3.314 1.206zm2.093 1.882c-.367.134-.663-.074-.663-.463s.296-.814.663-.947c.365-.133.662.075.662.464s-.297.814-.662.946z M13.225 9.315l.365-.132-3.285-1.197-3.323 1.21.102.037 3.184 1.16zM20.507 10.664V6.751L17.17 7.965v3.913zM17.058 11.918V8.005l-3.302 1.202v3.912zM13.643 9.246l-3.336 1.215v3.913l3.336-1.215zM6.907 13.165l3.322 1.209v-3.913L6.907 9.252z M10.34 7.873l3.281 1.193V5.198l-3.28-1.193zM20.507 2.715L17.19 3.922v3.913l3.317-1.207zM16.95 3.903L13.724 2.73l-3.269 1.19 3.225 1.174zM15.365 4.606l-1.624.592v3.868l3.317-1.207V3.991l-1.693.615zm-.391 2.778c-.367.134-.662-.074-.662-.464s.295-.813.662-.946c.366-.133.663.074.663.464s-.297.813-.663.946z M10.229 18.41v-3.914l-3.322-1.209V17.2zM13.678 17.182v-3.913l-3.371 1.227v3.913z M13.756 17.154l3.3-1.2V12.04l-3.3 1.2zM13.678 21.217l-3.371 1.227v-3.912h-.078v3.912l-3.322-1.209v-3.913l-.053-.058-.025-.06-3.336-1.21v-3.948l.034.013 3.287 1.196.015-.078-3.261-1.187 3.26-1.187v-.109L3.876 9.62l-.307-.112 3.26-1.188v.877l.079-.055V6.769l3.257 1.185.058-.061L7.084 6.75l-.102-.037 3.24-1.179v-.083L6.854 6.677v.018l-.025.018v1.523L3.44 9.47v.02l-.025.017v4.007l-3.39 1.233v.019L0 14.784v3.995l.025.037 3.4 1.237.008-.006.007.01 3.4 1.238.008-.006.006.01 3.4 1.237.014-.009.012.01 3.45-1.256.026-.037-.078-.027zM3.493 9.563l3.257 1.185-3.257 1.187V9.562zM3.4 19.96L.078 18.752v-3.913l2.361.86.96.349v3.913zm.015-3.99L.335 14.85l-.182-.066 3.262-1.187v2.374zm3.399 5.231l-3.321-1.209v-3.912l3.321 1.209v3.912zM23.791 5.434l-3.21-1.17v2.338zM20.387 2.643l-3.24-1.18-3.27 1.19 3.247 1.182z" />
+        </svg>
+        <span className="pill-label">Deploy</span>
       </a>
 
       <aside className="sidebar" data-sheet={shownSheet} style={sheetStyle}>
