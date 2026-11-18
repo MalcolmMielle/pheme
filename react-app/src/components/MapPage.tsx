@@ -142,12 +142,13 @@ export default function MapPage({
   /**
    * Padding for map focus: desktop keeps the point clear of the sidebar;
    * mobile keeps it clear of the floating search bar and the account /
-   * zoom / locate rows below it (they end at ~164 px) and the bottom sheet.
+   * forge / zoom / locate rows below it (they end at ~206 px) and the
+   * bottom sheet.
    */
   const makeFocus = useCallback(
     (lat: number, lng: number, zoom: number): FocusTarget =>
       isMobile
-        ? { lat, lng, zoom, padLeft: 30, padTop: 174, padRight: 30, padBottom: 164 }
+        ? { lat, lng, zoom, padLeft: 30, padTop: 216, padRight: 30, padBottom: 164 }
         : {
           lat,
           lng,
@@ -675,8 +676,36 @@ export default function MapPage({
           <span className="avatar" aria-hidden="true">
             {(user.display_name || user.username).charAt(0)}
           </span>
+          <span className="account-label">
+            {user.display_name || user.username}
+          </span>
         </button>
       )}
+
+      {/* Forge link floats on the map's top-right, under the account
+          button: an icon-only pill that reveals its label on hover/focus.
+          Without a logged-in user there is no account button, so it sits in
+          the corner itself (forge-btn-solo). */}
+      <a
+        className={user ? "forge-btn" : "forge-btn forge-btn-solo"}
+        href="https://forge.mielle.dev/MielleLabs/pheme"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Contribute or deploy your own instance — source on Forgejo"
+        aria-label="Contribute or deploy your own instance — source on Forgejo"
+      >
+        {/* Official Forgejo logo (Simple Icons path, brand color #FB923C). */}
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="#FB923C"
+          aria-hidden="true"
+        >
+          <path d="M16.7773 0c1.6018 0 2.9004 1.2986 2.9004 2.9005s-1.2986 2.9004-2.9004 2.9004c-1.0854 0-2.0315-.596-2.5288-1.4787H12.91c-2.3322 0-4.2272 1.8718-4.2649 4.195l-.0007 2.1175a7.0759 7.0759 0 0 1 4.148-1.4205l.1176-.001 1.3385.0002c.4973-.8827 1.4434-1.4788 2.5288-1.4788 1.6018 0 2.9004 1.2986 2.9004 2.9005s-1.2986 2.9004-2.9004 2.9004c-1.0854 0-2.0315-.596-2.5288-1.4787H12.91c-2.3322 0-4.2272 1.8718-4.2649 4.195l-.0007 2.319c.8827.4973 1.4788 1.4434 1.4788 2.5287 0 1.602-1.2986 2.9005-2.9005 2.9005-1.6018 0-2.9004-1.2986-2.9004-2.9005 0-1.0853.596-2.0314 1.4788-2.5287l-.0002-9.9831c0-3.887 3.1195-7.0453 6.9915-7.108l.1176-.001h1.3385C14.7458.5962 15.692 0 16.7773 0ZM7.2227 19.9052c-.6596 0-1.1943.5347-1.1943 1.1943s.5347 1.1943 1.1943 1.1943 1.1944-.5347 1.1944-1.1943-.5348-1.1943-1.1944-1.1943Zm9.5546-10.4644c-.6596 0-1.1944.5347-1.1944 1.1943s.5348 1.1943 1.1944 1.1943c.6596 0 1.1943-.5347 1.1943-1.1943s-.5347-1.1943-1.1943-1.1943Zm0-7.7346c-.6596 0-1.1944.5347-1.1944 1.1943s.5348 1.1943 1.1944 1.1943c.6596 0 1.1943-.5347 1.1943-1.1943s-.5347-1.1943-1.1943-1.1943Z" />
+        </svg>
+        <span className="forge-label">Contribute or deploy your own</span>
+      </a>
 
       <aside className="sidebar" data-sheet={shownSheet} style={sheetStyle}>
         <button
